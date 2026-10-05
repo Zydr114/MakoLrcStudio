@@ -283,19 +283,13 @@ kbd {
   background: rgb(var(--mdui-color-error-container));
 }
 .page-heading {
-  margin: 36px 0 30px;
-}
-.eyebrow {
-  font-size: 10px;
-  color: var(--accent);
-  font-weight: 650;
-  letter-spacing: 1.6px;
+  margin: 18px 0;
 }
 .page-heading h1 {
-  font-size: clamp(30px, 3.5vw, 48px);
+  font-size: 28px;
   font-weight: 500;
-  letter-spacing: -1.5px;
-  margin: 12px 0 14px;
+  letter-spacing: 0;
+  margin: 0;
 }
 .page-heading p {
   color: var(--muted);
@@ -313,7 +307,7 @@ kbd {
 }
 .import-grid {
   display: grid;
-  grid-template-columns: 0.8fr 1.2fr;
+  grid-template-columns: 1.5fr 0.7fr;
   gap: 24px;
 }
 .audio-drop {
@@ -321,7 +315,7 @@ kbd {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 36px 24px;
+  padding: 24px;
   border: 1px dashed rgba(var(--mdui-color-primary), 0.4);
   border-radius: 22px;
   background: var(--soft);
@@ -333,13 +327,12 @@ kbd {
 .drop-icon {
   display: grid;
   place-items: center;
-  height: 76px;
-  width: 76px;
-  border-radius: 25px;
+  height: 44px;
+  width: 44px;
+  border-radius: 14px;
   background: var(--accent-soft);
   color: var(--accent);
-  margin-bottom: 24px;
-  transform: rotate(-5deg);
+  margin-bottom: 14px;
 }
 .audio-drop h2 {
   font-size: 21px;
@@ -350,11 +343,6 @@ kbd {
   color: var(--muted);
   overflow-wrap: anywhere;
   line-height: 1.6;
-}
-.file-types {
-  font-size: 11px;
-  color: var(--muted);
-  margin: 18px 0 30px;
 }
 .small-note {
   color: var(--muted);
@@ -420,24 +408,12 @@ kbd {
 .text-link:hover:not(:disabled) {
   text-decoration: underline;
 }
-.workflow-note {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-  color: var(--muted);
-  font-size: 11px;
-  margin: 42px 0 20px;
-}
-.workflow-note i {
-  font-style: normal;
-  opacity: 0.4;
-}
 .page-heading.compact {
-  margin: 14px 0 22px;
+  margin: 14px 0;
 }
 .compact h1 {
-  font-size: 30px;
-  margin: 8px 0;
+  font-size: 28px;
+  margin: 0;
 }
 .prepare-grid {
   display: grid;
@@ -684,22 +660,6 @@ kbd {
   color: var(--accent);
   font-weight: 500;
 }
-.split-picker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  font-size: 32px;
-  gap: 4px;
-  padding: 20px 0;
-}
-.split-picker button {
-  border: 0;
-  background: var(--accent-soft);
-  color: var(--accent);
-  border-radius: 4px;
-  padding: 8px 0;
-  font-size: 28px;
-}
 .sr-only {
   position: absolute;
   height: 1px;
@@ -729,62 +689,6 @@ kbd {
   .app-main {
     padding-bottom: 14px;
   }
-  .timing-workspace {
-    padding: 14px 22px 10px;
-  }
-  .timing-layout {
-    min-height: 475px;
-  }
-  .target-area {
-    min-height: 132px;
-    padding: 4px 0;
-  }
-  .target-text {
-    font-size: 52px;
-  }
-  .target-area .full-line {
-    font-size: 18px;
-    margin: 3px 0;
-  }
-  .target-caption {
-    margin-top: 3px;
-  }
-  .record-prompt {
-    margin-top: 3px;
-  }
-  .unit-progress {
-    margin-top: 4px;
-  }
-  .unit-strip {
-    min-height: 48px;
-  }
-  .unit-strip button {
-    padding: 4px 8px;
-  }
-  .unit-tools {
-    padding: 4px 0;
-  }
-  .wave-stage {
-    height: 100px;
-  }
-  .wave-canvas {
-    height: 66px;
-  }
-  .time-marker {
-    height: 76px;
-  }
-  .wave-toolbar {
-    height: 22px;
-  }
-  .precision-row {
-    padding: 8px 0;
-  }
-  .workspace-actions {
-    padding-top: 8px;
-  }
-  .keyboard-strip {
-    margin-top: 6px;
-  }
   .notice {
     margin-bottom: 6px;
     padding: 4px 12px;
@@ -797,9 +701,6 @@ kbd {
   }
   .lyrics-import textarea {
     min-height: 180px;
-  }
-  .workflow-note {
-    margin-top: 22px;
   }
 }
 @media (max-width: 1100px) {
@@ -817,17 +718,6 @@ kbd {
   }
   .audio-name {
     max-width: 110px;
-  }
-  .timing-layout {
-    grid-template-columns: 190px minmax(0, 1fr);
-    gap: 14px;
-  }
-  .timing-workspace {
-    padding-left: 18px;
-    padding-right: 18px;
-  }
-  .unit-tools .small-note {
-    display: none;
   }
   .prepare-grid {
     grid-template-columns: minmax(0, 1fr) 250px;
@@ -847,33 +737,6 @@ kbd {
   .step-line {
     width: 30px;
   }
-  .timing-layout {
-    grid-template-columns: 1fr;
-    min-height: 620px;
-    position: relative;
-  }
-  .lyric-nav {
-    display: none;
-  }
-  .lyric-nav.open {
-    display: flex;
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 260px;
-    z-index: 8;
-    box-shadow: 0 10px 30px #0002;
-  }
-  .drawer-toggle {
-    display: inline-flex;
-  }
-  .timing-workspace {
-    padding: 18px;
-  }
-  .target-area {
-    min-height: 170px;
-  }
   .prepare-grid {
     grid-template-columns: 1fr;
   }
@@ -886,9 +749,6 @@ kbd {
   }
   .import-grid {
     gap: 14px;
-  }
-  .wave-caption > span:last-child {
-    display: none;
   }
 }
 @media (max-width: 640px) {
@@ -953,13 +813,6 @@ kbd {
     margin-bottom: 16px;
     border-radius: 18px;
   }
-  .file-types {
-    margin: 12px 0;
-  }
-  .workflow-note {
-    gap: 8px;
-    font-size: 9px;
-  }
   .audio-bar {
     padding: 0 12px;
     gap: 10px;
@@ -986,38 +839,6 @@ kbd {
   .step-footer {
     flex-direction: column;
     align-items: stretch;
-  }
-  .workspace-heading h1 {
-    font-size: 16px;
-  }
-  .unit-tools > div {
-    gap: 12px;
-  }
-  .wave-toolbar > span {
-    font-size: 9px;
-  }
-  .wave-toolbar label {
-    display: none;
-  }
-  .workspace-actions {
-    flex-wrap: wrap;
-  }
-  .keyboard-strip {
-    gap: 8px;
-    font-size: 8px;
-  }
-  .precision-row {
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .time-input {
-    gap: 6px;
-  }
-  .time-input input {
-    width: 108px;
-  }
-  .full-line {
-    font-size: 20px;
   }
   .modal {
     padding: 20px;

@@ -25,6 +25,7 @@ export function tokenIntervals(
         ? line.endMs
         : line.units[index + 1].startMs;
     const conflict =
+      (index === 0 && line.startMs !== null && start !== line.startMs) ||
       start < (line.startMs ?? 0) ||
       start <= previous ||
       start >= limitMs ||

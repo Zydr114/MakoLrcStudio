@@ -99,6 +99,13 @@ export function validate(project: ProjectDraft, full = true): Issue[] {
       add("收尾需要晚于句首，且不超过下一句起点");
     if (!full) continue;
     if (!line.units.length) add("尚未切分和制作逐字时间", undefined, "missing");
+    const first = line.units[0];
+    if (
+      first?.startMs != null &&
+      line.startMs !== null &&
+      first.startMs !== line.startMs
+    )
+      add("首个单位起点需与句首一致", first.id);
     let previous = (line.startMs ?? 0) - 1;
     for (const unit of line.units) {
       if (unit.startMs === null)

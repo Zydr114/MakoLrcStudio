@@ -67,20 +67,6 @@ function next() {
       <h1>导入歌词</h1>
     </div>
     <div class="import-grid">
-      <button
-        class="audio-drop"
-        @click="emit('audio')"
-        :disabled="editor.loading"
-      >
-        <span class="drop-icon"
-          ><Icon :name="editor.asset ? 'check' : 'music'" :size="34"
-        /></span>
-        <h2>{{ editor.asset ? "音频已准备" : "选择音频（可稍后）" }}</h2>
-        <p>{{ editor.project.audio?.name || "点击选择，或把音频拖到这里" }}</p>
-        <span class="file-types">{{
-          editor.loading ? "正在解码音频…" : "MP3 · WAV · 浏览器支持的音频"
-        }}</span>
-      </button>
       <div class="lyrics-import surface">
         <div class="section-title">
           <h2>歌词文本</h2>
@@ -123,6 +109,18 @@ function next() {
           >
         </div>
       </div>
+      <button
+        class="audio-drop"
+        @click="emit('audio')"
+        :disabled="editor.loading"
+      >
+        <span class="drop-icon"
+          ><Icon :name="editor.asset ? 'check' : 'music'" :size="24"
+        /></span>
+        <h2>{{ editor.asset ? "音频已准备" : "选择音频（可稍后）" }}</h2>
+        <p>{{ editor.project.audio?.name || "点击选择或拖入音频" }}</p>
+        <span v-if="editor.loading" class="small-note">正在解码音频…</span>
+      </button>
     </div>
     <div class="import-footer">
       <button class="text-link" @click="emit('backup')">恢复编辑进度</button

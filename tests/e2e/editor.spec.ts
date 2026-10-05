@@ -14,10 +14,10 @@ async function wordStage(
 ) {
   await importProject(page, text);
   await page.getByRole("button", { name: "确认文本，开始逐行打轴" }).click();
-  await page.getByRole("button", { name: "逐行完成，进入逐字" }).click();
-  await expect(page.locator(".target-text")).toHaveText(
-    text.includes("<") ? "完成" : "今",
-  );
+  await page.getByRole("button", { name: "进入逐字", exact: true }).click();
+  if (text.includes("<"))
+    await expect(page.locator(".state-label")).toHaveText("本行完成");
+  else await expect(page.locator(".target-text")).toHaveText("今");
 }
 
 test("complete workflow: clean text, record lines, undo, precise words, independent export and recovery", async ({
@@ -39,7 +39,7 @@ test("complete workflow: clean text, record lines, undo, precise words, independ
   await page.locator(".lyric-nav-list button").nth(1).click();
   await page.getByLabel("本句起点").fill("00:06.000");
   await page.getByLabel("本句起点").press("Enter");
-  await page.getByRole("button", { name: "逐行完成，进入逐字" }).click();
+  await page.getByRole("button", { name: "进入逐字", exact: true }).click();
   await page.locator(".lyric-nav-list button").first().click();
   for (const [index, time] of [
     "00:01.000",
@@ -52,7 +52,7 @@ test("complete workflow: clean text, record lines, undo, precise words, independ
   }
   await page.getByLabel("本句收尾").fill("00:03.000");
   await page.getByLabel("本句收尾").press("Enter");
-  await expect(page.locator(".target-text")).toHaveText("完成");
+  await expect(page.locator(".state-label")).toHaveText("本行完成");
   // The record buttons remain above the audio bar at a small desktop viewport.
   const button = await page
       .getByRole("button", { name: "下一句", exact: true })
@@ -82,15 +82,13 @@ test("complete workflow: clean text, record lines, undo, precise words, independ
   ).toHaveLength(2);
   await expect(page.locator(".save-status")).toHaveText("草稿已保存在本机");
   await page.reload();
-  await expect(
-    page.getByText("草稿已恢复，重新选择原音频即可继续。"),
-  ).toBeVisible();
+  await expect(page.getByText("重新选择原音频", { exact: true })).toBeVisible();
   await page
     .locator('input[type=file][accept^="audio"]')
     .setInputFiles({ ...audio, name: "wrong.wav", buffer: wav(10) });
   await expect(page.getByRole("alert")).toContainText("与草稿不一致");
   await page.locator('input[type=file][accept^="audio"]').setInputFiles(audio);
-  await expect(page.locator(".target-text")).toHaveText("完成");
+  await expect(page.locator(".state-label")).toHaveText("本行完成");
   expect(errors).toEqual([]);
 });
 
@@ -134,7 +132,7 @@ test("dragging shared boundaries, marker keys, invalid fields, Japanese grouping
     "[00:01]<00:01>今<00:02>日<00:03>も<00:04>\n[00:06]next",
   );
   await page.locator(".lyric-nav-list button").first().click();
-  await expect(page.locator(".target-text")).toHaveText("完成");
+  await expect(page.locator(".state-label")).toHaveText("本行完成");
   const marker = page.getByRole("slider", { name: "日时间边界" });
   const before = Number(await marker.getAttribute("aria-valuenow"));
   const box = await marker.boundingBox();
@@ -155,20 +153,24 @@ test("dragging shared boundaries, marker keys, invalid fields, Japanese grouping
     "aria-invalid",
     "true",
   );
-  await page.locator(".unit-strip button").first().click();
-  await page
-    .locator(".unit-strip button")
-    .nth(1)
-    .click({ modifiers: ["Shift"] });
-  await page.getByRole("button", { name: "合并", exact: true }).click();
+  await page.getByRole("button", { name: "调整切分", exact: true }).click();
+  await page.getByRole("slider", { name: "文字分隔线 1", exact: true }).focus();
+  await page.keyboard.press("Delete");
+  await page.getByRole("button", { name: "应用切分", exact: true }).click();
   await expect(page.locator(".unit-strip button")).toHaveCount(2);
-  await page.getByRole("button", { name: "拆分", exact: true }).click();
-  await page.getByRole("button", { name: "在第 1 个字符后拆分" }).click();
+  await page.getByRole("button", { name: "调整切分", exact: true }).click();
+  await page
+    .getByRole("button", { name: "在第 1 个字符后切分", exact: true })
+    .click();
+  await page.getByRole("button", { name: "应用切分", exact: true }).click();
   await expect(page.locator(".unit-strip button")).toHaveCount(3);
   await expect(page.locator(".target-text")).toHaveText("日");
   await page.getByRole("button", { name: "从选中单位重打" }).click();
   await expect(page.locator("[data-workspace]")).toBeFocused();
-  await expect(page.locator(".target-text")).toHaveText("今");
+  await expect(page.locator(".target-text")).toHaveText("日");
+  await expect(
+    page.getByRole("slider", { name: "今时间边界" }),
+  ).toHaveAttribute("aria-valuenow", "1000");
   await page.screenshot({ path: "test-results/timing-desktop.png" });
 });
 
@@ -216,7 +218,7 @@ test("half speed uses source time, record button returns keyboard focus, termina
 }) => {
   await wordStage(page);
   await page.getByRole("combobox", { name: "播放速度" }).selectOption("0.5");
-  await page.getByRole("button", { name: "开始打轴", exact: true }).click();
+  await page.getByRole("button", { name: /^开始打轴/ }).click();
   await expect(page.locator("[data-workspace]")).toBeFocused();
   await expect(page.locator(".state-label")).toContainText("正在记录");
   await page.waitForTimeout(650);
@@ -231,7 +233,9 @@ test("half speed uses source time, record button returns keyboard focus, termina
   for (const target of ["も", "收尾", "完成"]) {
     await page.waitForTimeout(250);
     await page.keyboard.press("Enter");
-    await expect(page.locator(".target-text")).toHaveText(target);
+    if (target === "完成")
+      await expect(page.locator(".state-label")).toHaveText("本行完成");
+    else await expect(page.locator(".target-text")).toHaveText(target);
   }
   await expect(
     page.getByRole("button", { name: "播放", exact: true }),
@@ -243,7 +247,7 @@ test("half speed uses source time, record button returns keyboard focus, termina
   // Backspace rewinds one source second; at half speed we must listen past the last onset again.
   await page.waitForTimeout(1800);
   await page.keyboard.press("Enter");
-  await expect(page.locator(".target-text")).toHaveText("完成");
+  await expect(page.locator(".state-label")).toHaveText("本行完成");
   await page.keyboard.press("Control+Enter");
   await expect(page.locator(".target-text")).toHaveText("hello");
   await expect(
@@ -272,7 +276,7 @@ test("continuous line recording advances, Backspace returns to previous line, fi
   await expect(
     page.getByRole("button", { name: "播放", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "逐行完成，进入逐字" }).click();
+  await page.getByRole("button", { name: "进入逐字", exact: true }).click();
   await expect(page.locator(".unit-strip")).toBeVisible();
 });
 
@@ -286,9 +290,7 @@ test("production files work from a subdirectory with no external requests or rou
     if (!r.url().startsWith("http://127.0.0.1:4184/")) external.push(r.url());
   });
   await page.goto("http://127.0.0.1:4184/mako/");
-  await expect(
-    page.getByRole("heading", { name: "让歌词，跟上音乐。" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "导入歌词" })).toBeVisible();
   await page.locator('input[type=file][accept^="audio"]').setInputFiles(audio);
   await expect(page.getByText("音频已准备", { exact: true })).toBeVisible();
   await page.getByLabel("粘贴歌词").fill("[00:01]こんにちは");
@@ -324,13 +326,13 @@ test("conflicting imported word times remain editable and cannot masquerade as a
 }) => {
   await importProject(page, "[00:01]<00:01>今<00:00.500>日<00:02>\n[00:06]次");
   await page.getByRole("button", { name: "确认文本，开始逐行打轴" }).click();
-  await page.getByRole("button", { name: "逐行完成，进入逐字" }).click();
+  await page.getByRole("button", { name: "进入逐字", exact: true }).click();
   await expect(page.locator(".target-text")).toHaveText("待调整");
   await expect(page.locator(".conflict-note")).toContainText("冲突");
   await page.locator(".unit-strip button").nth(1).click();
   await page.getByRole("textbox", { name: /起点/ }).fill("00:01.500");
   await page.getByRole("textbox", { name: /起点/ }).press("Enter");
-  await expect(page.locator(".target-text")).toHaveText("完成");
+  await expect(page.locator(".state-label")).toHaveText("本行完成");
   await expect(page.locator(".conflict-note")).toHaveCount(0);
 });
 
@@ -350,7 +352,7 @@ test("line drag clamps the entire finished sentence and undo restores its relati
   await page.locator("[data-workspace]").focus();
   await page.keyboard.press("Control+z");
   await expect(marker).toHaveAttribute("aria-valuenow", "1000");
-  await page.getByRole("button", { name: "逐行完成，进入逐字" }).click();
+  await page.getByRole("button", { name: "进入逐字", exact: true }).click();
   await expect(
     page.getByRole("slider", { name: "日时间边界" }),
   ).toHaveAttribute("aria-valuenow", "2000");

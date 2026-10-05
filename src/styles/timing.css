@@ -1,9 +1,10 @@
+/* Timing workspace: action, preview and waveform share the desktop viewport. */
 .timing-layout {
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 12px;
   height: 100%;
-  min-height: 500px;
+  min-height: 480px;
 }
 .lyric-nav {
   display: flex;
@@ -14,7 +15,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 22px 20px 16px;
+  padding: 16px;
 }
 .nav-heading h2 {
   font-size: 16px;
@@ -60,13 +61,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
 }
 .lyric-nav-list small {
   display: block;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   font-family: ui-monospace, monospace;
   margin-top: 6px;
 }
@@ -89,18 +90,19 @@
   color: var(--danger);
   font-size: 12px;
   line-height: 1.6;
-  margin: 6px 0;
+  margin: 0;
 }
 .shift-button {
   margin: 14px auto;
 }
 .timing-workspace {
-  padding: 22px 28px 14px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: auto;
   outline: none;
+  gap: 6px;
 }
 .timing-workspace:focus-visible {
   box-shadow: inset 0 0 0 1px rgba(var(--mdui-color-primary), 0.4);
@@ -117,35 +119,23 @@
   gap: 12px;
 }
 .workspace-heading h1 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 550;
-}
-.workspace-heading .eyebrow {
-  display: none;
 }
 .workspace-counter {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .drawer-toggle {
   display: none;
-}
-.target-area {
-  flex: 1;
-  min-height: 180px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 0;
-  text-align: center;
 }
 .state-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 .status-dot {
   display: inline-block;
@@ -158,46 +148,19 @@
   background: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-.full-line {
-  font-size: 22px;
-  line-height: 1.6;
-  margin: 9px 0 4px;
-  color: var(--muted);
-}
 .target-caption {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   letter-spacing: 0.6px;
-  margin-top: 8px;
+  margin: 0;
+  white-space: nowrap;
 }
 .target-text {
-  font-size: 64px;
-  line-height: 1.35;
-  font-weight: 550;
-  letter-spacing: -1px;
   color: var(--accent);
   overflow-wrap: anywhere;
   max-width: 100%;
-}
-.sentence-target {
-  font-size: clamp(28px, 3vw, 42px);
-  margin: 14px 0;
-}
-.record-prompt {
-  margin: 7px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.unit-progress {
-  font-size: 10px;
-  color: var(--muted);
-  margin-top: 10px;
-}
-.complete .target-text {
-  font-size: 45px;
+  max-height: 2.5em;
+  overflow: auto;
 }
 .missing-audio {
   display: flex;
@@ -206,22 +169,23 @@
   gap: 10px;
   background: var(--soft);
   border-radius: 12px;
-  padding: 8px 12px;
+  padding: 4px 10px;
   font-size: 12px;
 }
 .unit-strip {
   display: flex;
   align-items: stretch;
-  gap: 6px;
+  gap: 4px;
   overflow-x: auto;
   padding: 4px 2px;
-  min-height: 58px;
-  flex: 0 0 auto;
+  min-height: 38px;
+  flex: 1;
+  min-width: 0;
 }
 .unit-strip button {
   flex: 0 0 auto;
-  min-width: 48px;
-  padding: 7px 10px;
+  min-width: 32px;
+  padding: 5px 10px;
   background: var(--soft);
   border: 1px solid transparent;
   border-radius: 10px;
@@ -243,7 +207,8 @@
   border-color: var(--accent);
 }
 .unit-strip button.pending {
-  box-shadow: inset 0 -3px 0 var(--accent);
+  box-shadow: none;
+  border-bottom: 3px dashed var(--accent);
 }
 .unit-end {
   display: grid;
@@ -260,26 +225,33 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
+  padding: 0;
   flex: 0 0 auto;
+  gap: 10px;
 }
 .unit-tools > div {
   display: flex;
   gap: 16px;
 }
 .unit-tools .text-link {
-  font-size: 10px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 .wave-panel {
-  flex: 0 0 auto;
-  border-top: 1px solid var(--line);
-  padding-top: 8px;
+  flex: 1;
+  border: 0;
+  padding: 0;
+  min-height: 204px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
 }
 .wave-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 26px;
+  height: 28px;
+  flex: 0 0 28px;
 }
 .wave-toolbar > div,
 .wave-toolbar label {
@@ -292,28 +264,32 @@
   color: var(--muted);
 }
 .wave-toolbar input {
-  width: 65px;
+  width: 90px;
   height: 14px;
 }
 .wave-toolbar .text-link {
-  font-size: 10px;
+  font-size: 12px;
 }
 .wave-stage {
   position: relative;
-  height: 130px;
+  height: 180px;
   overflow: hidden;
   cursor: crosshair;
+  min-height: 150px;
+  flex: 1;
+  background: var(--soft);
+  border-radius: 10px;
 }
 .wave-canvas {
   width: 100%;
-  height: 96px;
-  color: var(--accent);
-  opacity: 0.55;
-  margin-top: 25px;
+  height: calc(100% - 76px);
+  color: var(--muted);
+  opacity: 0.65;
+  margin-top: 72px;
 }
 .wave-ticks {
   position: absolute;
-  top: 0;
+  top: 3px;
   left: 0;
   right: 0;
   height: 16px;
@@ -328,18 +304,20 @@
   border-left: 1px solid var(--line);
   padding-left: 4px;
   white-space: nowrap;
+  font-size: 10px;
 }
 .point-layer {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 2;
 }
 .time-marker {
   position: absolute;
-  top: 20px;
-  width: 22px;
-  height: 106px;
-  margin-left: -11px;
+  top: 49px;
+  width: 12px;
+  height: auto;
+  margin-left: -6px;
   border: 0;
   padding: 0;
   background: transparent;
@@ -347,33 +325,16 @@
   pointer-events: auto;
   touch-action: none;
   cursor: ew-resize;
-}
-.time-marker span {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--soft);
-  color: var(--muted);
-  font-size: 9px;
-  border-radius: 4px;
-  padding: 2px 4px;
-  max-width: 65px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  bottom: 10px;
+  z-index: 2;
 }
 .time-marker i {
   position: absolute;
-  top: 17px;
+  top: 4px;
   bottom: 0;
-  left: 10px;
+  left: 5px;
   width: 1px;
   background: rgba(var(--mdui-color-primary), 0.3);
-}
-.time-marker.active span {
-  background: var(--accent);
-  color: var(--on-accent);
 }
 .time-marker.active i {
   width: 2px;
@@ -385,7 +346,7 @@
 }
 .time-marker small {
   position: absolute;
-  bottom: 0;
+  bottom: 5px;
   left: 0;
   padding: 3px 6px;
   border-radius: 4px;
@@ -396,14 +357,16 @@
     monospace;
   white-space: nowrap;
   z-index: 4;
+  font-size: 12px;
 }
 .wave-cursor {
   position: absolute;
-  top: 27px;
+  top: 22px;
   bottom: 6px;
-  width: 1px;
+  width: 2px;
   background: var(--ink);
   pointer-events: none;
+  z-index: 4;
 }
 .wave-cursor span {
   display: block;
@@ -412,30 +375,25 @@
   background: var(--ink);
   transform: translate(-2px, -2px) rotate(45deg);
 }
-.wave-caption {
-  display: flex;
-  justify-content: space-between;
-  font-size: 9px;
-  color: var(--muted);
-  padding-top: 2px;
-}
 .precision-row {
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 12px 0;
+  gap: 16px;
+  padding: 5px 0;
   flex: 0 0 auto;
+  min-height: 42px;
+  flex-wrap: wrap;
 }
 .time-input {
   display: flex;
-  gap: 10px;
+  gap: 6px;
   align-items: center;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   position: relative;
 }
 .time-input input {
-  width: 118px;
+  width: 112px;
   color: var(--ink);
   background: var(--soft);
   border: 1px solid var(--line);
@@ -460,29 +418,15 @@
   justify-content: space-between;
   flex: 0 0 auto;
   border-top: 1px solid var(--line);
-  padding-top: 10px;
+  padding-top: 4px;
   gap: 10px;
+  min-height: 36px;
 }
 .workspace-actions > div {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
-.keyboard-strip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  font-size: 9px;
-  color: var(--muted);
-  margin-top: 10px;
-  flex: 0 0 auto;
-}
-.keyboard-strip kbd {
-  font-size: 9px;
-  margin-right: 5px;
-}
-/* The timing workspace keeps action, preview and waveform in one desktop view. */
 .is-timing .app-header {
   height: 56px;
   flex-basis: 56px;
@@ -498,30 +442,6 @@
   height: 56px;
   flex-basis: 56px;
   padding: 0 20px;
-}
-.timing-layout {
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 12px;
-  min-height: 480px;
-}
-.timing-workspace {
-  padding: 12px 16px;
-  gap: 6px;
-}
-.workspace-heading h1 {
-  font-size: 16px;
-}
-.workspace-counter {
-  font-size: 12px;
-}
-.nav-heading {
-  padding: 16px;
-}
-.lyric-nav-list strong {
-  font-size: 13px;
-}
-.lyric-nav-list small {
-  font-size: 11px;
 }
 .timing-cue {
   position: relative;
@@ -540,15 +460,6 @@
   align-items: center;
   gap: 10px;
   min-width: 0;
-}
-.state-label {
-  font-size: 13px;
-  white-space: nowrap;
-}
-.target-caption {
-  font-size: 12px;
-  margin: 0;
-  white-space: nowrap;
 }
 .target-text,
 .sentence-target {
@@ -599,82 +510,8 @@
   min-height: 42px;
   flex: 0 0 auto;
 }
-.unit-strip {
-  flex: 1;
-  min-width: 0;
-  min-height: 38px;
-  gap: 4px;
-}
-.unit-strip button {
-  min-width: 32px;
-  padding: 5px 10px;
-}
-.unit-strip button.pending {
-  box-shadow: none;
-  border-bottom: 3px dashed var(--accent);
-}
-.unit-tools {
-  padding: 0;
-  gap: 10px;
-}
-.unit-tools .text-link {
-  font-size: 12px;
-  white-space: nowrap;
-}
-.wave-panel {
-  border: 0;
-  padding: 0;
-  flex: 1;
-  min-height: 204px;
-  display: flex;
-  flex-direction: column;
-}
-.wave-toolbar {
-  height: 28px;
-  flex: 0 0 28px;
-}
-.wave-toolbar .text-link {
-  font-size: 12px;
-}
-.wave-toolbar input {
-  width: 90px;
-}
-.wave-stage {
-  height: 180px;
-  min-height: 150px;
-  flex: 1;
-  background: var(--soft);
-  border-radius: 10px;
-}
-.wave-canvas {
-  height: calc(100% - 58px);
-  margin-top: 54px;
-  opacity: 0.65;
-  color: var(--muted);
-}
-.wave-ticks {
-  top: 3px;
-}
-.wave-ticks span {
-  font-size: 10px;
-}
-.time-marker {
-  top: 49px;
-  bottom: 10px;
-  height: auto;
-  width: 12px;
-  margin-left: -6px;
-  z-index: 2;
-}
 .time-marker.active {
   z-index: 3;
-}
-.time-marker span {
-  display: none;
-}
-.time-marker i {
-  left: 5px;
-  top: 4px;
 }
 .time-marker.active::before {
   content: "";
@@ -686,44 +523,11 @@
   border-radius: 2px;
   background: var(--accent);
 }
-.time-marker small {
-  bottom: 5px;
-  font-size: 12px;
-}
-.wave-cursor {
-  top: 22px;
-  z-index: 4;
-  width: 2px;
-}
-.point-layer {
-  z-index: 2;
-}
-.precision-row {
-  padding: 5px 0;
-  gap: 16px;
-  min-height: 42px;
-  flex-wrap: wrap;
-}
-.time-input {
-  font-size: 12px;
-  gap: 6px;
-}
-.time-input input {
-  width: 112px;
-}
 .duration-label {
   font:
     12px ui-monospace,
     monospace;
   color: var(--muted);
-}
-.workspace-actions {
-  padding-top: 4px;
-  min-height: 36px;
-  gap: 10px;
-}
-.workspace-actions > div {
-  gap: 12px;
 }
 .audition-actions {
   flex-wrap: wrap;
@@ -736,91 +540,6 @@
 .audition-actions .check-label {
   font-size: 12px;
   gap: 5px;
-}
-.conflict-note {
-  margin: 0;
-  font-size: 12px;
-}
-.missing-audio {
-  padding: 4px 10px;
-}
-@media (max-height: 760px) {
-  .timing-layout {
-    min-height: 460px;
-  }
-  .timing-cue {
-    min-height: 68px;
-  }
-  .lyric-preview {
-    min-height: 58px;
-  }
-  .wave-stage {
-    min-height: 140px;
-  }
-  .wave-panel {
-    min-height: 196px;
-  }
-  .timing-workspace {
-    gap: 4px;
-  }
-}
-@media (max-width: 1050px) {
-  .timing-layout {
-    grid-template-columns: 180px minmax(0, 1fr);
-  }
-  .unit-tools {
-    gap: 6px;
-  }
-  .timing-workspace {
-    padding: 10px;
-  }
-  .cue-action {
-    flex-direction: column;
-    gap: 2px;
-  }
-  .precision-row {
-    gap: 8px;
-  }
-}
-@media (max-width: 800px) {
-  .timing-layout {
-    grid-template-columns: 1fr;
-  }
-  .lyric-nav {
-    display: none;
-  }
-  .lyric-nav.open {
-    display: flex;
-    position: absolute;
-    inset: 100px 16px 66px;
-    z-index: 8;
-    max-width: 280px;
-  }
-  .drawer-toggle {
-    display: inline-flex;
-  }
-  .target-text {
-    font-size: 30px;
-  }
-  .unit-tools {
-    flex-wrap: wrap;
-  }
-  .workspace-actions {
-    flex-wrap: wrap;
-  }
-  .timing-workspace {
-    overflow: auto;
-  }
-  .cue-target {
-    flex-wrap: wrap;
-  }
-}
-.wave-panel {
-  position: relative;
-}
-.wave-canvas {
-  margin-top: 72px;
-  height: calc(100% - 76px);
 }
 .wave-line-context {
   position: absolute;
@@ -915,4 +634,89 @@
     monospace;
   padding: 5px 8px;
   border-radius: 6px;
+}
+.time-marker.conflict i {
+  background: var(--danger);
+}
+.time-marker.conflict::before {
+  background: var(--danger);
+}
+.time-marker.ending.conflict i {
+  border-color: var(--danger);
+  background: transparent;
+}
+.song-button {
+  margin: 12px auto 0;
+}
+
+@media (max-height: 760px) {
+  .timing-layout {
+    min-height: 460px;
+  }
+  .timing-cue {
+    min-height: 68px;
+  }
+  .lyric-preview {
+    min-height: 58px;
+  }
+  .wave-stage {
+    min-height: 140px;
+  }
+  .wave-panel {
+    min-height: 196px;
+  }
+  .timing-workspace {
+    gap: 4px;
+  }
+}
+@media (max-width: 1050px) {
+  .timing-layout {
+    grid-template-columns: 180px minmax(0, 1fr);
+  }
+  .unit-tools {
+    gap: 6px;
+  }
+  .timing-workspace {
+    padding: 10px;
+  }
+  .cue-action {
+    flex-direction: column;
+    gap: 2px;
+  }
+  .precision-row {
+    gap: 8px;
+  }
+}
+@media (max-width: 800px) {
+  .timing-layout {
+    grid-template-columns: 1fr;
+  }
+  .lyric-nav {
+    display: none;
+  }
+  .lyric-nav.open {
+    display: flex;
+    position: absolute;
+    inset: 100px 16px 66px;
+    z-index: 8;
+    max-width: 280px;
+  }
+  .drawer-toggle {
+    display: inline-flex;
+  }
+  .target-text {
+    font-size: 30px;
+  }
+  .unit-tools {
+    flex-wrap: wrap;
+  }
+  .workspace-actions {
+    flex-wrap: wrap;
+  }
+  .timing-workspace {
+    overflow: auto;
+  }
+  .cue-target {
+    flex-wrap: wrap;
+  }
 }

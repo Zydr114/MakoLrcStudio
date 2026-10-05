@@ -17,9 +17,11 @@ import Modal from "../components/Modal.vue";
 import TimingCue from "../components/TimingCue.vue";
 import TokenSegmentation from "../components/TokenSegmentation.vue";
 import LyricPreview from "../components/LyricPreview.vue";
+import SongPreview from "../components/SongPreview.vue";
 const emit = defineEmits<{ audio: [] }>();
 const listOpen = ref(false),
   shiftOpen = ref(false),
+  songOpen = ref(false),
   shiftMs = ref("0"),
   fillPreview = ref(false);
 const lineMode = computed(() => editor.project.stage === 2);
@@ -200,6 +202,14 @@ watch(
         </button>
       </div>
       <button
+        v-if="!lineMode"
+        class="text-link song-button"
+        :disabled="!editor.asset || editor.editingText"
+        @click="songOpen = true"
+      >
+        试听整曲
+      </button>
+      <button
         class="text-link shift-button"
         @click="
           editor.pause();
@@ -356,7 +366,9 @@ watch(
             @click="editor.confirmLines"
             >逐行完成，进入逐字</UiButton
           ><UiButton
-            v-else-if="!lineMode"
+            v-else-if="
+              !lineMode && editor.lineIndex < editor.project.lines.length - 1
+            "
             variant="tonal"
             icon="arrow"
             :disabled="
@@ -369,7 +381,16 @@ watch(
         </div>
       </template>
     </div>
-    <Modal :open="shiftOpen" title="整体平移歌词" @close="shiftOpen = false"
+    <SongPreview
+      :open="songOpen"
+      :fill="fillPreview"
+      @close="songOpen = false"
+    />
+    <Modal
+      :open="shiftOpen"
+      title="整体平移歌词"
+      @close="shiftOpen = false"
+      @closed="focus"
       ><label class="native-field"
         >偏移毫秒（正数延后）<input v-model="shiftMs" type="number" step="1"
       /></label>

@@ -2,7 +2,7 @@
 import { ref, watch, nextTick, onBeforeUnmount } from "vue";
 import Icon from "./Icon.vue";
 const props = defineProps<{ open: boolean; title: string }>();
-const emit = defineEmits<{ close: [] }>();
+const emit = defineEmits<{ close: []; closed: [] }>();
 const dialog = ref<HTMLDialogElement>();
 watch(
   () => props.open,
@@ -18,7 +18,9 @@ onBeforeUnmount(() => dialog.value?.close());
   <dialog
     ref="dialog"
     class="modal"
+    :aria-label="title"
     @cancel.prevent="emit('close')"
+    @close="emit('closed')"
     @click="
       (event) => {
         if (event.target === dialog) emit('close');

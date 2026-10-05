@@ -113,10 +113,14 @@ function act(time = performance.now()) {
   }
 }
 function pointer(event: PointerEvent) {
-  if (event.button === 0) act(event.timeStamp);
+  if (event.button === 0) {
+    event.preventDefault();
+    act(event.timeStamp);
+  }
 }
 function click(event: MouseEvent) {
   if (event.detail === 0) act(event.timeStamp);
+  else focus();
 }
 </script>
 <template>

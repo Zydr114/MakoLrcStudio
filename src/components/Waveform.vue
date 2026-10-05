@@ -1,13 +1,6 @@
 <script setup lang="ts">
-import {
-  ref,
-  computed,
-  watch,
-  onMounted,
-  onBeforeUnmount,
-  nextTick,
-} from "vue";
-import WaveSurfer from "wavesurfer.js";
+import { ref, computed, onBeforeUnmount } from "vue";
+import { useWaveformViewport } from "./useWaveformViewport";
 import { editor } from "../state/editor";
 import { formatTime, completeLine } from "../domain/model";
 import {
@@ -21,24 +14,29 @@ import Icon from "./Icon.vue";
 import WaveformRegions from "./WaveformRegions.vue";
 import { intervalGeometry, timeToRatio, ratioToTime } from "../domain/viewport";
 
-const host = ref<HTMLDivElement>(),
-  view = ref({ startTime: 0, endTime: 10 }),
-  zoom = ref(100),
-  width = ref(0),
-  following = ref(true);
-const viewport = computed(() => ({
-  startMs: view.value.startTime * 1000,
-  endMs: view.value.endTime * 1000,
-}));
+const host = ref<HTMLDivElement>();
 const drag = ref<{
   key: string;
   ms: number;
   point: Point;
   originX: number;
 } | null>(null);
-let wave: WaveSurfer | null = null,
-  unsubscribe: (() => void) | undefined,
-  resize: ResizeObserver | null = null;
+const {
+  view,
+  zoom,
+  width,
+  following,
+  span,
+  fit,
+  setZoom,
+  scrollTo,
+  wheel,
+  overview,
+} = useWaveformViewport(host, () => !!drag.value);
+const viewport = computed(() => ({
+  startMs: view.value.startTime * 1000,
+  endMs: view.value.endTime * 1000,
+}));
 interface Point {
   key: string;
   lineIndex: number;
@@ -91,9 +89,6 @@ const points = computed<Point[]>(() => {
     });
   return result;
 });
-const span = computed(() =>
-  Math.max(0.001, view.value.endTime - view.value.startTime),
-);
 const left = (ms: number) => timeToRatio(ms, viewport.value) * 100;
 const visiblePoints = computed(() =>
   points.value.filter((p) => left(p.time) >= -1 && left(p.time) <= 101),
@@ -138,6 +133,10 @@ function applyPoint(p: typeof editor.project, point: Point, ms: number) {
   if (p.stage === 2 || point.wholeLine) setLineStart(p, point.lineIndex, ms);
   else if (point.end) setLineEnd(p, point.lineIndex, ms);
   else setUnitStart(p, point.lineIndex, point.unitIndex, ms);
+}
+function pointConflict(point: Point) {
+  const [min, max] = bounds(point);
+  return point.time < min || point.time > max;
 }
 function setPoint(point: Point, ms: number) {
   return editor.command("调整时间边界", (p) => applyPoint(p, point, ms));
@@ -193,6 +192,14 @@ function endDrag() {
   editor.commitPreview("调整时间边界");
 }
 function markerKey(event: KeyboardEvent, point: Point) {
+  if (
+    (event.ctrlKey || event.metaKey) &&
+    ["z", "y"].includes(event.key.toLowerCase())
+  ) {
+    drag.value = null;
+    editor.clearPreview();
+    return;
+  }
   if (event.key === "Escape") {
     drag.value = null;
     editor.clearPreview();
@@ -225,97 +232,6 @@ function seek(event: MouseEvent) {
     ratioToTime((event.clientX - rect.left) / rect.width, viewport.value),
   );
 }
-function fit() {
-  if (!wave || !host.value || !editor.asset) return;
-  following.value = true;
-  const line = editor.line;
-  const start = Math.max(0, (line?.startMs ?? editor.positionMs) / 1000 - 1);
-  const end = Math.min(
-    editor.asset.buffer.duration,
-    line?.endMs !== null && line?.endMs !== undefined
-      ? line.endMs / 1000 + 0.5
-      : Math.min(
-          editor.project.lines[editor.lineIndex + 1]?.startMs !== null &&
-            editor.project.lines[editor.lineIndex + 1]?.startMs !== undefined
-            ? editor.project.lines[editor.lineIndex + 1].startMs! / 1000 + 0.3
-            : start + 12,
-          start + 18,
-        ),
-  );
-  zoom.value = Math.max(
-    10,
-    Math.min(1000, host.value.clientWidth / Math.max(1, end - start)),
-  );
-  wave.zoom(zoom.value);
-  wave.setScrollTime(start);
-}
-function setZoom(value: number) {
-  zoom.value = value;
-  wave?.zoom(value);
-  wave?.setScrollTime(Math.max(0, editor.positionMs / 1000 - span.value * 0.3));
-}
-async function mountWave() {
-  unsubscribe?.();
-  wave?.destroy();
-  await nextTick();
-  if (!host.value || !editor.asset) return;
-  const color = getComputedStyle(host.value).color;
-  wave = WaveSurfer.create({
-    container: host.value,
-    peaks: [editor.asset.peaks],
-    duration: editor.asset.buffer.duration,
-    height: host.value.clientHeight || 96,
-    waveColor: color,
-    progressColor: color,
-    cursorWidth: 0,
-    interact: false,
-    autoScroll: false,
-    autoCenter: false,
-    normalize: true,
-    hideScrollbar: false,
-  });
-  const signal = wave.getRenderer().getVisibleRange();
-  unsubscribe = signal.subscribe((value) => {
-    view.value = value;
-  });
-  view.value = signal.value;
-  wave.on("ready", fit);
-}
-watch(() => editor.asset, mountWave);
-watch(
-  () => [editor.project.activeLineId, editor.project.stage],
-  () => {
-    if (!drag.value && !editor.playing) nextTick(fit);
-  },
-);
-watch(
-  () => editor.positionMs,
-  (value) => {
-    if (!wave || !editor.playing || drag.value || !following.value) return;
-    const t = value / 1000;
-    if (t > view.value.endTime - span.value * 0.16 || t < view.value.startTime)
-      wave.setScrollTime(Math.max(0, t - span.value * 0.3));
-  },
-);
-function wheel(event: WheelEvent) {
-  if (!wave) return;
-  event.preventDefault();
-  following.value = false;
-  if (event.altKey)
-    setZoom(
-      Math.max(
-        10,
-        Math.min(1000, zoom.value * (event.deltaY < 0 ? 1.15 : 0.85)),
-      ),
-    );
-  else
-    wave.setScrollTime(
-      Math.max(
-        0,
-        view.value.startTime + (event.deltaX || event.deltaY) / zoom.value,
-      ),
-    );
-}
 const canMoveSentence = computed(
   () =>
     !!editor.line &&
@@ -347,19 +263,6 @@ function moveSentence(event: PointerEvent) {
     wholeLine: true,
   });
 }
-function overview(event: PointerEvent) {
-  if (!wave || !editor.asset) return;
-  following.value = false;
-  const target = event.currentTarget as HTMLElement;
-  const box = target.getBoundingClientRect();
-  wave.setScrollTime(
-    Math.max(
-      0,
-      ((event.clientX - box.left) / box.width) * editor.asset.buffer.duration -
-        span.value / 2,
-    ),
-  );
-}
 let heightDrag: { y: number; height: number } | null = null;
 const waveHeight = ref(0);
 function heightStart(event: PointerEvent) {
@@ -377,30 +280,7 @@ function heightMove(event: PointerEvent) {
       Math.min(400, heightDrag.height + event.clientY - heightDrag.y),
     );
 }
-function updateTheme() {
-  if (host.value)
-    wave?.setOptions({
-      waveColor: getComputedStyle(host.value).color,
-      progressColor: getComputedStyle(host.value).color,
-    });
-}
-onMounted(() => {
-  void mountWave();
-  document.addEventListener("mako-theme", updateTheme);
-  resize = new ResizeObserver(() => {
-    if (host.value) {
-      width.value = host.value.clientWidth;
-      wave?.setOptions({ height: host.value.clientHeight });
-    }
-    if (!editor.playing && !drag.value) fit();
-  });
-  if (host.value) resize.observe(host.value);
-});
 onBeforeUnmount(() => {
-  document.removeEventListener("mako-theme", updateTheme);
-  unsubscribe?.();
-  resize?.disconnect();
-  wave?.destroy();
   if (editor.previewOwner === "waveform") editor.clearPreview();
 });
 </script>
@@ -424,9 +304,7 @@ onBeforeUnmount(() => {
           class="text-link"
           @click="
             following = true;
-            wave?.setScrollTime(
-              Math.max(0, editor.positionMs / 1000 - span * 0.3),
-            );
+            scrollTo(Math.max(0, editor.positionMs / 1000 - span * 0.3));
           "
         >
           回到播放头</button
@@ -523,6 +401,7 @@ onBeforeUnmount(() => {
               (editor.project.stage === 2 ||
                 point.unitIndex === editor.selectedUnit),
             ending: point.end,
+            conflict: pointConflict(point),
           }"
           :disabled="editor.editingText"
           role="slider"
@@ -580,9 +459,7 @@ onBeforeUnmount(() => {
         :max="Math.max(0, editor.asset.info.durationMs - span * 1000)"
         @input="
           following = false;
-          wave?.setScrollTime(
-            Number(($event.target as HTMLInputElement).value) / 1000,
-          );
+          scrollTo(Number(($event.target as HTMLInputElement).value) / 1000);
         "
       />
     </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { newProject } from "../../src/domain/model";
+import { newProject, validate } from "../../src/domain/model";
 import { importLyrics } from "../../src/domain/lrc";
 import {
   lineIntervals,
@@ -79,6 +79,18 @@ describe("timeline projection and shared sampling", () => {
     ).toBe(true);
     expect(sampleLineTiming(line, 1100).status).toBe("conflict");
   });
+  it("preserves a mismatched imported first onset and diagnoses it until explicitly synchronized", () => {
+    const project = fixture();
+    project.lines[0].units[0].startMs = 1200;
+    expect(
+      validate(project).some((issue) => issue.message.includes("句首一致")),
+    ).toBe(true);
+    expect(sampleLineTiming(project.lines[0], 1300).status).toBe("conflict");
+    expect(project.lines[0].startMs).toBe(1000);
+    setUnitStart(project, 0, 0, 1200);
+    expect(project.lines[0].startMs).toBe(1200);
+    expect(sampleLineTiming(project.lines[0], 1300).unitIndex).toBe(0);
+  });
   it("uses the same reversible transform for boundaries, cursor and clipped fills", () => {
     const view = { startMs: 1200, endMs: 4200 };
     expect(ratioToTime(timeToRatio(2317, view), view)).toBe(2317);
@@ -99,7 +111,13 @@ describe("timeline projection and shared sampling", () => {
     editor.previewCommand("boundary", (p) => setUnitStart(p, 0, 1, 2400));
     editor.commitPreview("调整边界");
     expect(editor.line?.units[1].startMs).toBe(2400);
+    editor.previewCommand("boundary", (p) => setUnitStart(p, 0, 1, 2500));
     editor.undo();
     expect(editor.line?.units[1].startMs).toBe(2000);
+    expect(editor.displayLine?.units[1].startMs).toBe(2000);
+    expect(editor.previewOwner).toBeNull();
+    editor.redo();
+    expect(editor.line?.units[1].startMs).toBe(2400);
+    expect(editor.displayLine?.units[1].startMs).toBe(2400);
   });
 });

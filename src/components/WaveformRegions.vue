@@ -52,6 +52,7 @@ function extent(interval: TimingInterval) {
 const visible = computed(() =>
   intervals.value.filter(
     (interval) =>
+      extent(interval) > interval.startMs &&
       extent(interval) > props.view.startMs &&
       interval.startMs < props.view.endMs,
   ),

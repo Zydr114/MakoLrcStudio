@@ -236,7 +236,7 @@ export function createEditor(
         const saved = await loadDraft();
         if (saved) {
           project.value = saved;
-          message.value = "已恢复本机草稿，请重新选择原音频继续。";
+          message.value = "";
           saveState.value = "本机草稿已恢复";
         }
       } catch {
@@ -328,9 +328,12 @@ export function createEditor(
     }
   }
   function undo() {
+    clearPreview();
     const item = history.undo();
     if (!item) return;
     pause();
+    audition.cancel();
+    recordingArmed.value = false;
     const restored = copyProject(item.before);
     restored.stage = project.value.stage;
     restored.unlockedStage = Math.min(
@@ -355,9 +358,12 @@ export function createEditor(
     selectionEnd.value = selectedUnit.value;
   }
   function redo() {
+    clearPreview();
     const item = history.redo();
     if (!item) return;
     pause();
+    audition.cancel();
+    recordingArmed.value = false;
     project.value = copyProject(item.after);
     historyVersion.value++;
     error.value = "";

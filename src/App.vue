@@ -55,11 +55,12 @@ function setTitle(value: string) {
   });
 }
 function focusWorkspace() {
-  void nextTick(() =>
-    document
-      .querySelector<HTMLElement>("[data-workspace]")
-      ?.focus({ preventScroll: true }),
-  );
+  void nextTick(() => {
+    if (!document.querySelector("dialog[open]"))
+      document
+        .querySelector<HTMLElement>("[data-workspace]")
+        ?.focus({ preventScroll: true });
+  });
 }
 watch(
   () => editor.project.stage,
@@ -344,10 +345,7 @@ onBeforeUnmount(() => {
       accept=".json,application/json"
       @change="loadBackup"
     />
-    <Modal
-      :open="helpOpen"
-      title="用键盘，让手跟上节奏"
-      @close="helpOpen = false"
+    <Modal :open="helpOpen" title="快捷键" @close="helpOpen = false"
       ><p>点击打轴工作区后使用快捷键。输入框和输入法确认遵循正常编辑行为。</p>
       <dl class="help-list">
         <dt><kbd>Enter</kbd></dt>
@@ -364,17 +362,13 @@ onBeforeUnmount(() => {
         <dd>工作区定位 1 秒；聚焦时标微调 10ms，Shift 微调 1ms</dd>
         <dt><kbd>Ctrl / Cmd + Z</kbd></dt>
         <dd>撤销；加 Shift 重做</dd>
-        <dt><kbd>Shift + 点击</kbd></dt>
-        <dd>选择相邻单位，再合并</dd>
+        <dt><kbd>← → / Delete</kbd></dt>
+        <dd>调整切分时，移动／移除聚焦的文字分隔线</dd>
+        <dt><kbd>Esc</kbd></dt>
+        <dd>暂停录点；拖动、精确输入或切分过程中取消草稿</dd>
       </dl>
-      <p class="small-note">
-        每行需要：一次 Enter 开始，逐个起点，最后一次 Enter 收尾。
-      </p></Modal
-    >
-    <Modal
-      :open="settingsOpen"
-      title="让工作区适合你"
-      @close="settingsOpen = false"
+    </Modal>
+    <Modal :open="settingsOpen" title="设置" @close="settingsOpen = false"
       ><div class="settings-grid">
         <label class="native-field"
           >主题<select aria-label="主题" v-model="theme" @change="applyTheme">
