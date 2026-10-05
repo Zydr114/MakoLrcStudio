@@ -10,6 +10,9 @@ export function eventToSourceMs(
   output: { contextTime: number; performanceTime: number },
   anchor: ClockAnchor,
 ): number {
-  const audioTime = output.contextTime + (eventTime - output.performanceTime) / 1000;
-  return anchor.offsetMs + (audioTime - anchor.contextStart) * anchor.rate * 1000;
+  const audioTime =
+    output.contextTime + (eventTime - output.performanceTime) / 1000;
+  return (
+    anchor.offsetMs + (audioTime - anchor.contextStart) * anchor.rate * 1000
+  );
 }

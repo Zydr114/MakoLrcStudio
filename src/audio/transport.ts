@@ -1,24 +1,36 @@
-import { eventToSourceMs, type ClockAnchor } from './clock';
+import { eventToSourceMs, type ClockAnchor } from "./clock";
 
-export interface AudioInfo { name: string; size: number; hash: string; durationMs: number }
-export interface AudioAsset { info: AudioInfo; peaks: Float32Array; buffer: AudioBuffer }
+export interface AudioInfo {
+  name: string;
+  size: number;
+  hash: string;
+  durationMs: number;
+}
+export interface AudioAsset {
+  info: AudioInfo;
+  peaks: Float32Array;
+  buffer: AudioBuffer;
+}
 
 async function makePeaks(buffer: AudioBuffer): Promise<Float32Array> {
   const length = Math.ceil(buffer.duration * 1000);
   const peaks = new Float32Array(length);
-  const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));
+  const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) =>
+    buffer.getChannelData(i),
+  );
   let deadline = performance.now() + 8;
   for (let i = 0; i < length; i++) {
-    const a = Math.floor(i * buffer.length / length);
-    const b = Math.max(a + 1, Math.floor((i + 1) * buffer.length / length));
+    const a = Math.floor((i * buffer.length) / length);
+    const b = Math.max(a + 1, Math.floor(((i + 1) * buffer.length) / length));
     let peak = 0;
-    for (const channel of channels) for (let j = a; j < b; j++) {
-      const value = channel[j] ?? 0;
-      if (Math.abs(value) > Math.abs(peak)) peak = value;
-    }
+    for (const channel of channels)
+      for (let j = a; j < b; j++) {
+        const value = channel[j] ?? 0;
+        if (Math.abs(value) > Math.abs(peak)) peak = value;
+      }
     peaks[i] = peak;
     if (i % 64 === 0 && performance.now() > deadline) {
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
       deadline = performance.now() + 8;
     }
   }
@@ -42,7 +54,7 @@ export class AudioTransport {
 
   private audioContext(): AudioContext {
     if (!this.context) {
-      this.context = new AudioContext({ latencyHint: 'interactive' });
+      this.context = new AudioContext({ latencyHint: "interactive" });
       this.gain = this.context.createGain();
       this.gain.gain.value = this.volume;
       this.gain.connect(this.context.destination);
@@ -53,14 +65,28 @@ export class AudioTransport {
   async load(file: File, expectedHash?: string): Promise<AudioAsset> {
     const generation = ++this.generation;
     const data = await file.arrayBuffer();
-    const digest = await crypto.subtle.digest('SHA-256', data);
-    const hash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
-    if (expectedHash && hash !== expectedHash) throw new Error('这份音频与草稿不一致。请选择原来的音频，或新建一个项目。');
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    const hash = Array.from(new Uint8Array(digest), (b) =>
+      b.toString(16).padStart(2, "0"),
+    ).join("");
+    if (expectedHash && hash !== expectedHash)
+      throw new Error(
+        "这份音频与草稿不一致。请选择原来的音频，或新建一个项目。",
+      );
     const buffer = await this.audioContext().decodeAudioData(data);
     const peaks = await makePeaks(buffer);
-    if (generation !== this.generation) throw new Error('音频加载已取消。');
+    if (generation !== this.generation) throw new Error("音频加载已取消。");
     this.pause();
-    this.asset = { info: { name: file.name, size: file.size, hash, durationMs: Math.floor(buffer.duration * 1000) }, buffer, peaks };
+    this.asset = {
+      info: {
+        name: file.name,
+        size: file.size,
+        hash,
+        durationMs: Math.floor(buffer.duration * 1000),
+      },
+      buffer,
+      peaks,
+    };
     this.positionMs = 0;
     return this.asset;
   }
@@ -68,9 +94,16 @@ export class AudioTransport {
   private outputTime(): { contextTime: number; performanceTime: number } {
     const ctx = this.audioContext();
     const stamp = ctx.getOutputTimestamp?.();
-    if (stamp?.performanceTime && stamp.contextTime) return { contextTime: stamp.contextTime, performanceTime: stamp.performanceTime };
+    if (stamp?.performanceTime && stamp.contextTime)
+      return {
+        contextTime: stamp.contextTime,
+        performanceTime: stamp.performanceTime,
+      };
     const latency = (ctx.baseLatency || 0) + (ctx.outputLatency || 0);
-    return { contextTime: ctx.currentTime - latency, performanceTime: performance.now() };
+    return {
+      contextTime: ctx.currentTime - latency,
+      performanceTime: performance.now(),
+    };
   }
 
   captureMs(eventTime = performance.now()): number | null {
@@ -81,24 +114,37 @@ export class AudioTransport {
   }
 
   nowMs(): number {
-    return this.playing ? (this.captureMs() ?? this.anchor.offsetMs) : this.positionMs;
+    return this.playing
+      ? (this.captureMs() ?? this.anchor.offsetMs)
+      : this.positionMs;
   }
 
-  async play(fromMs = this.positionMs, untilMs = this.asset?.info.durationMs ?? 0): Promise<void> {
-    if (!this.asset) throw new Error('请先导入音频。');
+  async play(
+    fromMs = this.positionMs,
+    untilMs = this.asset?.info.durationMs ?? 0,
+  ): Promise<void> {
+    if (!this.asset) throw new Error("请先导入音频。");
     this.pause();
     const ctx = this.audioContext();
     const generation = this.generation;
     const playGeneration = this.playGeneration;
     await ctx.resume();
-    if (generation !== this.generation || playGeneration !== this.playGeneration) return;
+    if (
+      generation !== this.generation ||
+      playGeneration !== this.playGeneration
+    )
+      return;
     const end = Math.min(untilMs, this.asset.info.durationMs);
     const from = Math.max(0, Math.min(fromMs, end - 1));
     const source = ctx.createBufferSource();
     source.buffer = this.asset.buffer;
     source.playbackRate.value = this.rate;
     source.connect(this.gain!);
-    this.anchor = { offsetMs: from, contextStart: ctx.currentTime + 0.015, rate: this.rate };
+    this.anchor = {
+      offsetMs: from,
+      contextStart: ctx.currentTime + 0.015,
+      rate: this.rate,
+    };
     this.untilMs = end;
     this.source = source;
     this.playing = true;
@@ -128,11 +174,29 @@ export class AudioTransport {
 
   seek(ms: number): void {
     this.pause();
-    this.positionMs = Math.max(0, Math.min(ms, this.asset?.info.durationMs ?? 0));
+    this.positionMs = Math.max(
+      0,
+      Math.min(ms, this.asset?.info.durationMs ?? 0),
+    );
   }
 
-  setRate(rate: number): void { this.pause(); this.rate = rate; }
-  setVolume(volume: number): void { this.volume = volume; if (this.gain) this.gain.gain.value = volume; }
-  reset(): void { ++this.generation; this.pause(); this.asset = null; this.positionMs = 0; }
-  dispose(): void { this.reset(); void this.context?.close(); this.context = null; }
+  setRate(rate: number): void {
+    this.pause();
+    this.rate = rate;
+  }
+  setVolume(volume: number): void {
+    this.volume = volume;
+    if (this.gain) this.gain.gain.value = volume;
+  }
+  reset(): void {
+    ++this.generation;
+    this.pause();
+    this.asset = null;
+    this.positionMs = 0;
+  }
+  dispose(): void {
+    this.reset();
+    void this.context?.close();
+    this.context = null;
+  }
 }
