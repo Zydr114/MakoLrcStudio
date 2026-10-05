@@ -8,7 +8,7 @@ defineEmits<{ audio: [] }>();
   <div class="audio-bar">
     <button
       class="play-button"
-      :disabled="!editor.asset || editor.loading"
+      :disabled="!editor.asset || editor.loading || editor.editingText"
       :aria-label="editor.playing ? '暂停' : '播放'"
       @click="editor.togglePlayback"
     >

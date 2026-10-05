@@ -81,6 +81,7 @@ function editable(event: KeyboardEvent) {
 }
 function keydown(event: KeyboardEvent) {
   if (
+    editor.editingText ||
     event.isComposing ||
     event.keyCode === 229 ||
     editable(event) ||
@@ -227,14 +228,14 @@ onBeforeUnmount(() => {
           class="icon-button"
           aria-label="撤销"
           title="撤销 Ctrl / Cmd + Z"
-          :disabled="!editor.canUndo"
+          :disabled="!editor.canUndo || editor.editingText"
           @click="editor.undo"
         >
           <Icon name="undo" /></button
         ><button
           class="icon-button"
           aria-label="重做"
-          :disabled="!editor.canRedo"
+          :disabled="!editor.canRedo || editor.editingText"
           @click="editor.redo"
         >
           <Icon name="redo" /></button
@@ -265,7 +266,7 @@ onBeforeUnmount(() => {
         ><UiButton
           variant="filled"
           icon="download"
-          :disabled="editor.project.stage < 3"
+          :disabled="editor.project.stage < 3 || editor.editingText"
           @click="editor.exportLrc"
           >导出 LRC</UiButton
         >

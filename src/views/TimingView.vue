@@ -8,7 +8,6 @@ import {
   setLineEnd,
   shiftAll,
 } from "../domain/edit";
-import { graphemes, mergeUnits, splitUnit } from "../domain/tokenize";
 import { playingLineIndex, tokenIntervals } from "../domain/timing";
 import UiButton from "../components/UiButton.vue";
 import Icon from "../components/Icon.vue";
@@ -16,12 +15,12 @@ import TimeInput from "../components/TimeInput.vue";
 import Waveform from "../components/Waveform.vue";
 import Modal from "../components/Modal.vue";
 import TimingCue from "../components/TimingCue.vue";
+import TokenSegmentation from "../components/TokenSegmentation.vue";
 import LyricPreview from "../components/LyricPreview.vue";
 const emit = defineEmits<{ audio: [] }>();
 const listOpen = ref(false),
   shiftOpen = ref(false),
   shiftMs = ref("0"),
-  splitOpen = ref(false),
   fillPreview = ref(false);
 const lineMode = computed(() => editor.project.stage === 2);
 const selected = computed(() => editor.line?.units[editor.selectedUnit]);
@@ -95,45 +94,6 @@ function focus() {
 function choose(id: string) {
   editor.selectLine(id);
   listOpen.value = false;
-  focus();
-}
-function selectUnit(index: number, event: MouseEvent) {
-  if (editor.recordingArmed) editor.pause();
-  editor.selectedUnit = index;
-  editor.selectionEnd = event.shiftKey ? editor.selectionEnd : index;
-  focus();
-}
-function selectedClass(index: number) {
-  return (
-    index >= Math.min(editor.selectedUnit, editor.selectionEnd) &&
-    index <= Math.max(editor.selectedUnit, editor.selectionEnd)
-  );
-}
-const splitChars = computed(() =>
-  selected.value ? graphemes(selected.value.text) : [],
-);
-function merge() {
-  editor.pause();
-  editor.command("合并单位", (p) => {
-    p.lines[editor.lineIndex].units = mergeUnits(
-      p.lines[editor.lineIndex].units,
-      Math.min(editor.selectedUnit, editor.selectionEnd),
-      Math.max(editor.selectedUnit, editor.selectionEnd),
-    );
-  });
-  editor.selectedUnit = Math.min(editor.selectedUnit, editor.selectionEnd);
-  editor.selectionEnd = editor.selectedUnit;
-  focus();
-}
-function split(offset: number) {
-  editor.command("拆分单位", (p) => {
-    p.lines[editor.lineIndex].units = splitUnit(
-      p.lines[editor.lineIndex].units,
-      editor.selectedUnit,
-      offset,
-    );
-  });
-  splitOpen.value = false;
   focus();
 }
 function applyStart(p: typeof editor.project, ms: number) {
@@ -287,7 +247,7 @@ watch(
         <p v-if="conflict" class="conflict-note" role="alert">
           {{ conflict.message }}
         </p>
-        <TimingCue />
+        <TimingCue v-if="!editor.editingText" />
         <LyricPreview
           v-if="previewLine"
           :line="previewLine"
@@ -297,54 +257,9 @@ watch(
           :line-mode="lineMode"
           :provisional-unit-id="provisional"
         />
-        <div v-if="!lineMode" class="segmentation-row">
-          <div class="unit-strip" aria-label="本句切分">
-            <button
-              v-for="(unit, index) in editor.line.units"
-              :key="unit.id"
-              :class="{
-                recorded: unit.startMs !== null,
-                pending: index === editor.cursor && !editor.isComplete,
-                selected: selectedClass(index),
-              }"
-              :aria-label="`选择单位 ${index + 1}：${unit.text.trim()}`"
-              :title="
-                unit.startMs === null ? '待打轴' : formatTime(unit.startMs)
-              "
-              @click="selectUnit(index, $event)"
-            >
-              <span>{{ unit.text.trim() }}</span>
-            </button>
-          </div>
-          <div class="unit-tools">
-            <button
-              class="text-link"
-              :disabled="editor.selectedUnit === editor.selectionEnd"
-              @click="merge"
-            >
-              合并</button
-            ><button
-              class="text-link"
-              :disabled="splitChars.length < 2"
-              @click="
-                editor.pause();
-                splitOpen = true;
-              "
-            >
-              拆分</button
-            ><button
-              class="text-link"
-              @click="
-                editor.retime(editor.selectedUnit);
-                focus();
-              "
-            >
-              从选中单位重打
-            </button>
-          </div>
-        </div>
+        <TokenSegmentation v-if="!lineMode" />
         <Waveform />
-        <div class="precision-row">
+        <div v-if="!editor.editingText" class="precision-row">
           <TimeInput
             :value="
               lineMode ? editor.line.startMs : (selected?.startMs ?? null)
@@ -384,7 +299,7 @@ watch(
             }}s</span
           >
         </div>
-        <div class="workspace-actions">
+        <div v-if="!editor.editingText" class="workspace-actions">
           <div class="audition-actions">
             <button
               v-if="lineMode || !editor.isComplete"
@@ -454,20 +369,6 @@ watch(
         </div>
       </template>
     </div>
-    <Modal :open="splitOpen" title="选择拆分位置" @close="splitOpen = false"
-      ><div class="split-picker">
-        <template v-for="(char, index) in splitChars" :key="index"
-          ><span>{{ char }}</span
-          ><button
-            v-if="index < splitChars.length - 1"
-            :aria-label="`在第 ${index + 1} 个字符后拆分`"
-            @click="split(splitChars.slice(0, index + 1).join('').length)"
-          >
-            │
-          </button></template
-        >
-      </div></Modal
-    >
     <Modal :open="shiftOpen" title="整体平移歌词" @close="shiftOpen = false"
       ><label class="native-field"
         >偏移毫秒（正数延后）<input v-model="shiftMs" type="number" step="1"

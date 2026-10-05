@@ -143,6 +143,7 @@ function setPoint(point: Point, ms: number) {
   return editor.command("调整时间边界", (p) => applyPoint(p, point, ms));
 }
 function selectPoint(point: Point) {
+  if (editor.editingText) return;
   if (editor.recordingArmed) editor.pause();
   if (editor.project.stage === 2)
     editor.view({ activeLineId: editor.project.lines[point.lineIndex].id });
@@ -155,7 +156,7 @@ function selectPoint(point: Point) {
   }
 }
 function startDrag(event: PointerEvent, point: Point) {
-  if (event.button !== 0) return;
+  if (event.button !== 0 || editor.editingText) return;
   if (editor.recordingArmed) editor.pause();
   following.value = false;
   drag.value = {
@@ -198,7 +199,8 @@ function markerKey(event: KeyboardEvent, point: Point) {
     event.stopPropagation();
     return;
   }
-  if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+  if (editor.editingText || !["ArrowLeft", "ArrowRight"].includes(event.key))
+    return;
   event.preventDefault();
   event.stopPropagation();
   selectPoint(point);
@@ -522,6 +524,7 @@ onBeforeUnmount(() => {
                 point.unitIndex === editor.selectedUnit),
             ending: point.end,
           }"
+          :disabled="editor.editingText"
           role="slider"
           :aria-label="`${point.label}时间边界`"
           :aria-valuemin="bounds(point)[0]"

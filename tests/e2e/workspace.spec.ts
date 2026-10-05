@@ -101,3 +101,74 @@ test("live preview follows shared boundary drafts and audition selection keeps p
     page.getByRole("button", { name: "暂停", exact: true }),
   ).toBeVisible();
 });
+
+test("inline segmentation supports merge, split, dragging and local fill without losing later timestamps", async ({
+  page,
+}) => {
+  await completeWordWorkspace(page);
+  await page.getByRole("button", { name: "调整切分", exact: true }).click();
+  await page.getByRole("slider", { name: "文字分隔线 1", exact: true }).focus();
+  await page.keyboard.press("Delete");
+  await expect(
+    page.getByText("3 → 2 · 保留 2 点", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "应用切分", exact: true }).click();
+  await expect(page.locator(".unit-strip button")).toHaveCount(2);
+  await page.getByRole("button", { name: "调整切分", exact: true }).click();
+  await page
+    .getByRole("button", { name: "在第 1 个字符后切分", exact: true })
+    .click();
+  await page.getByRole("button", { name: "应用切分", exact: true }).click();
+  await expect(page.locator(".unit-strip button")).toHaveCount(3);
+  await expect(page.locator(".target-text")).toHaveText("日");
+  await expect(page.getByRole("textbox", { name: "「日」起点" })).toHaveValue(
+    "",
+  );
+  await page.getByRole("textbox", { name: "「日」起点" }).fill("00:02.200");
+  await page.getByRole("textbox", { name: "「日」起点" }).press("Enter");
+  await expect(
+    page.getByRole("slider", { name: "も时间边界" }),
+  ).toHaveAttribute("aria-valuenow", "3000");
+  await page.getByRole("button", { name: "调整切分", exact: true }).click();
+  const divider = page.getByRole("slider", {
+    name: "文字分隔线 1",
+    exact: true,
+  });
+  const box = (await divider.boundingBox())!,
+    destination = (await page.locator('[data-gap-offset="2"]').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(
+    destination.x + destination.width / 2,
+    destination.y + 20,
+  );
+  await page.mouse.up();
+  // A divider cannot cross the adjacent one. Removing the second creates room.
+  await page.getByRole("slider", { name: "文字分隔线 2", exact: true }).focus();
+  await page.keyboard.press("Delete");
+  const movable = page.getByRole("slider", {
+    name: "文字分隔线 1",
+    exact: true,
+  });
+  const movableBox = (await movable.boundingBox())!;
+  await page.mouse.move(movableBox.x + movableBox.width / 2, movableBox.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(
+    destination.x + destination.width / 2,
+    destination.y + 20,
+  );
+  await page.mouse.up();
+  await expect(
+    page.getByRole("slider", { name: "文字分隔线 2", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowRight");
+  await expect(
+    page.getByRole("slider", { name: "文字分隔线 2", exact: true }),
+  ).toBeFocused();
+  await page.getByRole("button", { name: "取消切分", exact: true }).click();
+  await expect(page.locator(".unit-strip button")).toHaveCount(3);
+  await expect(
+    page.getByRole("slider", { name: "日时间边界" }),
+  ).toHaveAttribute("aria-valuenow", "2200");
+});

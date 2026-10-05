@@ -31,7 +31,7 @@ function preview() {
   dirty.value = true;
   const ms = parseTime(text.value);
   if (ms === null) props.cancel?.();
-  else props.preview?.(ms);
+  else if (props.preview && !props.preview(ms)) props.cancel?.();
 }
 function apply() {
   if (!dirty.value) return true;

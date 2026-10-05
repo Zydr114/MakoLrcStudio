@@ -138,7 +138,11 @@ function click(event: MouseEvent) {
     <div class="cue-action">
       <UiButton
         variant="filled"
-        :disabled="!editor.asset || ['starting', 'ended'].includes(editor.mode)"
+        :disabled="
+          !editor.asset ||
+          editor.editingText ||
+          ['starting', 'ended'].includes(editor.mode)
+        "
         @pointerdown="pointer"
         @click="click"
         >{{ action }}<kbd v-if="showEnter">Enter</kbd></UiButton

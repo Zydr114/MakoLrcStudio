@@ -56,6 +56,7 @@ export function createEditor(
     saveState = ref("尚无草稿");
   const mode = ref<SessionMode>("idle");
   const recordingArmed = ref(false);
+  const editingText = ref(false);
   const positionMs = ref(0),
     playing = ref(false),
     rate = ref(1),
@@ -393,6 +394,7 @@ export function createEditor(
       });
   }
   function selectLine(id: string) {
+    editingText.value = false;
     recordingArmed.value = false;
     audition.cancel();
     retimeOne = false;
@@ -476,6 +478,7 @@ export function createEditor(
     );
   }
   async function startRecording() {
+    if (editingText.value) return;
     sync();
     if (!asset.value || !line.value) {
       error.value = "请先选择音频。";
@@ -669,6 +672,7 @@ export function createEditor(
     });
   }
   async function togglePlayback() {
+    if (editingText.value) return;
     if (transport.playing || mode.value === "starting") {
       pause();
       return;
@@ -771,6 +775,8 @@ export function createEditor(
     saveState,
     mode,
     recordingArmed,
+    editingText,
+    cancelAudition: audition.cancel,
     lastRecorded,
     stopRecording,
     retimeLine,
