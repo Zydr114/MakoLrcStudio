@@ -273,15 +273,15 @@ function heightStart(event: PointerEvent) {
   const target = event.currentTarget as HTMLElement;
   heightDrag = {
     y: event.clientY,
-    height: host.value?.parentElement?.clientHeight ?? 180,
+    height: host.value?.parentElement?.clientHeight ?? 112,
   };
   target.setPointerCapture(event.pointerId);
 }
 function heightMove(event: PointerEvent) {
   if (heightDrag)
     waveHeight.value = Math.max(
-      120,
-      Math.min(400, heightDrag.height + event.clientY - heightDrag.y),
+      72,
+      Math.min(220, heightDrag.height + event.clientY - heightDrag.y),
     );
 }
 onBeforeUnmount(() => {
@@ -480,9 +480,9 @@ onBeforeUnmount(() => {
       @pointermove="heightMove"
       @pointerup="heightDrag = null"
       @pointercancel="heightDrag = null"
-      @keydown.up.prevent="waveHeight = Math.max(120, (waveHeight || 180) - 10)"
+      @keydown.up.prevent="waveHeight = Math.max(72, (waveHeight || 112) - 10)"
       @keydown.down.prevent="
-        waveHeight = Math.min(400, (waveHeight || 180) + 10)
+        waveHeight = Math.min(220, (waveHeight || 112) + 10)
       "
     >
       <i />

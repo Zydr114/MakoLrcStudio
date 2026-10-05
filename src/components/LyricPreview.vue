@@ -73,15 +73,15 @@ watch(activeId, async (id) => {
 <style scoped>
 .lyric-preview {
   flex: 0 1 auto;
-  min-height: 68px;
-  max-height: 104px;
+  min-height: 52px;
+  max-height: 80px;
   overflow: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
   white-space: pre-wrap;
-  font-size: clamp(22px, 2.5vw, 32px);
+  font-size: clamp(20px, 2vw, 26px);
   line-height: 1.55;
   color: var(--muted);
   padding: 8px 14px;

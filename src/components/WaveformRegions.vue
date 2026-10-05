@@ -130,8 +130,8 @@ function title(interval: TimingInterval) {
 }
 .timing-region {
   position: absolute;
-  top: 47px;
-  bottom: 10px;
+  top: 38px;
+  bottom: 6px;
   padding: 0;
   border: 0;
   border-left: 1px solid rgba(var(--mdui-color-primary), 0.35);

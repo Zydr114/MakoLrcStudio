@@ -238,20 +238,25 @@
   white-space: nowrap;
 }
 .wave-panel {
-  flex: 1;
+  flex: 0 0 auto;
   border: 0;
   padding: 0;
-  min-height: 204px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: visible;
 }
 .wave-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 28px;
-  flex: 0 0 28px;
+  min-height: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  position: relative;
+  z-index: 6;
+  overflow: visible;
 }
 .wave-toolbar > div,
 .wave-toolbar .wave-zoom {
@@ -272,20 +277,20 @@
 }
 .wave-stage {
   position: relative;
-  height: 180px;
+  height: 112px;
   overflow: hidden;
   cursor: crosshair;
-  min-height: 150px;
-  flex: 1;
+  min-height: 112px;
+  flex: 0 0 112px;
   background: var(--soft);
   border-radius: 10px;
 }
 .wave-canvas {
   width: 100%;
-  height: calc(100% - 76px);
+  height: calc(100% - 38px);
   color: var(--muted);
   opacity: 0.65;
-  margin-top: 72px;
+  margin-top: 36px;
 }
 .wave-ticks {
   position: absolute;
@@ -314,7 +319,7 @@
 }
 .time-marker {
   position: absolute;
-  top: 49px;
+  top: 38px;
   width: 12px;
   height: auto;
   margin-left: -6px;
@@ -325,7 +330,7 @@
   pointer-events: auto;
   touch-action: none;
   cursor: ew-resize;
-  bottom: 10px;
+  bottom: 6px;
   z-index: 2;
 }
 .time-marker i {
@@ -361,8 +366,8 @@
 }
 .wave-cursor {
   position: absolute;
-  top: 22px;
-  bottom: 6px;
+  top: 18px;
+  bottom: 4px;
   width: 2px;
   background: var(--ink);
   pointer-events: none;
@@ -460,14 +465,14 @@
 }
 .target-text,
 .sentence-target {
-  font-size: 36px;
+  font-size: 28px;
   line-height: 1.2;
   letter-spacing: 0;
   margin: 0;
   font-weight: 600;
 }
 .sentence-target {
-  font-size: clamp(24px, 2.2vw, 32px);
+  font-size: clamp(22px, 2vw, 28px);
 }
 .cue-action {
   display: flex;
@@ -559,8 +564,8 @@
 }
 .wave-line-context {
   position: absolute;
-  top: 24px;
-  height: 20px;
+  top: 19px;
+  height: 16px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -570,7 +575,7 @@
   border-bottom: 1px solid var(--line);
   pointer-events: none;
   padding: 0 4px;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--muted);
 }
 .line-move-grip {
@@ -639,7 +644,7 @@
 }
 .wave-drag-readout {
   position: absolute;
-  top: 0;
+  top: 2px;
   left: 0;
   max-width: 65%;
   z-index: 5;
@@ -676,10 +681,12 @@
     min-height: 58px;
   }
   .wave-stage {
-    min-height: 140px;
+    height: 104px;
+    min-height: 104px;
+    flex-basis: 104px;
   }
   .wave-panel {
-    min-height: 196px;
+    min-height: 0;
   }
   .timing-workspace {
     gap: 4px;
@@ -739,7 +746,7 @@
 
 /* One audio surface contains peaks, source cursor, range and transport. */
 .audio-workspace {
-  min-height: 248px;
+  min-height: 0;
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -763,6 +770,6 @@
 }
 @media (max-height: 760px) {
   .audio-workspace {
-    min-height: 248px;
+    min-height: 0;
   }
 }
