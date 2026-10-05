@@ -629,3 +629,29 @@
 实现提交：`415075e feat: add scrolling lyrics above bottom waveform`、`4bede3e fix: keep long scrolling lyrics within the preview viewport`。新增浏览器断言覆盖当前行居中、邻行渐隐、播放器位于波形上方及长行 token 可见性。
 
 实际截图：[浅色 1280×720](docs/screenshots/scrolling-lyrics-light-1280.png)、[深色 1440×900](docs/screenshots/scrolling-lyrics-dark-1440.png)。验证结果：`npm test` **44 项通过**，`npm run build` 通过，Chromium／Firefox `npm run test:e2e` **50 项通过**，`test-results/.last-run.json` 为 `passed`。WebKit 主机依赖限制沿用第 15.3 节；整体 goal 仍等待用户验收，不标记完成。
+
+## 19. 线上发布到 tool.talium.site（2026-10-06）
+
+用户提供 `tool.talium.site` 的 A 记录并指定目标位置 `/MakoLrcEditor`。本次只做发布与部署支持代码，不改动应用逻辑。
+
+### 19.1 已确认选择
+
+- 站点目录：服务器 `/var/www/tool.talium.site/MakoLrcEditor/`；Caddy 站点根为 `/var/www/tool.talium.site`，URL 与目录同名。
+- Caddy 只暴露 `/MakoLrcEditor/` 子路径，站点根与其他路径返回 404；不带尾斜杠的 `/MakoLrcEditor` 以 308 跳到带斜杠地址（应用资源是相对路径，缺斜杠会把 `assets/` 解析到站点根）。
+- 缓存：入口发送 `Cache-Control: no-cache`，`assets/*` 发送 `public, max-age=31536000, immutable`。
+- 部署支持代码进仓库，按步骤独立提交。
+
+### 19.2 交付与验证证据
+
+实现提交 `7292e15 feat: add remote deploy script and Caddy site block`：新增 `scripts/deploy-remote.sh`（本地构建 → `rsync --delete` 同步 `dist/` → 合并远端 `/etc/caddy/Caddyfile` 标记块并 `caddy validate`／reload → HTTPS 探活）与 `scripts/tool.talium.site.caddyfile`，README 增加「部署到 tool.talium.site」章节；远端站点块改动前的 Caddyfile 留作 `/etc/caddy/Caddyfile.mako-bak`。
+
+线上入口 <https://tool.talium.site/MakoLrcEditor/>，发布构建为 `dist/index.html` sha256 `6babc21a3244c4d10799915c87b0454775349bd86a352fd894a3b55551fa2238`，`assets/index-DWBzIs5X.js`（129.92 KB gzip）与 `assets/index-ByuCeCBX.css`（9.89 KB gzip）。
+
+实际验证：
+
+1. 脚本探活通过：`/MakoLrcEditor` 308、`/MakoLrcEditor/` 200、站点根 404、两个哈希资源 200 且带 immutable 缓存头、入口 `no-cache`。
+2. 远端内容与本地 `dist/` 用 `rsync --checksum --dry-run` 比对无差异；远端只有 `index.html`、`favicon.svg` 与 `assets/`。
+3. Chromium 加载线上地址：页面正常渲染（[浅色 1280×720](docs/screenshots/live-tool-talium-1280.png)），7 个请求全部同源，无控制台错误、页面异常或 4xx/5xx；不带尾斜杠的入口最终落到带斜杠地址。
+4. 回归：`twikoo`／`music`／`chess` 三个既有站点仍 308 → HTTPS，`caddy` 为 `active`；HTTP 访问 `tool.talium.site` 仍重定向到 HTTPS。
+5. 证书复用既有 Let's Encrypt 证书（`CN=tool.talium.site`，2026-10-05 至 2027-01-03），未重新签发，未消耗重复证书配额。
+6. 本地 `npm test` **44 项通过**；`npm run build`（`vue-tsc --noEmit` 与 `vite build`）通过，部署直接使用该构建产物。
