@@ -76,6 +76,20 @@ npm run preview -- --port 4173
 
 Nginx 等常规静态服务器应正确发送 HTML、JavaScript、CSS、SVG MIME 类型。替换发布时整套更新 index.html 和 assets；入口页面避免长期缓存，带哈希的 assets 可以长期缓存。无需 CORS 音频服务，用户直接选本地文件。
 
+## 部署到 tool.talium.site
+
+线上入口是 <https://tool.talium.site/MakoLrcEditor/>，静态文件由 `ssh tencent` 上的 Caddy 提供：
+
+```sh
+./scripts/deploy-remote.sh
+```
+
+脚本依次执行：本地 `npm run build` → `rsync --delete` 把 `dist/` 同步到远端 `/var/www/tool.talium.site/MakoLrcEditor/` → 把 `scripts/tool.talium.site.caddyfile` 合并进远端 `/etc/caddy/Caddyfile` 的标记块（改动前存 `Caddyfile.mako-bak`）→ `caddy validate` 并 reload → HTTPS 探活。探活要求：入口不带尾斜杠 308、`/MakoLrcEditor/` 200、站点根 404、哈希资源 200 且带 immutable 缓存头、首页 `Cache-Control: no-cache`。
+
+可用环境变量覆盖：`DEPLOY_HOST`（默认 `tencent`）、`SITE_DOMAIN`、`APP_PATH`、`REMOTE_ROOT`（默认 `/var/www/$SITE_DOMAIN`）、`CADDYFILE`（默认 `/etc/caddy/Caddyfile`）、`DEPLOY_SKIP_BUILD=1`（跳过构建，直接用现有 `dist/`）。
+
+Caddy 站点块只暴露 `/MakoLrcEditor/` 子路径：站点根、其他路径及 `/assets/` 返回 404；访问不带尾斜杠的 `/MakoLrcEditor` 会 308 跳到带斜杠地址，因为资源使用相对路径。入口页面不长期缓存，`assets/*` 使用一年期 immutable 缓存，替换发布时整套更新 `index.html` 与 `assets/`。站点块由脚本维护，手工编辑会在下次部署被覆盖。
+
 ## 验证与结构
 
 ```sh

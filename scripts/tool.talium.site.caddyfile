@@ -1,0 +1,26 @@
+# >>> MakoLrcEditor deploy block
+# 本块由 scripts/deploy-remote.sh 维护；手工改动会在下次部署时被覆盖。
+tool.talium.site {
+	encode zstd gzip
+	root * /var/www/tool.talium.site
+
+	# 应用使用相对资源路径，目录访问必须带尾斜杠，否则 assets 会解析到站点根。
+	redir /MakoLrcEditor /MakoLrcEditor/ 308
+
+	handle /MakoLrcEditor/* {
+		header X-Content-Type-Options nosniff
+		route {
+			@hashed path /MakoLrcEditor/assets/*
+			header @hashed Cache-Control "public, max-age=31536000, immutable"
+			@entry not path /MakoLrcEditor/assets/*
+			header @entry Cache-Control "no-cache"
+			file_server
+		}
+	}
+
+	# 只暴露应用子路径，站点根与其他路径不提供服务。
+	handle {
+		respond 404
+	}
+}
+# <<< MakoLrcEditor deploy block <<<
