@@ -778,5 +778,6 @@
 @media (max-height: 760px) {
   .audio-workspace {
     min-height: 0;
+    padding: 4px 8px;
   }
 }

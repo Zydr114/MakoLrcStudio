@@ -310,15 +310,17 @@ watch(
         <LyricPreview
           v-if="previewLine"
           :line="previewLine"
+          :lines="editor.displayProject.lines"
+          :active-line-id="previewLine.id"
           :position-ms="editor.positionMs"
           :limit-ms="previewLimit"
           :fill="fillPreview"
           :line-mode="lineMode"
           :provisional-unit-id="provisional"
+          scrolling
         />
         <LineTextEditor :open="textOpen" @close="textOpen = false" />
         <TokenSegmentation v-if="!lineMode" v-show="!textOpen" />
-        <Waveform @audio="emit('audio')" />
         <div v-if="!editor.editingText" class="precision-row">
           <TimeInput
             :value="
@@ -425,6 +427,7 @@ watch(
             >下一句</UiButton
           >
         </div>
+        <Waveform @audio="emit('audio')" />
       </template>
     </div>
     <SongPreview

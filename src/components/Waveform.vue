@@ -290,6 +290,7 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <section class="wave-panel audio-workspace" aria-label="音频波形与播放">
+    <AudioBar embedded @audio="emit('audio')" />
     <div class="wave-toolbar">
       <UiButton
         class="waveform-audio-name"
@@ -487,7 +488,6 @@ onBeforeUnmount(() => {
     >
       <i />
     </button>
-    <AudioBar embedded @audio="emit('audio')" />
     <span v-if="drag" class="wave-drag-readout"
       >{{ drag.point.label }} {{ formatTime(drag.ms) }} ·
       {{ drag.ms - drag.point.time >= 0 ? "+" : ""

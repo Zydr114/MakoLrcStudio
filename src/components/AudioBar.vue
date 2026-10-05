@@ -99,9 +99,10 @@ function locate() {
 .audio-bar.embedded {
   flex: 0 0 52px;
   min-height: 52px;
-  padding: 6px 0 0;
+  padding: 0 0 6px;
   gap: 12px;
-  border-top: 1px solid var(--line);
+  border-top: 0;
+  border-bottom: 1px solid var(--line);
 }
 .audio-time {
   white-space: nowrap;
@@ -143,6 +144,13 @@ function locate() {
   }
   .volume-control {
     display: none;
+  }
+}
+@media (max-height: 760px) {
+  .audio-bar.embedded {
+    flex-basis: 48px;
+    min-height: 48px;
+    padding-bottom: 4px;
   }
 }
 </style>

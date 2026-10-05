@@ -151,8 +151,8 @@ test("transport is inside the waveform and source position links regions, previe
     page.locator(".audio-bar").boundingBox(),
     page.locator("[data-workspace]").boundingBox(),
   ]);
-  expect(controls!.y).toBeGreaterThan(wave!.y + wave!.height);
-  expect(controls!.y + controls!.height).toBeLessThan(
+  expect(controls!.y + controls!.height).toBeLessThanOrEqual(wave!.y);
+  expect(wave!.y + wave!.height).toBeLessThanOrEqual(
     workspace!.y + workspace!.height,
   );
   await page.locator(".unit-strip button").nth(1).click();
@@ -190,6 +190,23 @@ test("transport is inside the waveform and source position links regions, previe
   await page.screenshot({
     path: testInfo.outputPath("integrated-audio-dark-1440.png"),
   });
+});
+
+test("scrolling lyric preview centers the active line and fades its neighbors", async ({
+  page,
+}) => {
+  await openProject(page);
+  await page.getByRole("tab", { name: "逐字打轴", exact: true }).click();
+  await expect(page.locator(".scroll-line.active")).toHaveText("今日も");
+  await expect(page.locator('.scroll-line[data-distance="1"]')).toHaveText(
+    "次",
+  );
+
+  await page.locator(".lyric-nav-list button").nth(1).click();
+  await expect(page.locator(".scroll-line.active")).toHaveText("次");
+  await expect(page.locator('.scroll-line[data-distance="1"]')).toHaveText(
+    "今日も",
+  );
 });
 
 test("clears only the current line timing and restores it with undo", async ({
