@@ -528,10 +528,29 @@
 }
 .audition-actions {
   flex-wrap: wrap;
-  font-size: 12px;
+  gap: 8px;
+  font-size: 14px;
+}
+.audition-action {
+  --shape-corner: 12px;
+}
+.audition-action::part(button) {
+  height: 40px;
+  min-height: 40px;
+}
+.audition-action::part(label) {
+  font-size: 14px;
+  white-space: nowrap;
+}
+.audition-actions .ui-toggle {
+  margin-left: 4px;
+  min-height: 40px;
+}
+.audition-actions .ui-select {
+  margin-left: 2px;
 }
 .audition-actions .text-link {
-  font-size: 12px;
+  font-size: 14px;
   white-space: nowrap;
 }
 .audition-actions .check-label {

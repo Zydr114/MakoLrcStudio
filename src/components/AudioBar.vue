@@ -50,7 +50,6 @@ function locate() {
     </div>
     <UiSlider
       class="audio-position"
-      :class="{ 'sr-only': embedded }"
       label="音频位置"
       :model-value="editor.positionMs"
       :max="editor.project.audio?.durationMs ?? 1"
@@ -66,7 +65,6 @@ function locate() {
       @click="locate"
       >定位选中</UiButton
     >
-    <span v-if="embedded" class="transport-spacer" />
     <UiSelect
       class="speed-control"
       compact
@@ -122,12 +120,22 @@ function locate() {
 .volume-control .ui-slider {
   width: 76px;
 }
-.transport-spacer {
-  flex: 1;
-}
 .audio-position {
   flex: 1;
-  min-width: 80px;
+  min-width: 120px;
+  height: 40px;
+}
+.audio-position::part(track-active) {
+  height: 6px;
+  border-radius: 999px;
+}
+.audio-position::part(track-inactive) {
+  height: 6px;
+  border-radius: 999px;
+}
+.audio-position::part(handle) {
+  width: 16px;
+  height: 16px;
 }
 @media (max-width: 800px) {
   .audio-bar.embedded {

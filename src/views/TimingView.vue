@@ -138,6 +138,9 @@ function audition(scope: "line" | "token" | "boundary" | "song") {
   focus();
   void editor.review(scope);
 }
+function auditionVariant(scope: "line" | "token" | "boundary") {
+  return editor.auditionScope === scope ? "filled" : "outlined";
+}
 function applyShift() {
   const value = Number(shiftMs.value);
   if (!Number.isSafeInteger(value)) {
@@ -337,30 +340,32 @@ watch(
         </div>
         <div v-if="!editor.editingText" class="workspace-actions">
           <div class="audition-actions">
-            <button
-              v-if="lineMode || !editor.isComplete"
-              class="text-link"
+            <UiButton
+              class="audition-action"
+              :variant="auditionVariant('line')"
+              :aria-pressed="editor.auditionScope === 'line'"
               :disabled="!editor.asset"
               @click="audition('line')"
-            >
-              试听本行</button
-            ><button
+              >试听本行</UiButton
+            ><UiButton
               v-if="!lineMode"
-              class="text-link"
+              class="audition-action"
+              :variant="auditionVariant('token')"
+              :aria-pressed="editor.auditionScope === 'token'"
               :disabled="
                 !editor.asset || selectedInterval?.kind !== 'confirmed'
               "
               title="需已确认区间"
               @click="audition('token')"
-            >
-              试听选中</button
-            ><button
+              >试听选中</UiButton
+            ><UiButton
               v-if="!lineMode"
-              class="text-link"
+              class="audition-action"
+              :variant="auditionVariant('boundary')"
+              :aria-pressed="editor.auditionScope === 'boundary'"
               :disabled="!editor.asset || selected?.startMs === null"
               @click="audition('boundary')"
-            >
-              试听边界</button
+              >试听边界</UiButton
             ><UiToggle switch v-model="editor.loopAudition" label="循环试听" />
             <UiSelect
               v-if="!lineMode"

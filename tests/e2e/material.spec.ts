@@ -34,14 +34,20 @@ test("mdui menus and sliders keep native keyboard actions isolated from recordin
   await expect(
     page.getByRole("button", { name: "播放", exact: true }),
   ).toBeVisible();
-  await page.getByLabel("音频位置", { exact: true }).fill("1900");
+  const progress = page.getByLabel("音频位置", { exact: true });
+  await expect(progress).toBeVisible();
+  expect((await progress.boundingBox())?.width ?? 0).toBeGreaterThan(180);
+  for (const name of ["试听本行", "试听选中", "试听边界"]) {
+    const button = page.getByRole("button", { name, exact: true });
+    await expect(button).toBeVisible();
+    expect((await button.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(40);
+  }
+  await progress.fill("1900");
   const volume = page.getByRole("slider", { name: "音量", exact: true });
   await volume.focus();
   await volume.press("ArrowLeft");
   await expect(volume).toHaveValue("0.79");
-  await expect(page.getByLabel("音频位置", { exact: true })).toHaveValue(
-    "1900",
-  );
+  await expect(progress).toHaveValue("1900");
   await setChecked(page, "循环试听");
   await expect(page.getByRole("switch", { name: "循环试听" })).toBeChecked();
   await choose(page, "预览方式", "true");
