@@ -181,6 +181,9 @@ watch(
 }
 .lyric-scroll-viewport {
   width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   display: flex;
   align-items: stretch;
@@ -195,9 +198,12 @@ watch(
 }
 .scroll-line {
   flex: 0 0 auto;
+  width: 100%;
   min-height: 34px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  align-content: center;
   justify-content: center;
   text-align: center;
   white-space: pre-wrap;
