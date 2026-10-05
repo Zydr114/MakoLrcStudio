@@ -569,3 +569,5 @@
    当前验证证据：`npm test` **43 项通过**；`npm run build` 通过；全量 `npm run test:e2e` 在 Chromium／Firefox **46 项通过**（含 mdui 键盘菜单、可见进度和试听按钮断言）。已检查 [浅色 1280×720](docs/screenshots/mdui-timing-light-1280.png) 与 [深色 1440×900](docs/screenshots/mdui-timing-dark-1440.png)，进度滑块、波形色块、预览、精确字段和三个试听按钮均在视野内；生产预览仍运行于 `http://127.0.0.1:4173/`（PID `1663801`）。真实用户首次寻找控件、实际演唱素材和 Safari／输入法／蓝牙设备仍属于第 14 节列出的外部验收，**本轮不把 goal 标记为完成**。
 
    运行时复核补充：在生产预览中将进度滑块定位到全曲中段后，歌词边界 `2000ms` 保持不变；点击「试听本行」后对应 mdui 按钮的 `variant` 变为 `filled`，滑块可用宽度约 `393px`，三个局部试听入口均可见。试听开始后播放头继续由源时钟推进，未出现第二个计时器。
+
+   WebKit 补充验证：`npm run test:e2e:all` 共调度 69 项，其中 Chromium／Firefox 的 46 项通过；23 项 WebKit 用例均在浏览器启动阶段被环境拒绝，Playwright 报告主机缺少 `libicu74`、`libxml2`、`libflite1`，没有进入应用断言。未使用 root 权限安装依赖，因此不能把这次结果写成 Safari 通过；计划仍保留真实 Safari、输入法和音频设备验收边界。
