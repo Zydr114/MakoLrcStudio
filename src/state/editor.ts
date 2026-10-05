@@ -55,7 +55,6 @@ export function createEditor(
     selectionEnd = ref(0);
   const history = markRaw(new ProjectHistory());
   const historyVersion = ref(0);
-  let saveTimer: ReturnType<typeof setTimeout> | undefined;
   let saveGeneration = 0;
   let initialized = !persist;
   let retimeOne = false;
@@ -72,11 +71,21 @@ export function createEditor(
     const missing = current.units.findIndex((u) => u.startMs === null);
     return missing < 0 ? current.units.length : missing;
   });
-  const isComplete = computed(() => !!line.value && completeLine(line.value));
   const lineIssues = computed(() => validate(project.value, false));
   const issues = computed(() => validate(project.value));
+  const conflicts = computed(() =>
+    issues.value.filter((issue) => issue.kind === "conflict"),
+  );
+  const validLine = (id: string) =>
+    !issues.value.some((issue) => issue.lineId === id);
+  const isComplete = computed(
+    () => !!line.value && completeLine(line.value) && validLine(line.value.id),
+  );
   const finishedCount = computed(
-    () => project.value.lines.filter(completeLine).length,
+    () =>
+      project.value.lines.filter(
+        (line) => completeLine(line) && validLine(line.id),
+      ).length,
   );
   const canUndo = computed(() => {
     historyVersion.value;
@@ -127,7 +136,6 @@ export function createEditor(
     project.value = { ...project.value, ...update };
   }
   async function flushSave() {
-    clearTimeout(saveTimer);
     if (!persist || !initialized) return;
     const generation = ++saveGeneration;
     const snapshot = copyProject(project.value);
@@ -141,13 +149,16 @@ export function createEditor(
         saveState.value = "本机保存失败，请下载备份";
     }
   }
-  watch(project, () => {
-    if (initialized && persist) {
-      saveState.value = "正在保存…";
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(() => void flushSave(), 250);
-    }
-  });
+  watch(
+    project,
+    () => {
+      if (initialized && persist) {
+        saveState.value = "正在保存…";
+        void flushSave();
+      }
+    },
+    { flush: "sync" },
+  );
   async function initialize() {
     if (persist) {
       try {
@@ -388,7 +399,12 @@ export function createEditor(
       message.value = "本行已完成。R 试听，Ctrl / Cmd + Enter 下一句。";
       return;
     }
+    if (project.value.stage === 3 && completeLine(line.value)) {
+      error.value = "本行有时间冲突，请调整时标或从选中单位重打。";
+      return;
+    }
     retimeOne = project.value.stage === 2 && line.value.startMs !== null;
+    message.value = "";
     mode.value = "starting";
     try {
       await transport.play(
@@ -598,6 +614,7 @@ export function createEditor(
     isComplete,
     lineIssues,
     issues,
+    conflicts,
     finishedCount,
     canUndo,
     canRedo,

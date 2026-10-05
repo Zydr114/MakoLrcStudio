@@ -195,6 +195,7 @@ test("dragging shared boundaries, marker keys, invalid fields, Japanese grouping
   await expect(page.locator(".unit-strip button")).toHaveCount(3);
   await expect(page.locator(".target-text")).toHaveText("日");
   await page.getByRole("button", { name: "从选中单位重打" }).click();
+  await expect(page.locator("[data-workspace]")).toBeFocused();
   await expect(page.locator(".target-text")).toHaveText("今");
   await page.screenshot({ path: "test-results/timing-desktop.png" });
 });
@@ -301,4 +302,87 @@ test("continuous line recording advances, Backspace returns to previous line, fi
   ).toBeVisible();
   await page.getByRole("button", { name: "逐行完成，进入逐字" }).click();
   await expect(page.locator(".unit-strip")).toBeVisible();
+});
+
+test("production files work from a subdirectory with no external requests or route fallback", async ({
+  page,
+}) => {
+  const errors: string[] = [],
+    external: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("request", (r) => {
+    if (!r.url().startsWith("http://127.0.0.1:4184/")) external.push(r.url());
+  });
+  await page.goto("http://127.0.0.1:4184/mako/");
+  await expect(
+    page.getByRole("heading", { name: "让歌词，跟上音乐。" }),
+  ).toBeVisible();
+  await page.locator('input[type=file][accept^="audio"]').setInputFiles(audio);
+  await expect(page.getByText("音频已准备", { exact: true })).toBeVisible();
+  await page.getByLabel("粘贴歌词").fill("[00:01]こんにちは");
+  await page.getByRole("button", { name: "下一步，整理歌词" }).click();
+  await expect(page.locator(".prepare-view")).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".prepare-view")).toBeVisible();
+  expect(errors).toEqual([]);
+  expect(external).toEqual([]);
+});
+
+test("storage failure is visible and a backup is still downloadable", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(window, "indexedDB", {
+      get() {
+        throw new Error("Storage unavailable");
+      },
+    }),
+  );
+  await importProject(page, "[00:01]今");
+  await expect(page.locator(".save-status")).toHaveText(
+    "本机保存失败，请下载备份",
+  );
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "备份", exact: true }).click();
+  expect((await download).suggestedFilename()).toMatch(/\.mako\.json$/);
+});
+
+test("conflicting imported word times remain editable and cannot masquerade as a complete line", async ({
+  page,
+}) => {
+  await importProject(page, "[00:01]<00:01>今<00:00.500>日<00:02>\n[00:06]次");
+  await page.getByRole("button", { name: "确认文本，开始逐行打轴" }).click();
+  await page.getByRole("button", { name: "逐行完成，进入逐字" }).click();
+  await expect(page.locator(".target-text")).toHaveText("待调整");
+  await expect(page.locator(".conflict-note")).toContainText("冲突");
+  await page.locator(".unit-strip button").nth(1).click();
+  await page.getByRole("textbox", { name: /起点/ }).fill("00:01.500");
+  await page.getByRole("textbox", { name: /起点/ }).press("Enter");
+  await expect(page.locator(".target-text")).toHaveText("完成");
+  await expect(page.locator(".conflict-note")).toHaveCount(0);
+});
+
+test("line drag clamps the entire finished sentence and undo restores its relative times", async ({
+  page,
+}) => {
+  await importProject(page, "[00:01]<00:01>今<00:02>日<00:04>\n[00:06]次");
+  await page.getByRole("button", { name: "确认文本，开始逐行打轴" }).click();
+  const marker = page.getByRole("slider", { name: "1时间边界" });
+  await expect(marker).toHaveAttribute("aria-valuemax", "3000");
+  const box = await marker.boundingBox();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + 15);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + 500, box!.y + 15);
+  await page.mouse.up();
+  await expect(marker).toHaveAttribute("aria-valuenow", "3000");
+  await page.locator("[data-workspace]").focus();
+  await page.keyboard.press("Control+z");
+  await expect(marker).toHaveAttribute("aria-valuenow", "1000");
+  await page.getByRole("button", { name: "逐行完成，进入逐字" }).click();
+  await expect(
+    page.getByRole("slider", { name: "日时间边界" }),
+  ).toHaveAttribute("aria-valuenow", "2000");
+  await expect(
+    page.getByRole("slider", { name: "收尾时间边界" }),
+  ).toHaveAttribute("aria-valuenow", "4000");
 });

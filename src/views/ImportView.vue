@@ -5,6 +5,7 @@ import UiButton from "../components/UiButton.vue";
 import Icon from "../components/Icon.vue";
 const emit = defineEmits<{ audio: []; backup: [] }>();
 const text = ref(""),
+  invalidEncoding = ref(false),
   encoding = ref("utf-8"),
   lyricFile = ref<File | null>(null),
   dragging = ref(false);
@@ -15,7 +16,10 @@ async function decode() {
     text.value = new TextDecoder(encoding.value, { fatal: true }).decode(
       await lyricFile.value.arrayBuffer(),
     );
+    invalidEncoding.value = false;
+    editor.error = "";
   } catch {
+    invalidEncoding.value = true;
     editor.error =
       "文本编码无法识别，请切换 UTF-8、GB18030 或 Shift-JIS 后检查预览。";
   }
@@ -102,6 +106,10 @@ function next() {
         ><textarea
           id="lyric-paste"
           v-model="text"
+          @input="
+            invalidEncoding = false;
+            editor.error = '';
+          "
           spellcheck="false"
           placeholder="把歌词粘贴在这里，每句一行。&#10;&#10;已有 LRC？直接导入，时间戳会保留。"
         />
@@ -128,7 +136,7 @@ function next() {
       ><UiButton
         variant="filled"
         icon="arrow"
-        :disabled="editor.loading"
+        :disabled="editor.loading || invalidEncoding"
         @click="next"
         >下一步，整理歌词</UiButton
       >

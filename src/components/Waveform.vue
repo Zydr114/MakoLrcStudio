@@ -12,6 +12,7 @@ import { editor } from "../state/editor";
 import { formatTime } from "../domain/model";
 import {
   unitBounds,
+  lineStartBounds,
   setUnitStart,
   setLineStart,
   setLineEnd,
@@ -108,17 +109,7 @@ function bounds(point: Point): [number, number] {
   const lines = editor.project.lines,
     line = lines[point.lineIndex];
   if (editor.project.stage === 2)
-    return [
-      Math.max(
-        0,
-        lines[point.lineIndex - 1]?.endMs ??
-          (lines[point.lineIndex - 1]?.startMs ?? -1) + 1,
-      ),
-      Math.min(
-        editor.project.audio?.durationMs ?? Infinity,
-        lines[point.lineIndex + 1]?.startMs ?? Infinity,
-      ) - 1,
-    ];
+    return lineStartBounds(editor.project, point.lineIndex);
   if (point.end)
     return [
       Math.max(line.startMs ?? 0, ...line.units.map((u) => u.startMs ?? -1)) +

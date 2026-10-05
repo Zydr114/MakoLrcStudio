@@ -107,23 +107,39 @@ export function setLineEnd(
   line.endMs = ms;
 }
 
+export function lineStartBounds(
+  project: ProjectDraft,
+  index: number,
+): [number, number] {
+  const line = project.lines[index];
+  const previous = project.lines[index - 1];
+  const min = Math.max(0, previous?.endMs ?? (previous?.startMs ?? -1) + 1);
+  const limit = Math.min(
+    project.audio?.durationMs ?? Infinity,
+    project.lines[index + 1]?.startMs ?? Infinity,
+  );
+  let max = limit - 1;
+  const known = line.units
+    .map((unit) => unit.startMs)
+    .filter((time): time is number => time !== null);
+  if (line.startMs !== null) {
+    if (line.endMs !== null)
+      max = Math.min(max, limit - (line.endMs - line.startMs));
+    for (const time of known)
+      max = Math.min(max, limit - 1 - (time - line.startMs));
+  } else if (known.length) max = Math.min(max, Math.min(...known) - 1);
+  return [min, max];
+}
+
 export function setLineStart(
   project: ProjectDraft,
   index: number,
   ms: number,
 ): void {
   const line = project.lines[index];
-  const previous = project.lines[index - 1];
-  const min = Math.max(0, previous?.endMs ?? (previous?.startMs ?? -1) + 1);
-  const max =
-    Math.min(
-      project.audio?.durationMs ?? Infinity,
-      project.lines[index + 1]?.startMs ?? Infinity,
-    ) - 1;
+  const [min, max] = lineStartBounds(project, index);
   const delta = ms - (line.startMs ?? ms);
-  const shiftedEnd = line.endMs === null ? ms : line.endMs + delta;
   assertRange(ms, min, max);
-  if (shiftedEnd > max + 1) throw new Error("整句平移后收尾超过下一句起点。");
   line.startMs = ms;
   for (const unit of line.units)
     if (unit.startMs !== null) unit.startMs += delta;

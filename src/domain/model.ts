@@ -24,6 +24,7 @@ export interface ProjectDraft {
   playheadMs: number;
 }
 export interface Issue {
+  kind: "missing" | "conflict";
   lineId: string;
   unitId?: string;
   message: string;
@@ -73,12 +74,15 @@ export function validate(project: ProjectDraft, full = true): Issue[] {
   let previousStart = -1;
   for (let i = 0; i < project.lines.length; i++) {
     const line = project.lines[i];
-    const add = (message: string, unitId?: string) =>
-      issues.push({ lineId: line.id, unitId, message });
+    const add = (
+      message: string,
+      unitId?: string,
+      kind: Issue["kind"] = "conflict",
+    ) => issues.push({ lineId: line.id, unitId, message, kind });
     if (!line.text.trim()) add("空行需要删除或填写歌词");
     if (/[\r\n]/.test(line.text))
       add("行内有换行，请先在整理阶段拆成独立歌词行");
-    if (line.startMs === null) add("尚未记录句首");
+    if (line.startMs === null) add("尚未记录句首", undefined, "missing");
     else {
       if (line.startMs < 0 || line.startMs >= duration) add("句首超出音频范围");
       if (line.startMs <= previousStart)
@@ -94,11 +98,11 @@ export function validate(project: ProjectDraft, full = true): Issue[] {
     )
       add("收尾需要晚于句首，且不超过下一句起点");
     if (!full) continue;
-    if (!line.units.length) add("尚未切分和制作逐字时间");
+    if (!line.units.length) add("尚未切分和制作逐字时间", undefined, "missing");
     let previous = (line.startMs ?? 0) - 1;
     for (const unit of line.units) {
       if (unit.startMs === null)
-        add(`「${unit.text.trim()}」尚未记录起点`, unit.id);
+        add(`「${unit.text.trim()}」尚未记录起点`, unit.id, "missing");
       else {
         if (
           unit.startMs <= previous ||
@@ -110,7 +114,7 @@ export function validate(project: ProjectDraft, full = true): Issue[] {
         previous = unit.startMs;
       }
     }
-    if (line.endMs === null) add("尚未记录收尾");
+    if (line.endMs === null) add("尚未记录收尾", undefined, "missing");
     else if (line.endMs <= previous) add("收尾需要晚于最后一个单位起点");
     if (
       line.units.length &&

@@ -151,6 +151,10 @@ function visibility() {
     void editor.flushSave();
   }
 }
+function leaving() {
+  editor.pause();
+  void editor.flushSave();
+}
 function editingFocus(event: FocusEvent) {
   if (
     event
@@ -180,6 +184,7 @@ onMounted(async () => {
   window.addEventListener("keydown", keydown);
   window.addEventListener("keyup", keyup);
   window.addEventListener("blur", blur);
+  window.addEventListener("pagehide", leaving);
   document.addEventListener("visibilitychange", visibility);
   const tick = () => {
     editor.sync();
@@ -196,6 +201,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("keydown", keydown);
   window.removeEventListener("keyup", keyup);
   window.removeEventListener("blur", blur);
+  window.removeEventListener("pagehide", leaving);
   document.removeEventListener("visibilitychange", visibility);
 });
 </script>

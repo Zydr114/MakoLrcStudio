@@ -8,6 +8,7 @@
   --accent-soft: rgb(var(--mdui-color-primary-container));
   --on-accent: rgb(var(--mdui-color-on-primary));
   --line: rgba(var(--mdui-color-outline-variant), 0.55);
+  --danger: rgb(var(--mdui-color-error));
   font-synthesis: none;
 }
 * {
@@ -609,6 +610,15 @@ kbd {
 }
 .progress-dot.partial {
   background: var(--accent);
+}
+.progress-dot.invalid {
+  background: var(--danger);
+}
+.conflict-note {
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 6px 0;
 }
 .shift-button {
   margin: 14px auto;

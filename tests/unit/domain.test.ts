@@ -7,12 +7,14 @@ import {
 } from "../../src/domain/model";
 import { importLyrics, exportLyrics } from "../../src/domain/lrc";
 import { tokenize, splitUnit, mergeUnits } from "../../src/domain/tokenize";
+import { readBackup } from "../../src/domain/backup";
 import {
   editLine,
   cleanProject,
   setUnitStart,
   setLineStart,
   setLineEnd,
+  splitLine,
 } from "../../src/domain/edit";
 
 describe("lyric import and export", () => {
@@ -119,5 +121,47 @@ describe("editing invariants", () => {
     expect(formatTime(60000)).toBe("01:00.000");
     expect(parseTime("01:00.001")).toBe(60001);
     expect(parseTime("00:99.100")).toBeNull();
+  });
+
+  it("rejects splitting a combining character and preserves the first onset when splitting lines", () => {
+    const project = { ...newProject(), ...importLyrics("[00:01]か\u3099今日") };
+    expect(() => splitLine(project, project.lines[0].id, 1)).toThrow(
+      "完整字符",
+    );
+    splitLine(project, project.lines[0].id, 2);
+    expect(project.lines.map((line) => [line.text, line.startMs])).toEqual([
+      ["か\u3099", 1000],
+      ["今日", null],
+    ]);
+  });
+  it("preserves unfinished drafts but rejects corrupt identities and incompatible backup versions", () => {
+    const project = { ...newProject(), ...importLyrics("[00:01]今日") };
+    project.activeLineId = project.lines[0].id;
+    expect(readBackup(JSON.stringify(project)).lines[0].endMs).toBeNull();
+    expect(() =>
+      readBackup(JSON.stringify({ ...project, version: 99 })),
+    ).toThrow();
+    project.lines.push({ ...project.lines[0] });
+    expect(() => readBackup(JSON.stringify(project))).toThrow();
+  });
+  it("reports conflicting translations, out of range offsets, newline text and missing endings", () => {
+    const project = {
+      ...newProject(),
+      ...importLyrics("[offset:2000]\n[00:01]今日\n[00:01]translation"),
+    };
+    expect(
+      validate(project).some((issue) => issue.message.includes("音频范围")),
+    ).toBe(true);
+    expect(
+      validate(project).some((issue) => issue.message.includes("翻译")),
+    ).toBe(true);
+    project.lines[0].text = "line\nbreak";
+    expect(
+      validate(project).some((issue) => issue.message.includes("换行")),
+    ).toBe(true);
+    const invalid = importLyrics("[offset:wrong]\n[00:01]歌");
+    expect(invalid.metadata.offset).toBeUndefined();
+    expect(invalid.notices.join("")).toContain("已忽略");
+    expect(invalid.lines[0].startMs).toBe(1000);
   });
 });

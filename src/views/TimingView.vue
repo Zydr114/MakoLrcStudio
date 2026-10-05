@@ -22,6 +22,12 @@ const splitOpen = ref(false),
 const lineMode = computed(() => editor.project.stage === 2);
 const current = computed(() => editor.line?.units[editor.cursor]);
 const selected = computed(() => editor.line?.units[editor.selectedUnit]);
+const conflict = computed(() =>
+  editor.conflicts.find((issue) => issue.lineId === editor.line?.id),
+);
+const brokenComplete = computed(
+  () => !!editor.line && completeLine(editor.line) && !editor.isComplete,
+);
 const status = computed(() =>
   editor.mode === "starting"
     ? "正在开始播放…"
@@ -42,20 +48,24 @@ const target = computed(() =>
     ? editor.line?.text
     : editor.isComplete
       ? "完成"
-      : current.value?.text.trim() || "收尾",
+      : brokenComplete.value
+        ? "待调整"
+        : current.value?.text.trim() || "收尾",
 );
 const prompt = computed(() =>
-  editor.isComplete && !lineMode.value
-    ? "R 试听 · Ctrl / Cmd + Enter 下一句"
-    : editor.mode === "ended" && editor.cursor === editor.line?.units.length
-      ? "Enter 以播放边界收尾"
-      : editor.mode === "recording"
-        ? lineMode.value
-          ? "听到这句开始时，按 Enter"
-          : current.value
-            ? "听到这个单位开始时，按 Enter"
-            : "唱完最后一个单位，按 Enter 收尾"
-        : "Enter 开始 / 继续播放，本次不记录",
+  brokenComplete.value && !lineMode.value
+    ? "调整时标，或从选中单位重打"
+    : editor.isComplete && !lineMode.value
+      ? "R 试听 · Ctrl / Cmd + Enter 下一句"
+      : editor.mode === "ended" && editor.cursor === editor.line?.units.length
+        ? "Enter 以播放边界收尾"
+        : editor.mode === "recording"
+          ? lineMode.value
+            ? "听到这句开始时，按 Enter"
+            : current.value
+              ? "听到这个单位开始时，按 Enter"
+              : "唱完最后一个单位，按 Enter 收尾"
+          : "Enter 开始 / 继续播放，本次不记录",
 );
 function focusWorkspace() {
   document
@@ -65,6 +75,14 @@ function focusWorkspace() {
 function recordClick() {
   focusWorkspace();
   void editor.enter();
+}
+function retimeClick() {
+  editor.retime(editor.selectedUnit);
+  focusWorkspace();
+}
+function reviewClick() {
+  focusWorkspace();
+  void editor.review();
 }
 watch(
   () => editor.cursor,
@@ -107,6 +125,7 @@ function split(offset: number) {
     line.units = splitUnit(line.units, editor.selectedUnit, offset);
   });
   splitOpen.value = false;
+  setTimeout(focusWorkspace, 0);
 }
 function applyShift() {
   const value = Number(shiftMs.value);
@@ -120,6 +139,7 @@ function applyShift() {
 function choose(id: string) {
   editor.selectLine(id);
   listOpen.value = false;
+  focusWorkspace();
 }
 function fieldStart(ms: number) {
   editor.pause();
@@ -158,6 +178,9 @@ function selectedClass(index: number) {
           v-for="(line, index) in editor.project.lines"
           :key="line.id"
           :class="{ active: line.id === editor.line?.id }"
+          :title="
+            editor.conflicts.find((issue) => issue.lineId === line.id)?.message
+          "
           @click="choose(line.id)"
         >
           <span class="nav-number">{{
@@ -168,13 +191,21 @@ function selectedClass(index: number) {
             ><small>{{ formatTime(line.startMs) }}</small>
           </div>
           <Icon
-            v-if="lineMode ? line.startMs !== null : completeLine(line)"
+            v-if="
+              (lineMode ? line.startMs !== null : completeLine(line)) &&
+              !editor.conflicts.some((issue) => issue.lineId === line.id)
+            "
             name="check"
             :size="16"
           /><span
             v-else
             class="progress-dot"
-            :class="{ partial: line.units.some((u) => u.startMs !== null) }"
+            :class="{
+              partial: line.units.some((u) => u.startMs !== null),
+              invalid: editor.conflicts.some(
+                (issue) => issue.lineId === line.id,
+              ),
+            }"
           />
         </button>
       </div>
@@ -217,7 +248,10 @@ function selectedClass(index: number) {
         ><UiButton variant="tonal" @click="emit('audio')">选择音频</UiButton>
       </div>
       <template v-if="editor.line"
-        ><div
+        ><p v-if="conflict" class="conflict-note" role="alert">
+          {{ conflict.message }}。调整时标或重打修正。
+        </p>
+        <div
           class="target-area"
           :class="{ complete: editor.isComplete && !lineMode }"
         >
@@ -291,10 +325,7 @@ function selectedClass(index: number) {
               "
             >
               <Icon name="split" :size="16" />拆分</button
-            ><button
-              class="text-link"
-              @click="editor.retime(editor.selectedUnit)"
-            >
+            ><button class="text-link" @click="retimeClick">
               <Icon name="repeat" :size="16" />从选中单位重打
             </button>
           </div>
@@ -329,7 +360,7 @@ function selectedClass(index: number) {
               :disabled="
                 !editor.asset ||
                 editor.mode === 'starting' ||
-                (!lineMode && editor.isComplete)
+                (!lineMode && (editor.isComplete || brokenComplete))
               "
               :icon="editor.playing ? 'check' : 'play'"
               @click="recordClick"
@@ -350,7 +381,7 @@ function selectedClass(index: number) {
               variant="text"
               icon="repeat"
               :disabled="!editor.asset"
-              @click="editor.review"
+              @click="reviewClick"
               >试听本句</UiButton
             >
           </div>
