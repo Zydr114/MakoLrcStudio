@@ -615,3 +615,17 @@
 - 1280×720 实际截图确认波形、播放器进度、精确字段、试听按钮和下一句仍在工作区内可见。
 
 实现提交：`d48b166 style: enlarge timing previews after waveform compaction`。目标预览截图：[浅色](docs/screenshots/enlarged-preview-light-1280.png)、[深色](docs/screenshots/enlarged-preview-dark-1440.png)。本次 CSS 调整复跑生产构建和 Chromium 工作区回归通过；整体 goal 仍等待用户实际验收，不标记完成。
+
+## 18. 滚动歌词与底部波形（2026-10-06）
+
+用户确认采用以下交互：波形放在工作区最底部、播放器位于波形上方；当前行居中放大，上下邻行渐隐；逐字填充保留并随播放自动滚动。本节记录实现边界：
+
+- `TimingView` 将音频工作区移到精确字段和试听操作之后，成为打轴工作区底部区域。
+- `Waveform` 内部调整为播放器 → 波形工具栏／波形条 → 全曲概览；播放器和波形仍共用同一源时间与进度滑块。
+- `LyricPreview` 支持完整歌词行轨道：当前行居中放大，前后行按距离降低透明度并缩放；播放行或当前编辑行变化时用 `scrollIntoView({ behavior: "smooth", block: "center" })` 平滑定位。
+- 当前行仍使用原有 token 采样和逐字填充；长行启用换行和受限滚动，当前 token 始终保持在预览视窗内，不会被超长正文撑破布局。
+- 短屏（高度不超过 760px）压缩滚动歌词、播放器、波形工具栏和音频容器内边距，确保 1280×720 下播放器、波形和底部概览仍完整可操作。
+
+实现提交：`415075e feat: add scrolling lyrics above bottom waveform`、`4bede3e fix: keep long scrolling lyrics within the preview viewport`。新增浏览器断言覆盖当前行居中、邻行渐隐、播放器位于波形上方及长行 token 可见性。
+
+实际截图：[浅色 1280×720](docs/screenshots/scrolling-lyrics-light-1280.png)、[深色 1440×900](docs/screenshots/scrolling-lyrics-dark-1440.png)。验证结果：`npm test` **44 项通过**，`npm run build` 通过，Chromium／Firefox `npm run test:e2e` **50 项通过**，`test-results/.last-run.json` 为 `passed`。WebKit 主机依赖限制沿用第 15.3 节；整体 goal 仍等待用户验收，不标记完成。
