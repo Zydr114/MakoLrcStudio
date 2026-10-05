@@ -10,6 +10,8 @@ import {
 } from "../domain/edit";
 import { playingLineIndex, tokenIntervals } from "../domain/timing";
 import UiButton from "../components/UiButton.vue";
+import UiIconButton from "../components/UiIconButton.vue";
+import UiField from "../components/UiField.vue";
 import UiSelect from "../components/UiSelect.vue";
 import UiToggle from "../components/UiToggle.vue";
 import { previewModes } from "../components/controlOptions";
@@ -222,23 +224,25 @@ watch(
           />
         </button>
       </div>
-      <button
+      <UiButton
         v-if="!lineMode"
-        class="text-link song-button"
+        class="song-button"
+        variant="text"
         :disabled="!editor.asset || editor.editingText"
         @click="songOpen = true"
       >
         试听整曲
-      </button>
-      <button
-        class="text-link shift-button"
+      </UiButton>
+      <UiButton
+        class="shift-button"
+        variant="text"
         @click="
           editor.pause();
           shiftOpen = true;
         "
       >
         整曲时间偏移
-      </button>
+      </UiButton>
     </aside>
     <div
       class="timing-workspace surface"
@@ -248,21 +252,20 @@ watch(
     >
       <div class="workspace-heading">
         <div>
-          <button
-            class="icon-button drawer-toggle"
-            aria-label="显示歌词列表"
+          <UiIconButton
+            class="drawer-toggle"
+            label="显示歌词列表"
+            icon="list"
             @click="listOpen = !listOpen"
-          >
-            <Icon name="list" />
-          </button>
+          />
           <h1>{{ lineMode ? "逐行打轴" : "逐字打轴" }}</h1>
-          <button
-            class="text-link"
+          <UiButton
+            variant="text"
             :disabled="editor.editingText"
             @click="textOpen = true"
           >
             编辑／拆分
-          </button>
+          </UiButton>
         </div>
         <span class="workspace-counter"
           >第 {{ editor.lineIndex + 1 }} / {{ editor.project.lines.length }} 行
@@ -416,9 +419,14 @@ watch(
       title="整体平移歌词"
       @close="shiftOpen = false"
       @closed="focus"
-      ><label class="native-field"
-        >偏移毫秒（正数延后）<input v-model="shiftMs" type="number" step="1"
-      /></label>
+      ><UiField
+        v-model="shiftMs"
+        type="number"
+        label="偏移毫秒（正数延后）"
+        min="-3600000"
+        max="3600000"
+        step="1"
+      />
       <footer>
         <UiButton @click="shiftOpen = false">取消</UiButton
         ><UiButton variant="filled" @click="applyShift">应用偏移</UiButton>

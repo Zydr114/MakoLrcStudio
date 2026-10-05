@@ -129,7 +129,7 @@ function next() {
       </button>
     </div>
     <div class="import-footer">
-      <button class="text-link" @click="emit('backup')">恢复编辑进度</button
+      <UiButton variant="text" @click="emit('backup')">恢复编辑进度</UiButton
       ><UiButton
         variant="filled"
         icon="arrow"

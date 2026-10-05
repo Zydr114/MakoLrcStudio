@@ -13,6 +13,7 @@ import {
 import Icon from "./Icon.vue";
 import AudioBar from "./AudioBar.vue";
 import UiSlider from "./UiSlider.vue";
+import UiButton from "./UiButton.vue";
 import WaveformRegions from "./WaveformRegions.vue";
 import { intervalGeometry, timeToRatio, ratioToTime } from "../domain/viewport";
 
@@ -290,15 +291,15 @@ onBeforeUnmount(() => {
 <template>
   <section class="wave-panel audio-workspace" aria-label="音频波形与播放">
     <div class="wave-toolbar">
-      <button
-        class="text-link waveform-audio-name"
-        aria-label="选择工作区音频"
+      <UiButton
+        class="waveform-audio-name"
+        variant="text"
+        icon="music"
+        title="选择工作区音频"
         @click="emit('audio')"
       >
-        <Icon name="music" :size="16" />{{
-          editor.project.audio?.name || "选择音频"
-        }}
-      </button>
+        {{ editor.project.audio?.name || "选择音频" }}
+      </UiButton>
       <div>
         <div class="wave-zoom">
           <Icon name="zoom" :size="16" /><UiSlider
@@ -309,16 +310,16 @@ onBeforeUnmount(() => {
             @update:model-value="setZoom"
           />
         </div>
-        <button
+        <UiButton
           v-if="!following"
-          class="text-link"
+          variant="text"
           @click="
             following = true;
             scrollTo(Math.max(0, editor.positionMs / 1000 - span * 0.3));
           "
         >
-          回到播放头</button
-        ><button class="text-link" @click="fit">适合当前句</button>
+          回到播放头</UiButton
+        ><UiButton variant="text" @click="fit">适合当前句</UiButton>
       </div>
     </div>
     <div

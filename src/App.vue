@@ -13,7 +13,6 @@ import UiSelect from "./components/UiSelect.vue";
 import UiIconButton from "./components/UiIconButton.vue";
 import { themes } from "./components/controlOptions";
 import type { Tabs } from "mdui/components/tabs.js";
-import Icon from "./components/Icon.vue";
 import Modal from "./components/Modal.vue";
 const audioInput = ref<HTMLInputElement>(),
   backupInput = ref<HTMLInputElement>();
@@ -342,23 +341,19 @@ onBeforeUnmount(() => {
     </mdui-tabs>
     <div v-if="editor.error" class="notice error-notice" role="alert">
       <span>{{ editor.error }}</span
-      ><button
-        class="icon-button"
-        aria-label="关闭错误提示"
+      ><UiIconButton
+        label="关闭错误提示"
+        icon="close"
         @click="editor.error = ''"
-      >
-        <Icon name="close" :size="18" />
-      </button>
+      />
     </div>
     <div v-else-if="editor.message" class="notice" role="status">
       <span>{{ editor.message }}</span
-      ><button
-        class="icon-button"
-        aria-label="关闭提示"
+      ><UiIconButton
+        label="关闭提示"
+        icon="close"
         @click="editor.message = ''"
-      >
-        <Icon name="close" :size="18" />
-      </button>
+      />
     </div>
     <main
       id="editor-panel"

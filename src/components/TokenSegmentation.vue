@@ -2,6 +2,7 @@
 import { computed, ref, watch, onBeforeUnmount, nextTick } from "vue";
 import { editor } from "../state/editor";
 import { formatTime } from "../domain/model";
+import UiButton from "./UiButton.vue";
 import { graphemes } from "../domain/tokenize";
 import {
   characterGaps,
@@ -287,16 +288,15 @@ onBeforeUnmount(() => {
       </button>
     </div>
     <div class="unit-tools">
-      <button class="text-link" @click="begin">调整切分</button
-      ><button
+      <UiButton variant="outlined" @click="begin">调整切分</UiButton
+      ><UiButton
+        variant="text"
         class="text-link"
         @click="
           editor.retime(editor.selectedUnit);
           focusWorkspace();
         "
-      >
-        从选中单位重打
-      </button>
+      >从选中单位重打</UiButton>
     </div>
   </div>
   <div
@@ -315,12 +315,15 @@ onBeforeUnmount(() => {
         ></span
       >
       <div>
-        <button v-if="activeGap !== null" class="text-link" @click="remove">
-          移除分隔线</button
-        ><button class="text-link" @click="cancel">取消切分</button
-        ><button class="cut-apply" :disabled="!changed" @click="apply">
-          应用切分
-        </button>
+        <UiButton
+          v-if="activeGap !== null"
+          variant="text"
+          @click="remove"
+          >移除分隔线</UiButton
+        ><UiButton variant="text" @click="cancel">取消切分</UiButton
+        ><UiButton variant="filled" :disabled="!changed" @click="apply"
+          >应用切分</UiButton
+        >
       </div>
     </div>
     <div

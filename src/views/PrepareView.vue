@@ -190,8 +190,9 @@ function apply() {
             @click="merge(line.id)"
           />
         </div>
-        <button
+        <UiButton
           class="add-line"
+          variant="text"
           @click="
             editor.command('添加歌词行', (p) => {
               p.lines.push(newLine(''));
@@ -199,7 +200,7 @@ function apply() {
           "
         >
           ＋ 添加一行
-        </button>
+        </UiButton>
       </div>
       <aside class="surface cleanup-panel">
         <h2>文本清理</h2>

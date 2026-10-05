@@ -739,7 +739,7 @@
 
 /* One audio surface contains peaks, source cursor, range and transport. */
 .audio-workspace {
-  min-height: 256px;
+  min-height: 248px;
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -763,6 +763,6 @@
 }
 @media (max-height: 760px) {
   .audio-workspace {
-    min-height: 256px;
+    min-height: 248px;
   }
 }

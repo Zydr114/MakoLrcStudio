@@ -59,7 +59,7 @@ const action = computed(() =>
           : broken.value
             ? "从选中单位重打"
             : editor.isComplete && !lineMode.value
-              ? "试听本行"
+              ? "重播本句"
               : editor.recordingArmed
                 ? "继续打轴"
                 : lineMode.value && editor.line?.startMs !== null

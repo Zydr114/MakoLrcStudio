@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onBeforeUnmount } from "vue";
 import { editor } from "../state/editor";
+import UiButton from "./UiButton.vue";
 import { editLine, splitLine } from "../domain/edit";
 import { newLine } from "../domain/model";
 import { characterGaps, splitTokenAt, unitCuts } from "../domain/segmentation";
@@ -151,27 +152,23 @@ function key(event: KeyboardEvent) {
       @select="capture"
     />
     <div class="line-text-actions">
-      <button
-        class="text-link"
+      <UiButton
+        variant="outlined"
         :disabled="!validGap"
         title="Ctrl / Cmd + Enter"
         @click="apply('line')"
-      >
-        在光标处拆句
-      </button>
-      <button
+      >在光标处拆句</UiButton>
+      <UiButton
         v-if="wordMode"
-        class="text-link"
+        variant="outlined"
         :disabled="!validGap || existingCut"
         @click="apply('token')"
-      >
-        在光标处拆字／词
-      </button>
+      >在光标处拆字／词</UiButton>
       <span class="line-text-spacer" />
-      <button class="text-link" @click="close()">取消文字编辑</button>
-      <button class="text-apply" :disabled="!changed" @click="apply('text')">
-        应用文字
-      </button>
+      <UiButton variant="text" @click="close()">取消文字编辑</UiButton>
+      <UiButton variant="filled" :disabled="!changed" @click="apply('text')"
+        >应用文字</UiButton
+      >
     </div>
     <p v-if="issue" class="field-issue" role="alert">{{ issue }}</p>
     <p v-else-if="changed && hadTiming" class="small-note">
