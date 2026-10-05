@@ -605,3 +605,13 @@
 本轮验证：`npm test` **44 项通过**；`npm run build` 通过；`npm run test:e2e` 的 Chromium／Firefox **48 项通过**（包含清除当前行并撤销恢复）。`test-results/.last-run.json` 为 `passed`。生产预览需在最终构建后重新启动；WebKit 启动依赖缺失的限制沿用第 15.3 节，未宣称 Safari 通过。
 
 用户要求的生产预览入口仍为 `http://127.0.0.1:4173/`；本节实现完成后由代理重启并报告新的 PID，等待用户实际验收。完整目标继续保持未完成，真实演唱素材、Safari／输入法／蓝牙设备和首次用户寻找控件的外部证据仍按第 14 节保留。
+
+## 17. 放大当前歌词预览（2026-10-06）
+
+用户反馈紧凑波形释放出的空间应优先用于当前句／逐字预览，上一版同步缩小字号的方向不合适。本次仅调整视觉尺寸，不改变时标、播放或数据行为：
+
+- 当前句目标字号恢复并放大到 `36px`，短屏与窄屏仍保持可读的 `34px` 下限。
+- 逐字实时预览使用 `clamp(24px, 2.5vw, 34px)`，容器高度调整为 `64–96px`；逐句与逐字视图使用同一清晰层级。
+- 1280×720 实际截图确认波形、播放器进度、精确字段、试听按钮和下一句仍在工作区内可见。
+
+实现提交：`d48b166 style: enlarge timing previews after waveform compaction`。目标预览截图：[浅色](docs/screenshots/enlarged-preview-light-1280.png)、[深色](docs/screenshots/enlarged-preview-dark-1440.png)。本次 CSS 调整复跑生产构建和 Chromium 工作区回归通过；整体 goal 仍等待用户实际验收，不标记完成。
