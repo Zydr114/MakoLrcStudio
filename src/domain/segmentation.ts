@@ -76,3 +76,12 @@ export function segmentationSummary(line: LyricLine, cuts: readonly number[]) {
     addedMissing: groups.filter((group) => !origins.has(group.start)).length,
   };
 }
+
+/** Add a character boundary without clearing neighboring timestamps or the terminal. */
+export function splitTokenAt(line: LyricLine, offset: number): TimingUnit[] {
+  if (unitCuts(line).includes(offset)) throw new Error("光标处已有分隔线。");
+  return resegmentLine(
+    line,
+    [...unitCuts(line), offset].sort((a, b) => a - b),
+  );
+}

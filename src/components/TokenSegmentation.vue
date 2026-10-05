@@ -259,13 +259,10 @@ function apply() {
   }
   focusWorkspace();
 }
-watch(
-  () => [editor.project.activeLineId, editor.line?.text],
-  () => {
-    stopDrag();
-    editor.editingText = false;
-  },
-);
+watch([() => editor.project.activeLineId, () => editor.line?.text], () => {
+  stopDrag();
+  editor.editingText = false;
+});
 onBeforeUnmount(() => {
   stopDrag();
   editor.editingText = false;

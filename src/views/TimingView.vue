@@ -18,10 +18,12 @@ import TimingCue from "../components/TimingCue.vue";
 import TokenSegmentation from "../components/TokenSegmentation.vue";
 import LyricPreview from "../components/LyricPreview.vue";
 import SongPreview from "../components/SongPreview.vue";
+import LineTextEditor from "../components/LineTextEditor.vue";
 const emit = defineEmits<{ audio: [] }>();
 const listOpen = ref(false),
   shiftOpen = ref(false),
   songOpen = ref(false),
+  textOpen = ref(false),
   shiftMs = ref("0"),
   fillPreview = ref(false);
 const lineMode = computed(() => editor.project.stage === 2);
@@ -235,6 +237,13 @@ watch(
             <Icon name="list" />
           </button>
           <h1>{{ lineMode ? "逐行打轴" : "逐字打轴" }}</h1>
+          <button
+            class="text-link"
+            :disabled="editor.editingText"
+            @click="textOpen = true"
+          >
+            编辑／拆分
+          </button>
         </div>
         <span class="workspace-counter"
           >第 {{ editor.lineIndex + 1 }} / {{ editor.project.lines.length }} 行
@@ -267,7 +276,8 @@ watch(
           :line-mode="lineMode"
           :provisional-unit-id="provisional"
         />
-        <TokenSegmentation v-if="!lineMode" />
+        <LineTextEditor :open="textOpen" @close="textOpen = false" />
+        <TokenSegmentation v-if="!lineMode" v-show="!textOpen" />
         <Waveform />
         <div v-if="!editor.editingText" class="precision-row">
           <TimeInput

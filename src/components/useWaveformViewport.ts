@@ -84,12 +84,9 @@ export function useWaveformViewport(
     wave.on("ready", fit);
   }
   watch(() => editor.asset, mountWave);
-  watch(
-    () => [editor.project.activeLineId, editor.project.stage],
-    () => {
-      if (!isDragging() && !editor.playing) nextTick(fit);
-    },
-  );
+  watch([() => editor.project.activeLineId, () => editor.project.stage], () => {
+    if (!isDragging() && !editor.playing) nextTick(fit);
+  });
   watch(
     () => editor.positionMs,
     (value) => {

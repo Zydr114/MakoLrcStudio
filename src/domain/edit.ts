@@ -1,4 +1,4 @@
-import { newLine, type ProjectDraft } from "./model";
+import { newLine, newId, type ProjectDraft, type TimingUnit } from "./model";
 import { graphemes } from "./tokenize";
 
 export function editLine(
@@ -27,8 +27,47 @@ export function splitLine(
     !graphemes(line.text).some((part) => (boundary += part.length) === offset)
   )
     throw new Error("请选择完整字符之间的位置，组合字符不能拆开。");
-  const second = newLine(line.text.slice(offset));
-  editLine(project, id, line.text.slice(0, offset));
+  const firstText = line.text.slice(0, offset),
+    secondText = line.text.slice(offset);
+  if (!firstText.trim() || !secondText.trim())
+    throw new Error("拆句后两行都需要歌词正文。");
+  const second = newLine(secondText);
+  second.endMs = line.endMs;
+  let boundaryMs: number | null = null;
+  if (line.units.length) {
+    if (line.units.map((unit) => unit.text).join("") !== line.text)
+      throw new Error("切分文本与歌词正文不一致，请先修改正文。");
+    let position = 0,
+      prefix = "";
+    const left: TimingUnit[] = [],
+      right: TimingUnit[] = [];
+    for (const unit of line.units) {
+      const end = position + unit.text.length;
+      if (end <= offset) left.push({ ...unit });
+      else if (position >= offset) {
+        right.push({ ...unit, text: prefix + unit.text });
+        prefix = "";
+      } else {
+        const before = unit.text.slice(0, offset - position),
+          after = unit.text.slice(offset - position);
+        if (before.trim()) left.push({ ...unit, text: before });
+        else left[left.length - 1].text += before;
+        if (after.trim())
+          right.push({
+            id: before.trim() ? newId() : unit.id,
+            text: after,
+            startMs: before.trim() ? null : unit.startMs,
+          });
+        else prefix = after; // Leading whitespace belongs to the next measured word.
+      }
+      position = end;
+    }
+    second.units = right;
+    second.startMs = boundaryMs = right[0]?.startMs ?? null;
+    line.units = left;
+  }
+  line.text = firstText;
+  line.endMs = boundaryMs;
   project.lines.splice(index + 1, 0, second);
 }
 
