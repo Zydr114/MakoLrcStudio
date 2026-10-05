@@ -40,6 +40,9 @@ export function createEditor(
 ) {
   const project = shallowRef<ProjectDraft>(newProject());
   const asset = shallowRef<AudioAsset | null>(null);
+  const gestureDraft = shallowRef<ProjectDraft | null>(null);
+  const previewOwner = ref<string | null>(null);
+  const displayProject = computed(() => gestureDraft.value ?? project.value);
   const loading = ref(false),
     restoring = ref(true);
   const error = ref(""),
@@ -65,6 +68,37 @@ export function createEditor(
     ),
   );
   const line = computed(() => project.value.lines[lineIndex.value] ?? null);
+  const displayLine = computed(
+    () => displayProject.value.lines[lineIndex.value] ?? null,
+  );
+  function clearPreview() {
+    gestureDraft.value = null;
+    previewOwner.value = null;
+  }
+  function previewCommand(
+    owner: string,
+    apply: (draft: ProjectDraft) => void,
+  ): boolean {
+    try {
+      const draft = copyProject(project.value);
+      apply(draft);
+      gestureDraft.value = draft;
+      previewOwner.value = owner;
+      error.value = "";
+      return true;
+    } catch (value) {
+      showError(value);
+      return false;
+    }
+  }
+  function commitPreview(label: string): boolean {
+    if (!gestureDraft.value) return true;
+    const draft = gestureDraft.value;
+    clearPreview();
+    return command(label, (target) => {
+      target.lines = draft.lines;
+    });
+  }
   const cursor = computed(() => {
     const current = line.value;
     if (!current) return 0;
@@ -124,6 +158,7 @@ export function createEditor(
       if (JSON.stringify(next) === JSON.stringify(project.value)) return true;
       history.push(project.value, next, label, point);
       historyVersion.value++;
+      clearPreview();
       project.value = next;
       error.value = "";
       return true;
@@ -315,6 +350,7 @@ export function createEditor(
       });
   }
   function selectLine(id: string) {
+    clearPreview();
     pause();
     view({ activeLineId: id });
     mode.value = "idle";
@@ -595,6 +631,12 @@ export function createEditor(
   return reactive({
     project,
     asset,
+    displayProject,
+    displayLine,
+    previewOwner,
+    previewCommand,
+    commitPreview,
+    clearPreview,
     loading,
     restoring,
     error,
