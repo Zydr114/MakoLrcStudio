@@ -16,6 +16,7 @@ import Modal from "../components/Modal.vue";
 const emit = defineEmits<{ audio: [] }>();
 const selected = ref<string[]>([]),
   previewOpen = ref(false);
+const invalidatedTiming = ref(new Set<string>());
 const options = ref<CleanOptions>({
   trim: true,
   blanks: true,
@@ -58,8 +59,7 @@ function textEdit(id: string, event: Event) {
     );
     p.activeLineId = id;
   });
-  if (committed && hadTiming)
-    editor.message = "已保留句首；修改行的逐字时间需重打。";
+  if (committed && hadTiming) invalidatedTiming.value.add(id);
 }
 function split(id: string) {
   editor.command("拆分句子", (p) => {
@@ -167,7 +167,18 @@ function apply() {
                 ($event.target as HTMLTextAreaElement).selectionStart,
               )
             "
-          /><span class="time-badge">{{ formatTime(line.startMs) }}</span
+          /><span class="time-badge"
+            >{{ formatTime(line.startMs)
+            }}<small
+              v-if="
+                invalidatedTiming.has(line.id) &&
+                !line.units.some((unit) => unit.startMs !== null)
+              "
+              class="text-timing-reset"
+              role="status"
+              title="句首已保留；修改行的逐字时间需重打。"
+              >逐字待重打</small
+            ></span
           ><button
             class="icon-button"
             aria-label="在光标处拆句"

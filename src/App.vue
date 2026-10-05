@@ -358,7 +358,7 @@ onBeforeUnmount(() => {
         @audio="audioInput?.click()"
       /><TimingView v-else @audio="audioInput?.click()" />
     </main>
-    <AudioBar @audio="audioInput?.click()" />
+    <AudioBar v-if="editor.project.stage < 2" @audio="audioInput?.click()" />
     <input
       ref="audioInput"
       hidden

@@ -26,6 +26,9 @@ const listOpen = ref(false),
   textOpen = ref(false),
   shiftMs = ref("0"),
   fillPreview = ref(false);
+const playingLine = computed(() =>
+  playingLineIndex(editor.displayProject, editor.positionMs),
+);
 const lineMode = computed(() => editor.project.stage === 2);
 const selected = computed(() => editor.line?.units[editor.selectedUnit]);
 const displaySelected = computed(
@@ -170,7 +173,10 @@ watch(
         <button
           v-for="(line, index) in editor.project.lines"
           :key="line.id"
-          :class="{ active: line.id === editor.line?.id }"
+          :class="{
+            active: line.id === editor.line?.id,
+            playing: editor.playing && index === playingLine,
+          }"
           :aria-current="line.id === editor.line?.id ? 'true' : undefined"
           :title="
             editor.conflicts.find((issue) => issue.lineId === line.id)?.message
@@ -184,6 +190,13 @@ watch(
             <strong>{{ line.text }}</strong
             ><small>{{ formatTime(line.startMs) }}</small>
           </div>
+          <Icon
+            v-if="editor.playing && index === playingLine"
+            class="nav-playing-icon"
+            name="play"
+            :size="16"
+            aria-label="当前播放行"
+          />
           <Icon
             v-if="
               (lineMode ? line.startMs !== null : completeLine(line)) &&
@@ -278,7 +291,7 @@ watch(
         />
         <LineTextEditor :open="textOpen" @close="textOpen = false" />
         <TokenSegmentation v-if="!lineMode" v-show="!textOpen" />
-        <Waveform />
+        <Waveform @audio="emit('audio')" />
         <div v-if="!editor.editingText" class="precision-row">
           <TimeInput
             :value="

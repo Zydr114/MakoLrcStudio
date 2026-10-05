@@ -53,12 +53,14 @@ test("complete workflow: clean text, record lines, undo, precise words, independ
   await page.getByLabel("本句收尾").fill("00:03.000");
   await page.getByLabel("本句收尾").press("Enter");
   await expect(page.locator(".state-label")).toHaveText("本行完成");
-  // The record buttons remain above the audio bar at a small desktop viewport.
+  // The record buttons stay inside the visible timing workspace.
   const button = await page
       .getByRole("button", { name: "下一句", exact: true })
       .boundingBox(),
-    bar = await page.locator(".audio-bar").boundingBox();
-  expect(button!.y + button!.height).toBeLessThanOrEqual(bar!.y);
+    workspace = await page.locator("[data-workspace]").boundingBox();
+  expect(button!.y + button!.height).toBeLessThanOrEqual(
+    workspace!.y + workspace!.height,
+  );
   await page.getByRole("button", { name: "下一句", exact: true }).click();
   for (const [index, time] of ["00:06.000", "00:07.000"].entries()) {
     await page.locator(".unit-strip button").nth(index).click();

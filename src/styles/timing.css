@@ -436,11 +436,7 @@
 .is-timing .app-main {
   padding: 0 16px 12px;
 }
-.is-timing .audio-bar {
-  height: 56px;
-  flex-basis: 56px;
-  padding: 0 20px;
-}
+
 .timing-cue {
   position: relative;
   display: flex;
@@ -716,5 +712,35 @@
   }
   .cue-target {
     flex-wrap: wrap;
+  }
+}
+
+/* One audio surface contains peaks, source cursor, range and transport. */
+.audio-workspace {
+  min-height: 256px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--soft);
+}
+.audio-workspace .wave-stage {
+  background: var(--sheet);
+}
+.waveform-audio-name {
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.lyric-nav-list button.playing {
+  box-shadow: inset 3px 0 var(--accent);
+}
+.nav-playing-icon {
+  flex-shrink: 0;
+}
+@media (max-height: 760px) {
+  .audio-workspace {
+    min-height: 256px;
   }
 }

@@ -11,9 +11,11 @@ import {
   setLineEnd,
 } from "../domain/edit";
 import Icon from "./Icon.vue";
+import AudioBar from "./AudioBar.vue";
 import WaveformRegions from "./WaveformRegions.vue";
 import { intervalGeometry, timeToRatio, ratioToTime } from "../domain/viewport";
 
+const emit = defineEmits<{ audio: [] }>();
 const host = ref<HTMLDivElement>();
 const drag = ref<{
   key: string;
@@ -285,9 +287,17 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <div class="wave-panel">
+  <section class="wave-panel audio-workspace" aria-label="音频波形与播放">
     <div class="wave-toolbar">
-      <span class="small-note">波形</span>
+      <button
+        class="text-link waveform-audio-name"
+        aria-label="选择工作区音频"
+        @click="emit('audio')"
+      >
+        <Icon name="music" :size="16" />{{
+          editor.project.audio?.name || "选择音频"
+        }}
+      </button>
       <div>
         <label
           ><Icon name="zoom" :size="16" /><input
@@ -478,10 +488,11 @@ onBeforeUnmount(() => {
     >
       <i />
     </button>
+    <AudioBar embedded @audio="emit('audio')" />
     <span v-if="drag" class="wave-drag-readout"
       >{{ drag.point.label }} {{ formatTime(drag.ms) }} ·
       {{ drag.ms - drag.point.time >= 0 ? "+" : ""
       }}{{ drag.ms - drag.point.time }}ms</span
     >
-  </div>
+  </section>
 </template>

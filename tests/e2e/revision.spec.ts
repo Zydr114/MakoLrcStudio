@@ -130,3 +130,63 @@ test("caret word split preserves subsequent anchors and can be canceled without 
     page.getByRole("slider", { name: "收尾时间边界" }),
   ).toHaveAttribute("aria-valuenow", "4000");
 });
+
+test("transport is inside the waveform and source position links regions, preview and row playback state", async ({
+  page,
+}, testInfo) => {
+  await openProject(page);
+  await page.getByRole("tab", { name: "逐字打轴", exact: true }).click();
+  const audioWorkspace = page.getByRole("region", {
+    name: "音频波形与播放",
+    exact: true,
+  });
+  await expect(page.locator(".audio-bar")).toHaveCount(1);
+  await expect(
+    audioWorkspace.getByRole("group", { name: "音频播放控制" }),
+  ).toBeVisible();
+  await expect(page.locator(".app-shell > .audio-bar")).toHaveCount(0);
+  const [wave, controls, workspace] = await Promise.all([
+    page.locator(".wave-stage").boundingBox(),
+    page.locator(".audio-bar").boundingBox(),
+    page.locator("[data-workspace]").boundingBox(),
+  ]);
+  expect(controls!.y).toBeGreaterThan(wave!.y + wave!.height);
+  expect(controls!.y + controls!.height).toBeLessThan(
+    workspace!.y + workspace!.height,
+  );
+  await page.locator(".unit-strip button").nth(1).click();
+  await audioWorkspace
+    .getByRole("button", { name: "定位选中", exact: true })
+    .click();
+  await expect(page.locator(".preview-token.playing")).toHaveText("日");
+  await expect(page.locator(".audio-time strong")).toHaveText("00:02.000");
+  await expect(page.locator("[data-workspace]")).toBeFocused();
+  const stage = (await page.locator(".wave-stage").boundingBox())!;
+  const marker = (await page
+    .getByRole("slider", { name: "日时间边界" })
+    .boundingBox())!;
+  // Click blank waveform before the first token: source seek, no point is written.
+  await page.mouse.click(stage.x + 12, stage.y + stage.height - 18);
+  await expect(page.locator(".audio-time strong")).not.toHaveText("00:02.000");
+  await expect(
+    page.getByRole("slider", { name: "日时间边界" }),
+  ).toHaveAttribute("aria-valuenow", "2000");
+  await page.mouse.dblclick(marker.x + marker.width / 2 + 35, stage.y + 50);
+  await expect(
+    audioWorkspace.getByRole("button", { name: "暂停", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".lyric-nav-list button.playing")).toHaveCount(1);
+  await audioWorkspace
+    .getByRole("button", { name: "暂停", exact: true })
+    .click();
+  await page.screenshot({
+    path: testInfo.outputPath("integrated-audio-light-1280.png"),
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByLabel("主题", { exact: true }).selectOption("dark");
+  await page.keyboard.press("Escape");
+  await page.screenshot({
+    path: testInfo.outputPath("integrated-audio-dark-1440.png"),
+  });
+});

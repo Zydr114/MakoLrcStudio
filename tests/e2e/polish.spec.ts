@@ -139,11 +139,13 @@ test("unknown successors have no invented regions or playback fill and long line
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByLabel("主题", { exact: true }).selectOption("dark");
   await page.keyboard.press("Escape");
-  const [actions, bar] = await Promise.all([
+  const [actions, workspaceBox] = await Promise.all([
     page.locator(".workspace-actions").boundingBox(),
-    page.locator(".audio-bar").boundingBox(),
+    page.locator("[data-workspace]").boundingBox(),
   ]);
-  expect(actions!.y + actions!.height).toBeLessThanOrEqual(bar!.y);
+  expect(actions!.y + actions!.height).toBeLessThanOrEqual(
+    workspaceBox!.y + workspaceBox!.height,
+  );
   await page.screenshot({
     path: testInfo.outputPath("long-line-dark-1280.png"),
   });

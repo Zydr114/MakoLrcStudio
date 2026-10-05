@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitLine } from "../../src/domain/edit";
+import { splitLine, mergeLines } from "../../src/domain/edit";
 import { newProject, validate } from "../../src/domain/model";
 import { importLyrics } from "../../src/domain/lrc";
 import { splitTokenAt } from "../../src/domain/segmentation";
@@ -66,6 +66,13 @@ describe("caret based structural changes", () => {
     });
     expect(p.lines[0].endMs).toBe(2000);
     expect(validate(p)).toEqual([]);
+  });
+  it("merging the selected following line keeps a valid shared selection", () => {
+    const p = project("[00:01]今\n[00:02]日");
+    p.activeLineId = p.lines[1].id;
+    mergeLines(p, p.lines[0].id);
+    expect(p.activeLineId).toBe(p.lines[0].id);
+    expect(p.lines[0].text).toBe("今日");
   });
   it("rejects grapheme interiors, whitespace-only sentences and edge offsets without changes", () => {
     const p = project("[00:01]か\u3099 今日"),

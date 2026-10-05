@@ -84,6 +84,7 @@ export function mergeLines(project: ProjectDraft, id: string): void {
       : "";
   editLine(project, id, first.text + separator + second.text);
   project.lines.splice(index + 1, 1);
+  if (project.activeLineId === second.id) project.activeLineId = first.id;
 }
 
 function assertRange(value: number, min: number, max: number): void {

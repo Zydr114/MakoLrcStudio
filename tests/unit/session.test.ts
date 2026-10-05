@@ -282,6 +282,18 @@ describe("shared editing views", () => {
     expect(editor.positionMs).toBe(6300);
     expect(editor.recordingArmed).toBe(false);
   });
+  it("does not treat a word point as a sentence point after changing views", async () => {
+    const { audio, editor } = await session("[00:01]今日");
+    editor.confirmLines();
+    await editor.enter();
+    audio.position = 1200;
+    await editor.enter();
+    editor.goStage(2);
+    editor.backspace();
+    expect(editor.project.lines[0].units[0].startMs).toBe(1200);
+    expect(editor.project.stage).toBe(2);
+    expect(editor.recordingArmed).toBe(false);
+  });
   it("opens each editing view without audio or sentence onsets while keeping record validation", async () => {
     const editor = createEditor(undefined, false);
     editor.importText("今日\n次");

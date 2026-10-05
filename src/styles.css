@@ -220,6 +220,11 @@ kbd {
 .text-row.active {
   box-shadow: inset 3px 0 var(--accent);
 }
+.text-timing-reset {
+  display: block;
+  font-size: 10px;
+  color: var(--accent);
+}
 .app-main {
   flex: 1;
   min-height: 0;

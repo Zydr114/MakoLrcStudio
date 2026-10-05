@@ -387,9 +387,11 @@ export function createEditor(
     message.value = `已重做：${item.label}`;
   }
   function backspace() {
-    const point = history.past.at(-1)?.point;
+    const entry = history.past.at(-1);
+    const point = entry?.point;
     if (
       !point ||
+      entry.after.stage !== project.value.stage ||
       (project.value.stage === 3 && point.lineId !== line.value?.id)
     ) {
       message.value = "暂无可回退的打点；其他编辑可以使用撤销。";
@@ -707,13 +709,13 @@ export function createEditor(
       return;
     }
     if (recordingArmed.value && mode.value === "paused") await startRecording();
-    else if (asset.value && line.value) {
+    else if (asset.value) {
       recordingArmed.value = false;
       if (audition.range.value) await audition.resume(positionMs.value);
       else
         await audition.start(
-          project.value.stage === 3 ? "line" : "song",
-          { lineId: line.value.id, unitId: null },
+          project.value.stage === 3 && line.value ? "line" : "song",
+          { lineId: line.value?.id ?? "", unitId: null },
           positionMs.value,
         );
     }
