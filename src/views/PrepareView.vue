@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, nextTick, onMounted } from "vue";
 import { editor } from "../state/editor";
 import { copyProject, formatTime, newLine } from "../domain/model";
 import {
@@ -34,9 +34,20 @@ const changed = computed(() =>
   ),
 );
 const carets = new Map<string, number>();
+onMounted(
+  () =>
+    void nextTick(() =>
+      document
+        .querySelector(".text-row.active")
+        ?.scrollIntoView({ block: "nearest" }),
+    ),
+);
 function textEdit(id: string, event: Event) {
   const target = event.target as HTMLTextAreaElement;
-  editor.command("修改歌词", (p) => {
+  const hadTiming = editor.project.lines
+    .find((line) => line.id === id)
+    ?.units.some((unit) => unit.startMs !== null);
+  const committed = editor.command("修改歌词", (p) => {
     const parts = target.value.replace(/\r\n?/g, "\n").split("\n");
     const index = p.lines.findIndex((line) => line.id === id);
     editLine(p, id, parts[0]);
@@ -45,19 +56,19 @@ function textEdit(id: string, event: Event) {
       0,
       ...parts.slice(1).map((text) => newLine(text)),
     );
-    p.unlockedStage = 1;
+    p.activeLineId = id;
   });
+  if (committed && hadTiming)
+    editor.message = "已保留句首；修改行的逐字时间需重打。";
 }
 function split(id: string) {
   editor.command("拆分句子", (p) => {
     splitLine(p, id, carets.get(id) ?? 0);
-    p.unlockedStage = 1;
   });
 }
 function merge(id: string) {
   editor.command("合并句子", (p) => {
     mergeLines(p, id);
-    p.unlockedStage = 1;
   });
 }
 function toggle(id: string) {
@@ -68,16 +79,16 @@ function toggle(id: string) {
 function remove() {
   editor.command("删除选中行", (p) => {
     p.lines = p.lines.filter((l) => !selected.value.includes(l.id));
-    p.activeLineId = p.lines[0]?.id ?? null;
-    p.unlockedStage = 1;
+    if (!p.lines.some((line) => line.id === p.activeLineId))
+      p.activeLineId = p.lines[0]?.id ?? null;
   });
   selected.value = [];
 }
 function apply() {
   editor.command("批量整理歌词", (p) => {
     cleanProject(p, options.value);
-    p.activeLineId = p.lines[0]?.id ?? null;
-    p.unlockedStage = 1;
+    if (!p.lines.some((line) => line.id === p.activeLineId))
+      p.activeLineId = p.lines[0]?.id ?? null;
   });
   previewOpen.value = false;
 }
@@ -85,7 +96,7 @@ function apply() {
 <template>
   <section class="prepare-view">
     <div class="page-heading compact">
-      <h1>整理歌词</h1>
+      <h1>文本处理</h1>
     </div>
     <div class="prepare-grid">
       <div class="surface lyric-sheet">
@@ -118,7 +129,10 @@ function apply() {
           v-for="(line, index) in editor.project.lines"
           :key="line.id"
           class="text-row"
-          :class="{ selected: selected.includes(line.id) }"
+          :class="{
+            selected: selected.includes(line.id),
+            active: editor.project.activeLineId === line.id,
+          }"
         >
           <input
             type="checkbox"
@@ -133,6 +147,7 @@ function apply() {
             :value="line.text"
             rows="1"
             spellcheck="false"
+            @focus="editor.view({ activeLineId: line.id })"
             @change="textEdit(line.id, $event)"
             @click="
               carets.set(
@@ -175,7 +190,6 @@ function apply() {
           @click="
             editor.command('添加歌词行', (p) => {
               p.lines.push(newLine(''));
-              p.unlockedStage = 1;
             })
           "
         >

@@ -18,7 +18,19 @@ const helpOpen = ref(false),
   newOpen = ref(false);
 const theme = ref<"auto" | "light" | "dark">("auto"),
   seed = ref("#536b56");
-const steps = ["导入", "整理", "逐行打轴", "逐字打轴"];
+const tabs = ["文本处理", "逐行打轴", "逐字打轴"];
+function tabKey(event: KeyboardEvent, index: number) {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const next =
+    event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? 2
+        : (index + (event.key === "ArrowRight" ? 1 : 2)) % 3;
+  document.getElementById(`editor-tab-${next + 1}`)?.focus();
+  editor.goStage(next + 1);
+}
 let frame = 0;
 const held = new Set<string>();
 async function loadAudio(event: Event) {
@@ -65,7 +77,11 @@ function focusWorkspace() {
 watch(
   () => editor.project.stage,
   () => {
-    if (editor.project.stage >= 2) focusWorkspace();
+    if (
+      editor.project.stage >= 2 &&
+      !document.activeElement?.closest('[role="tablist"]')
+    )
+      focusWorkspace();
   },
 );
 function editable(event: KeyboardEvent) {
@@ -225,6 +241,12 @@ onBeforeUnmount(() => {
         ><small class="save-status">{{ editor.saveState }}</small>
       </div>
       <div class="header-actions">
+        <UiButton
+          v-if="editor.project.lines.length"
+          variant="text"
+          @click="editor.goStage(0)"
+          >导入</UiButton
+        >
         <button
           class="icon-button"
           aria-label="撤销"
@@ -267,35 +289,31 @@ onBeforeUnmount(() => {
         ><UiButton
           variant="filled"
           icon="download"
-          :disabled="editor.project.stage < 3 || editor.editingText"
+          :disabled="!editor.project.lines.length || editor.editingText"
           @click="editor.exportLrc"
           >导出 LRC</UiButton
         >
       </div>
     </header>
-    <nav class="stepper" aria-label="编辑步骤">
+    <nav
+      v-if="editor.project.stage > 0"
+      class="editor-tabs"
+      role="tablist"
+      aria-label="歌词编辑视图"
+    >
       <button
-        v-for="(step, index) in steps"
-        :key="step"
-        :aria-label="step"
-        :class="{
-          active: editor.project.stage === index,
-          passed: editor.project.stage > index,
-        }"
-        :disabled="editor.project.unlockedStage < index"
-        :aria-current="editor.project.stage === index ? 'step' : undefined"
-        @click="editor.goStage(index)"
+        v-for="(tab, index) in tabs"
+        :id="`editor-tab-${index + 1}`"
+        :key="tab"
+        role="tab"
+        :aria-selected="editor.project.stage === index + 1"
+        aria-controls="editor-panel"
+        :tabindex="editor.project.stage === index + 1 ? 0 : -1"
+        :disabled="!editor.project.lines.length"
+        @click="editor.goStage(index + 1)"
+        @keydown="tabKey($event, index)"
       >
-        <span class="step-number"
-          ><Icon
-            v-if="editor.project.stage > index"
-            name="check"
-            :size="16"
-          /><template v-else>{{
-            String(index + 1).padStart(2, "0")
-          }}</template></span
-        ><span>{{ step }}</span
-        ><span class="step-line" />
+        {{ tab }}
       </button>
     </nav>
     <div v-if="editor.error" class="notice error-notice" role="alert">
@@ -318,7 +336,16 @@ onBeforeUnmount(() => {
         <Icon name="close" :size="18" />
       </button>
     </div>
-    <main class="app-main">
+    <main
+      id="editor-panel"
+      class="app-main"
+      :role="editor.project.stage > 0 ? 'tabpanel' : undefined"
+      :aria-labelledby="
+        editor.project.stage > 0
+          ? `editor-tab-${editor.project.stage}`
+          : undefined
+      "
+    >
       <div v-if="editor.restoring" class="loading-screen">
         正在恢复本机草稿…
       </div>

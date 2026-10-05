@@ -197,56 +197,28 @@ kbd {
   background: var(--line);
   margin: 0 8px;
 }
-.stepper {
+.editor-tabs {
   display: flex;
-  justify-content: center;
-  padding: 18px 20px;
   flex: 0 0 auto;
-  gap: 12px;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
 }
-.stepper button {
-  display: flex;
-  align-items: center;
-  gap: 9px;
+.editor-tabs button {
   border: 0;
+  padding: 10px 24px;
+  border-radius: 14px;
   background: transparent;
   color: var(--muted);
-  padding: 0;
-  font-size: 13px;
-  border-radius: 20px;
+  font-size: 14px;
 }
-.step-number {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  font-size: 10px;
-  font-weight: 700;
-}
-.stepper .active {
+.editor-tabs button[aria-selected="true"] {
+  background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
 }
-.active .step-number {
-  background: var(--accent);
-  color: var(--on-accent);
-  border-color: transparent;
-}
-.passed .step-number {
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: 0;
-}
-.step-line {
-  width: 65px;
-  height: 1px;
-  background: var(--line);
-  margin: 0 6px;
-}
-.stepper button:last-child .step-line {
-  display: none;
+.text-row.active {
+  box-shadow: inset 3px 0 var(--accent);
 }
 .app-main {
   flex: 1;
@@ -679,9 +651,6 @@ kbd {
     height: 60px;
     flex-basis: 60px;
   }
-  .stepper {
-    padding: 12px 20px;
-  }
   .audio-bar {
     height: 58px;
     flex-basis: 58px;
@@ -734,9 +703,6 @@ kbd {
     flex-basis: 64px;
     height: 64px;
   }
-  .step-line {
-    width: 30px;
-  }
   .prepare-grid {
     grid-template-columns: 1fr;
   }
@@ -776,19 +742,6 @@ kbd {
   }
   .header-actions mdui-button {
     max-width: 118px;
-  }
-  .stepper {
-    gap: 8px;
-    padding: 14px;
-    justify-content: space-between;
-  }
-  .step-line {
-    display: none;
-  }
-  .stepper button {
-    flex-direction: column;
-    font-size: 10px;
-    gap: 5px;
   }
   .app-main {
     padding: 0 12px 14px;

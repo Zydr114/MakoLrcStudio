@@ -191,6 +191,10 @@ export function createEditor(
     try {
       const next = copyProject(project.value);
       apply(next);
+      // Retain the v1 backup field; editing views no longer use it as a gate.
+      next.unlockedStage = next.lines.length
+        ? 3
+        : Math.max(next.stage, next.unlockedStage);
       if (JSON.stringify(next) === JSON.stringify(project.value)) return true;
       history.push(project.value, next, label, point);
       historyVersion.value++;
@@ -336,12 +340,10 @@ export function createEditor(
     recordingArmed.value = false;
     const restored = copyProject(item.before);
     restored.stage = project.value.stage;
-    restored.unlockedStage = Math.min(
-      restored.unlockedStage,
-      project.value.unlockedStage,
+    restored.unlockedStage = Math.max(
+      restored.stage,
+      restored.lines.length ? 3 : 0,
     );
-    if (restored.stage > restored.unlockedStage)
-      restored.stage = restored.unlockedStage;
     restored.activeLineId = restored.lines.some(
       (l) => l.id === project.value.activeLineId,
     )
@@ -364,7 +366,22 @@ export function createEditor(
     pause();
     audition.cancel();
     recordingArmed.value = false;
-    project.value = copyProject(item.after);
+    const restored = copyProject(item.after);
+    restored.stage = project.value.stage;
+    restored.unlockedStage = Math.max(
+      restored.stage,
+      restored.lines.length ? 3 : 0,
+    );
+    restored.activeLineId = restored.lines.some(
+      (line) => line.id === project.value.activeLineId,
+    )
+      ? project.value.activeLineId
+      : (restored.lines[0]?.id ?? null);
+    project.value = restored;
+    selectedUnit.value = Math.min(
+      selectedUnit.value,
+      Math.max(0, (line.value?.units.length ?? 1) - 1),
+    );
     historyVersion.value++;
     error.value = "";
     message.value = `已重做：${item.label}`;
@@ -423,24 +440,27 @@ export function createEditor(
     seek((line.value?.startMs ?? prior) - 1000);
   }
   function goStage(stage: number) {
-    if (stage > project.value.unlockedStage) return;
+    if (
+      ![0, 1, 2, 3].includes(stage) ||
+      (stage > 0 && !project.value.lines.length)
+    )
+      return;
     pause();
     audition.cancel();
     clearPreview();
     recordingArmed.value = false;
+    editingText.value = false;
+    retimeOne = false;
     message.value = "";
-    view({ stage });
+    view({ stage, unlockedStage: project.value.lines.length ? 3 : 0 });
     mode.value = "idle";
-    if (stage === 2)
-      selectLine(
-        (
-          project.value.lines.find((l) => l.startMs === null) ??
-          project.value.lines[0]
-        )?.id ?? "",
-      );
     if (stage === 3) {
       prepareUnits();
-      selectLine(line.value?.id ?? "");
+      selectedUnit.value = Math.min(
+        selectedUnit.value,
+        Math.max(0, (line.value?.units.length ?? 1) - 1),
+      );
+      selectionEnd.value = selectedUnit.value;
     }
   }
   function confirmText() {
@@ -470,6 +490,9 @@ export function createEditor(
     }
     view({ unlockedStage: 3 });
     goStage(3);
+    if (cursor.value < (line.value?.units.length ?? 0))
+      selectedUnit.value = cursor.value;
+    selectionEnd.value = selectedUnit.value;
   }
   function seek(ms: number) {
     pause();

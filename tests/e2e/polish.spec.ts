@@ -126,7 +126,7 @@ test("unknown successors have no invented regions or playback fill and long line
     "data-sample-status",
     "unknown",
   );
-  await page.getByRole("button", { name: "整理", exact: true }).click();
+  await page.getByRole("tab", { name: "文本处理", exact: true }).click();
   await page
     .getByLabel("第 1 行歌词")
     .fill("今日も君を待っている　".repeat(12));

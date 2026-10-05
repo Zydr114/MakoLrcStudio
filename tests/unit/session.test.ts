@@ -249,3 +249,48 @@ describe("audition ranges and isolated partial timing", () => {
     expect(editor.isComplete).toBe(true);
   });
 });
+
+describe("shared editing views", () => {
+  it("switches without gates, preserves selected line and position and shares text edits and history", async () => {
+    const { editor } = await session(
+      "[00:01]<00:01>今<00:02>日<00:03>\n[00:06]<00:06>次<00:07>",
+    );
+    editor.confirmLines();
+    editor.selectLine(editor.project.lines[1].id);
+    editor.seek(6300);
+    editor.goStage(1);
+    expect(editor.lineIndex).toBe(1);
+    expect(editor.positionMs).toBe(6300);
+    editor.command("修改第二行", (p) => {
+      p.lines[1].text = "次の歌";
+      p.lines[1].units = [];
+      p.lines[1].endMs = null;
+      p.unlockedStage = 1; // Existing callers / v1 snapshots cannot lock a view.
+    });
+    editor.goStage(2);
+    expect(editor.lineIndex).toBe(1);
+    expect(editor.line?.text).toBe("次の歌");
+    editor.undo();
+    expect(editor.project.stage).toBe(2);
+    expect(editor.line?.text).toBe("次");
+    expect(editor.project.lines[0].endMs).toBe(3000);
+    editor.redo();
+    expect(editor.project.stage).toBe(2);
+    expect(editor.line?.text).toBe("次の歌");
+    editor.goStage(3);
+    expect(editor.line?.units.map((unit) => unit.text).join("")).toBe("次の歌");
+    expect(editor.positionMs).toBe(6300);
+    expect(editor.recordingArmed).toBe(false);
+  });
+  it("opens each editing view without audio or sentence onsets while keeping record validation", async () => {
+    const editor = createEditor(undefined, false);
+    editor.importText("今日\n次");
+    for (const stage of [3, 1, 2, 1, 3]) {
+      editor.goStage(stage);
+      expect(editor.project.stage).toBe(stage);
+    }
+    await editor.enter();
+    expect(editor.error).toContain("音频");
+    expect(editor.line?.startMs).toBeNull();
+  });
+});
