@@ -191,3 +191,32 @@ test("transport is inside the waveform and source position links regions, previe
     path: testInfo.outputPath("integrated-audio-dark-1440.png"),
   });
 });
+
+test("clears only the current line timing and restores it with undo", async ({
+  page,
+}) => {
+  await openProject(page);
+  await page.getByRole("tab", { name: "逐字打轴", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "清除本行时标", exact: true }),
+  ).toBeEnabled();
+
+  await page.getByRole("button", { name: "清除本行时标", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "「今」起点" })).toHaveValue(
+    "",
+  );
+  await expect(page.getByRole("textbox", { name: "「今」终点" })).toHaveValue(
+    "",
+  );
+  await expect(
+    page.getByRole("button", { name: "清除本行时标", exact: true }),
+  ).toBeDisabled();
+
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "「も」起点" })).toHaveValue(
+    "00:03.000",
+  );
+  await expect(page.getByRole("textbox", { name: "本句收尾" })).toHaveValue(
+    "00:04.000",
+  );
+});

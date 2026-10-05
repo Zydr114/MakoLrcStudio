@@ -761,6 +761,33 @@ export function createEditor(
         : (line.value.startMs ?? 0))! - 1000,
     );
   }
+  function clearLineTiming() {
+    const current = line.value;
+    if (!current) return false;
+    const index = lineIndex.value;
+    const hasTiming =
+      current.startMs !== null ||
+      current.endMs !== null ||
+      current.units.some((unit) => unit.startMs !== null);
+    if (!hasTiming) return true;
+    pause();
+    audition.cancel();
+    recordingArmed.value = false;
+    retimeOne = false;
+    const success = command("清除本行时标", (draft) => {
+      const target = draft.lines[index];
+      target.startMs = null;
+      target.endMs = null;
+      target.units.forEach((unit) => (unit.startMs = null));
+    });
+    if (success) {
+      selectedUnit.value = 0;
+      selectionEnd.value = 0;
+      mode.value = "idle";
+      message.value = "已清除本行时标，可用撤销恢复。";
+    }
+    return success;
+  }
   function exportLrc() {
     try {
       downloadText(exportLyrics(project.value), `${project.value.name}.lrc`);
@@ -854,6 +881,7 @@ export function createEditor(
     setVolume,
     nextLine,
     retime,
+    clearLineTiming,
     exportLrc,
     backup,
   });

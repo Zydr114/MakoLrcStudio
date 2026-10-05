@@ -35,6 +35,15 @@ const playingLine = computed(() =>
   playingLineIndex(editor.displayProject, editor.positionMs),
 );
 const lineMode = computed(() => editor.project.stage === 2);
+const hasLineTiming = computed(() => {
+  const line = editor.line;
+  return (
+    !!line &&
+    (line.startMs !== null ||
+      line.endMs !== null ||
+      line.units.some((unit) => unit.startMs !== null))
+  );
+});
 const selected = computed(() => editor.line?.units[editor.selectedUnit]);
 const displaySelected = computed(
   () => editor.displayLine?.units[editor.selectedUnit],
@@ -266,6 +275,15 @@ watch(
           >
             编辑／拆分
           </UiButton>
+          <UiButton
+            class="clear-line-action"
+            variant="outlined"
+            icon="trash"
+            :disabled="editor.editingText || !hasLineTiming"
+            title="清除本行句首、逐字起点和收尾；可用撤销恢复"
+            @click="editor.clearLineTiming"
+            >清除本行时标</UiButton
+          >
         </div>
         <span class="workspace-counter"
           >第 {{ editor.lineIndex + 1 }} / {{ editor.project.lines.length }} 行

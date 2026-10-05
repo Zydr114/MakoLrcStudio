@@ -122,6 +122,13 @@
   font-size: 16px;
   font-weight: 550;
 }
+.clear-line-action {
+  --shape-corner: 12px;
+}
+.clear-line-action::part(button) {
+  color: var(--danger);
+  border-color: rgba(var(--mdui-color-error), 0.45);
+}
 .workspace-counter {
   color: var(--muted);
   font-size: 12px;

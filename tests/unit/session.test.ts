@@ -164,6 +164,34 @@ describe("recording session transitions", () => {
     editor.redo();
     expect(editor.line?.units.map((u) => u.startMs)).toEqual([1000, null]);
   });
+  it("clears the current line timing as one undoable edit", async () => {
+    const { editor } = await session(
+      "[00:01]<00:01>今<00:02>日<00:03>も<00:04>",
+    );
+    editor.confirmLines();
+    expect(editor.line?.startMs).toBe(1000);
+    expect(editor.line?.units.map((unit) => unit.startMs)).toEqual([
+      1000, 2000, 3000,
+    ]);
+    expect(editor.line?.endMs).toBe(4000);
+
+    editor.clearLineTiming();
+    expect(editor.line?.startMs).toBeNull();
+    expect(editor.line?.units.map((unit) => unit.startMs)).toEqual([
+      null,
+      null,
+      null,
+    ]);
+    expect(editor.line?.endMs).toBeNull();
+    expect(editor.canUndo).toBe(true);
+
+    editor.undo();
+    expect(editor.line?.startMs).toBe(1000);
+    expect(editor.line?.units.map((unit) => unit.startMs)).toEqual([
+      1000, 2000, 3000,
+    ]);
+    expect(editor.line?.endMs).toBe(4000);
+  });
 });
 
 describe("explicit playback and recording modes", () => {
