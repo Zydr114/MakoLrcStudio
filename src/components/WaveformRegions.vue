@@ -129,7 +129,7 @@ function title(interval: TimingInterval) {
 }
 .timing-region {
   position: absolute;
-  top: 27px;
+  top: 47px;
   bottom: 10px;
   padding: 0;
   border: 0;

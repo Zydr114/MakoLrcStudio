@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from "vue";
 import { editor } from "../state/editor";
-import { formatTime, completeLine } from "../domain/model";
+import { completeLine, formatTime } from "../domain/model";
 import {
   setLineStart,
   setUnitStart,
@@ -9,125 +9,164 @@ import {
   shiftAll,
 } from "../domain/edit";
 import { graphemes, mergeUnits, splitUnit } from "../domain/tokenize";
+import { playingLineIndex, tokenIntervals } from "../domain/timing";
 import UiButton from "../components/UiButton.vue";
 import Icon from "../components/Icon.vue";
 import TimeInput from "../components/TimeInput.vue";
 import Waveform from "../components/Waveform.vue";
 import Modal from "../components/Modal.vue";
+import TimingCue from "../components/TimingCue.vue";
+import LyricPreview from "../components/LyricPreview.vue";
 const emit = defineEmits<{ audio: [] }>();
-const splitOpen = ref(false),
+const listOpen = ref(false),
   shiftOpen = ref(false),
   shiftMs = ref("0"),
-  listOpen = ref(false);
+  splitOpen = ref(false),
+  fillPreview = ref(false);
 const lineMode = computed(() => editor.project.stage === 2);
-const current = computed(() => editor.line?.units[editor.cursor]);
 const selected = computed(() => editor.line?.units[editor.selectedUnit]);
+const displaySelected = computed(
+  () => editor.displayLine?.units[editor.selectedUnit],
+);
+const selectedEnd = computed(() =>
+  editor.selectedUnit === (editor.line?.units.length ?? 0) - 1
+    ? editor.line?.endMs
+    : editor.line?.units[editor.selectedUnit + 1]?.startMs,
+);
 const conflict = computed(() =>
   editor.conflicts.find((issue) => issue.lineId === editor.line?.id),
 );
-const brokenComplete = computed(
-  () => !!editor.line && completeLine(editor.line) && !editor.isComplete,
+const previewLine = computed(() => {
+  if (editor.auditionScope === "song" || lineMode.value) {
+    const index = playingLineIndex(editor.displayProject, editor.positionMs);
+    if (index >= 0) return editor.displayProject.lines[index];
+    if (editor.recordingArmed && editor.lastRecorded && lineMode.value)
+      return (
+        editor.displayProject.lines.find(
+          (line) => line.id === editor.lastRecorded!.lineId,
+        ) ?? editor.displayLine
+      );
+    if (editor.auditionScope === "song")
+      return (
+        editor.displayProject.lines
+          .filter(
+            (line) =>
+              line.startMs !== null && line.startMs <= editor.positionMs,
+          )
+          .at(-1) ?? editor.displayLine
+      );
+  }
+  return editor.displayLine;
+});
+const previewLimit = computed(() => {
+  const index = editor.displayProject.lines.findIndex(
+    (line) => line.id === previewLine.value?.id,
+  );
+  return Math.min(
+    editor.project.audio?.durationMs ?? Infinity,
+    editor.displayProject.lines[index + 1]?.startMs ?? Infinity,
+  );
+});
+const provisional = computed(() =>
+  editor.recordingArmed &&
+  editor.lastRecorded?.lineId === editor.line?.id &&
+  editor.lastRecorded.index === editor.cursor - 1 &&
+  editor.positionMs >= editor.lastRecorded.timeMs
+    ? editor.line?.units[editor.lastRecorded.index]?.id
+    : null,
 );
-const status = computed(() =>
-  editor.mode === "starting"
-    ? "正在开始播放…"
-    : editor.mode === "recording"
-      ? "正在记录"
-      : editor.mode === "review"
-        ? "试听中"
-        : editor.mode === "paused"
-          ? "已暂停"
-          : editor.mode === "ended"
-            ? "已到播放边界"
-            : editor.isComplete && !lineMode.value
-              ? "本行完成"
-              : "准备开始",
+const selectedInterval = computed(() =>
+  editor.displayLine
+    ? tokenIntervals(
+        editor.displayLine,
+        Math.min(
+          editor.project.audio?.durationMs ?? Infinity,
+          editor.displayProject.lines[editor.lineIndex + 1]?.startMs ??
+            Infinity,
+        ),
+      ).find((interval) => interval.id === selected.value?.id)
+    : undefined,
 );
-const target = computed(() =>
-  lineMode.value
-    ? editor.line?.text
-    : editor.isComplete
-      ? "完成"
-      : brokenComplete.value
-        ? "待调整"
-        : current.value?.text.trim() || "收尾",
-);
-const prompt = computed(() =>
-  brokenComplete.value && !lineMode.value
-    ? "调整时标，或从选中单位重打"
-    : editor.isComplete && !lineMode.value
-      ? "R 试听 · Ctrl / Cmd + Enter 下一句"
-      : editor.mode === "ended" && editor.cursor === editor.line?.units.length
-        ? "Enter 以播放边界收尾"
-        : editor.mode === "recording"
-          ? lineMode.value
-            ? "听到这句开始时，按 Enter"
-            : current.value
-              ? "听到这个单位开始时，按 Enter"
-              : "唱完最后一个单位，按 Enter 收尾"
-          : "Enter 开始 / 继续播放，本次不记录",
-);
-function focusWorkspace() {
+function focus() {
   document
     .querySelector<HTMLElement>("[data-workspace]")
     ?.focus({ preventScroll: true });
 }
-function recordClick() {
-  focusWorkspace();
-  if (lineMode.value && editor.line?.startMs !== null && !editor.recordingArmed)
-    editor.retimeLine();
-  void editor.enter();
+function choose(id: string) {
+  editor.selectLine(id);
+  listOpen.value = false;
+  focus();
 }
-function retimeClick() {
-  editor.retime(editor.selectedUnit);
-  focusWorkspace();
+function selectUnit(index: number, event: MouseEvent) {
+  if (editor.recordingArmed) editor.pause();
+  editor.selectedUnit = index;
+  editor.selectionEnd = event.shiftKey ? editor.selectionEnd : index;
+  focus();
 }
-function reviewClick() {
-  focusWorkspace();
-  void editor.review();
+function selectedClass(index: number) {
+  return (
+    index >= Math.min(editor.selectedUnit, editor.selectionEnd) &&
+    index <= Math.max(editor.selectedUnit, editor.selectionEnd)
+  );
 }
-watch(
-  () => editor.cursor,
-  () =>
-    nextTick(() =>
-      document
-        .querySelector(".unit-strip .pending")
-        ?.scrollIntoView({ block: "nearest", inline: "nearest" }),
-    ),
-);
 const splitChars = computed(() =>
   selected.value ? graphemes(selected.value.text) : [],
 );
-function selectUnit(index: number, event: MouseEvent) {
-  editor.pause();
-  if (event.shiftKey) editor.selectionEnd = index;
-  else {
-    editor.selectedUnit = index;
-    editor.selectionEnd = index;
-  }
-  const time = editor.line?.units[index].startMs;
-  if (time !== null && time !== undefined) editor.seek(time - 200);
-}
 function merge() {
   editor.pause();
   editor.command("合并单位", (p) => {
-    const line = p.lines[editor.lineIndex];
-    line.units = mergeUnits(
-      line.units,
+    p.lines[editor.lineIndex].units = mergeUnits(
+      p.lines[editor.lineIndex].units,
       Math.min(editor.selectedUnit, editor.selectionEnd),
       Math.max(editor.selectedUnit, editor.selectionEnd),
     );
   });
   editor.selectedUnit = Math.min(editor.selectedUnit, editor.selectionEnd);
   editor.selectionEnd = editor.selectedUnit;
+  focus();
 }
 function split(offset: number) {
   editor.command("拆分单位", (p) => {
-    const line = p.lines[editor.lineIndex];
-    line.units = splitUnit(line.units, editor.selectedUnit, offset);
+    p.lines[editor.lineIndex].units = splitUnit(
+      p.lines[editor.lineIndex].units,
+      editor.selectedUnit,
+      offset,
+    );
   });
   splitOpen.value = false;
-  setTimeout(focusWorkspace, 0);
+  focus();
+}
+function applyStart(p: typeof editor.project, ms: number) {
+  if (lineMode.value) setLineStart(p, editor.lineIndex, ms);
+  else setUnitStart(p, editor.lineIndex, editor.selectedUnit, ms);
+}
+function applyEnd(p: typeof editor.project, ms: number) {
+  if (editor.selectedUnit === p.lines[editor.lineIndex].units.length - 1)
+    setLineEnd(p, editor.lineIndex, ms);
+  else setUnitStart(p, editor.lineIndex, editor.selectedUnit + 1, ms);
+}
+function fieldStart(ms: number) {
+  if (editor.recordingArmed) editor.pause();
+  editor.clearPreview();
+  return editor.command("调整起点", (p) => applyStart(p, ms));
+}
+function fieldEnd(ms: number) {
+  if (editor.recordingArmed) editor.pause();
+  editor.clearPreview();
+  return editor.command("调整终点", (p) => applyEnd(p, ms));
+}
+function previewStart(ms: number) {
+  return editor.previewCommand("start-field", (p) => applyStart(p, ms));
+}
+function previewEnd(ms: number) {
+  return editor.previewCommand("end-field", (p) => applyEnd(p, ms));
+}
+function cancelField(owner: string) {
+  if (editor.previewOwner === owner) editor.clearPreview();
+}
+function audition(scope: "line" | "token" | "boundary" | "song") {
+  focus();
+  void editor.review(scope);
 }
 function applyShift() {
   const value = Number(shiftMs.value);
@@ -138,28 +177,15 @@ function applyShift() {
   if (editor.command("整体平移", (p) => shiftAll(p, value)))
     shiftOpen.value = false;
 }
-function choose(id: string) {
-  editor.selectLine(id);
-  listOpen.value = false;
-  focusWorkspace();
-}
-function fieldStart(ms: number) {
-  editor.pause();
-  return editor.command(lineMode.value ? "调整句首" : "调整单位起点", (p) => {
-    if (lineMode.value) setLineStart(p, editor.lineIndex, ms);
-    else setUnitStart(p, editor.lineIndex, editor.selectedUnit, ms);
-  });
-}
-function fieldEnd(ms: number) {
-  editor.pause();
-  return editor.command("调整收尾", (p) => setLineEnd(p, editor.lineIndex, ms));
-}
-function selectedClass(index: number) {
-  return (
-    index >= Math.min(editor.selectedUnit, editor.selectionEnd) &&
-    index <= Math.max(editor.selectedUnit, editor.selectionEnd)
-  );
-}
+watch(
+  () => editor.cursor,
+  () =>
+    nextTick(() =>
+      document
+        .querySelector(".unit-strip .pending")
+        ?.scrollIntoView({ block: "nearest", inline: "nearest" }),
+    ),
+);
 </script>
 <template>
   <section class="timing-layout">
@@ -169,7 +195,8 @@ function selectedClass(index: number) {
         <span
           >{{
             lineMode
-              ? editor.project.lines.filter((l) => l.startMs !== null).length
+              ? editor.project.lines.filter((line) => line.startMs !== null)
+                  .length
               : editor.finishedCount
           }}
           / {{ editor.project.lines.length }}</span
@@ -180,6 +207,7 @@ function selectedClass(index: number) {
           v-for="(line, index) in editor.project.lines"
           :key="line.id"
           :class="{ active: line.id === editor.line?.id }"
+          :aria-current="line.id === editor.line?.id ? 'true' : undefined"
           :title="
             editor.conflicts.find((issue) => issue.lineId === line.id)?.message
           "
@@ -203,7 +231,7 @@ function selectedClass(index: number) {
             v-else
             class="progress-dot"
             :class="{
-              partial: line.units.some((u) => u.startMs !== null),
+              partial: line.units.some((unit) => unit.startMs !== null),
               invalid: editor.conflicts.some(
                 (issue) => issue.lineId === line.id,
               ),
@@ -234,90 +262,67 @@ function selectedClass(index: number) {
             aria-label="显示歌词列表"
             @click="listOpen = !listOpen"
           >
-            <Icon name="list" /></button
-          ><span class="eyebrow">{{
-            lineMode ? "LINE BY LINE" : "ONE WORD AT A TIME"
-          }}</span>
+            <Icon name="list" />
+          </button>
           <h1>{{ lineMode ? "逐行打轴" : "逐字打轴" }}</h1>
         </div>
         <span class="workspace-counter"
-          >第 {{ editor.lineIndex + 1 }} /
-          {{ editor.project.lines.length }} 句</span
+          >第 {{ editor.lineIndex + 1 }} / {{ editor.project.lines.length }} 行
+          <template v-if="!lineMode"
+            >·
+            {{
+              editor.line?.units.filter((unit) => unit.startMs !== null).length
+            }}
+            / {{ editor.line?.units.length }}</template
+          ></span
         >
       </div>
       <div v-if="!editor.asset" class="missing-audio">
-        <Icon name="music" /><span>草稿已恢复，重新选择原音频即可继续。</span
+        <span>{{
+          editor.project.audio ? "重新选择原音频" : "选择音频以开始打轴"
+        }}</span
         ><UiButton variant="tonal" @click="emit('audio')">选择音频</UiButton>
       </div>
-      <template v-if="editor.line"
-        ><p v-if="conflict" class="conflict-note" role="alert">
-          {{ conflict.message }}。调整时标或重打修正。
+      <template v-if="editor.line">
+        <p v-if="conflict" class="conflict-note" role="alert">
+          {{ conflict.message }}
         </p>
-        <div
-          class="target-area"
-          :class="{ complete: editor.isComplete && !lineMode }"
-        >
-          <span class="state-label"
-            ><span
-              class="status-dot"
-              :class="{ live: editor.mode === 'recording' }"
-            />{{ status }}</span
-          >
-          <p v-if="!lineMode" class="full-line">{{ editor.line.text }}</p>
-          <div class="target-caption">
-            {{
-              lineMode
-                ? "待记录句首"
-                : editor.isComplete
-                  ? "已记录起点和收尾"
-                  : current
-                    ? "待记录起点"
-                    : "等待收尾"
-            }}
+        <TimingCue />
+        <LyricPreview
+          v-if="previewLine"
+          :line="previewLine"
+          :position-ms="editor.positionMs"
+          :limit-ms="previewLimit"
+          :fill="fillPreview"
+          :line-mode="lineMode"
+          :provisional-unit-id="provisional"
+        />
+        <div v-if="!lineMode" class="segmentation-row">
+          <div class="unit-strip" aria-label="本句切分">
+            <button
+              v-for="(unit, index) in editor.line.units"
+              :key="unit.id"
+              :class="{
+                recorded: unit.startMs !== null,
+                pending: index === editor.cursor && !editor.isComplete,
+                selected: selectedClass(index),
+              }"
+              :aria-label="`选择单位 ${index + 1}：${unit.text.trim()}`"
+              :title="
+                unit.startMs === null ? '待打轴' : formatTime(unit.startMs)
+              "
+              @click="selectUnit(index, $event)"
+            >
+              <span>{{ unit.text.trim() }}</span>
+            </button>
           </div>
-          <div class="target-text" :class="{ 'sentence-target': lineMode }">
-            {{ target }}
-          </div>
-          <p class="record-prompt">
-            <kbd>Enter</kbd>{{ prompt.replace(/^Enter\s*/, "") }}
-          </p>
-          <span v-if="!lineMode" class="unit-progress"
-            >{{ editor.line.units.filter((u) => u.startMs !== null).length }} /
-            {{ editor.line.units.length }} 个起点 ·
-            {{ editor.line.endMs === null ? "收尾待记录" : "已收尾" }}</span
-          >
-        </div>
-        <div v-if="!lineMode" class="unit-strip" aria-label="本句切分">
-          <button
-            v-for="(unit, index) in editor.line.units"
-            :key="unit.id"
-            :class="{
-              recorded: unit.startMs !== null,
-              pending: index === editor.cursor && !editor.isComplete,
-              selected: selectedClass(index),
-            }"
-            :aria-label="`选择单位 ${index + 1}：${unit.text.trim()}`"
-            @click="selectUnit(index, $event)"
-          >
-            <span>{{ unit.text.trim() }}</span
-            ><small>{{
-              unit.startMs === null ? "待打" : formatTime(unit.startMs)
-            }}</small></button
-          ><span
-            class="unit-end"
-            :class="{ recorded: editor.line.endMs !== null }"
-            >{{ editor.line.endMs === null ? "＋ 收尾" : "✓ 收尾" }}</span
-          >
-        </div>
-        <div v-if="!lineMode" class="unit-tools">
-          <span class="small-note">Shift + 点击选中相邻单位</span>
-          <div>
+          <div class="unit-tools">
             <button
               class="text-link"
               :disabled="editor.selectedUnit === editor.selectionEnd"
               @click="merge"
             >
-              <Icon name="merge" :size="16" />合并</button
+              合并</button
             ><button
               class="text-link"
               :disabled="splitChars.length < 2"
@@ -326,9 +331,15 @@ function selectedClass(index: number) {
                 splitOpen = true;
               "
             >
-              <Icon name="split" :size="16" />拆分</button
-            ><button class="text-link" @click="retimeClick">
-              <Icon name="repeat" :size="16" />从选中单位重打
+              拆分</button
+            ><button
+              class="text-link"
+              @click="
+                editor.retime(editor.selectedUnit);
+                focus();
+              "
+            >
+              从选中单位重打
             </button>
           </div>
         </div>
@@ -342,78 +353,109 @@ function selectedClass(index: number) {
               lineMode ? '本句起点' : `「${selected?.text.trim() ?? ''}」起点`
             "
             :commit="fieldStart"
-          /><TimeInput
-            v-if="
-              !lineMode && editor.selectedUnit === editor.line.units.length - 1
+            :preview="previewStart"
+            :cancel="() => cancelField('start-field')"
+          />
+          <TimeInput
+            v-if="!lineMode"
+            :value="selectedEnd ?? null"
+            :label="
+              editor.selectedUnit === editor.line.units.length - 1
+                ? '本句收尾'
+                : `「${selected?.text.trim() ?? ''}」终点`
             "
-            :value="editor.line.endMs"
-            label="本句收尾"
             :commit="fieldEnd"
-          /><span v-else-if="!lineMode" class="small-note"
-            >终点由下一单位起点决定</span
-          ><span v-else class="small-note"
-            >已有逐字时间的句首修改会平移整句。</span
+            :preview="previewEnd"
+            :cancel="() => cancelField('end-field')"
+            :title="
+              editor.selectedUnit === editor.line.units.length - 1
+                ? '真实收尾'
+                : '与下一项起点共用边界'
+            "
+          />
+          <span
+            v-if="!lineMode && selectedInterval?.kind === 'confirmed'"
+            class="duration-label"
+            >{{
+              (
+                (selectedInterval.endMs! - displaySelected!.startMs!) /
+                1000
+              ).toFixed(3)
+            }}s</span
           >
         </div>
         <div class="workspace-actions">
-          <div>
-            <UiButton
-              variant="filled"
-              :disabled="
-                !editor.asset ||
-                editor.mode === 'starting' ||
-                (!lineMode && (editor.isComplete || brokenComplete))
-              "
-              :icon="editor.playing ? 'check' : 'play'"
-              @click="recordClick"
-              >{{
-                editor.mode === "recording"
-                  ? lineMode
-                    ? "记录句首"
-                    : current
-                      ? "记录起点"
-                      : "记录收尾"
-                  : editor.mode === "paused"
-                    ? "继续打轴"
-                    : lineMode && editor.line.startMs !== null
-                      ? "重打本句"
-                      : "开始打轴"
-              }}</UiButton
-            ><UiButton
-              variant="text"
-              icon="repeat"
+          <div class="audition-actions">
+            <button
+              v-if="lineMode || !editor.isComplete"
+              class="text-link"
               :disabled="!editor.asset"
-              @click="reviewClick"
-              >试听本句</UiButton
+              @click="audition('line')"
+            >
+              试听本行</button
+            ><button
+              v-if="!lineMode"
+              class="text-link"
+              :disabled="
+                !editor.asset || selectedInterval?.kind !== 'confirmed'
+              "
+              title="需已确认区间"
+              @click="audition('token')"
+            >
+              试听选中</button
+            ><button
+              v-if="!lineMode"
+              class="text-link"
+              :disabled="!editor.asset || selected?.startMs === null"
+              @click="audition('boundary')"
+            >
+              试听边界</button
+            ><label class="check-label"
+              ><input
+                v-model="editor.loopAudition"
+                type="checkbox"
+                aria-label="循环试听"
+              />循环</label
+            ><select
+              v-if="!lineMode"
+              v-model="fillPreview"
+              aria-label="预览方式"
+            >
+              <option :value="false">起点高亮</option>
+              <option :value="true">区间填色（均匀）</option></select
+            ><span
+              v-if="
+                editor.auditionScope === 'line' && editor.line.endMs === null
+              "
+              class="small-note"
+              >参考范围</span
             >
           </div>
           <UiButton
-            v-if="lineMode"
+            v-if="
+              lineMode &&
+              !editor.project.lines.every((line) => line.startMs !== null)
+            "
             variant="tonal"
-            icon="arrow"
+            :disabled="editor.lineIssues.length > 0"
             @click="editor.confirmLines"
             >逐行完成，进入逐字</UiButton
           ><UiButton
-            v-else
+            v-else-if="!lineMode"
             variant="tonal"
             icon="arrow"
-            :disabled="!editor.isComplete"
+            :disabled="
+              !editor.isComplete ||
+              editor.lineIndex === editor.project.lines.length - 1
+            "
             @click="editor.nextLine"
             >下一句</UiButton
           >
         </div>
-        <div class="keyboard-strip">
-          <span><kbd>Space</kbd>播放 / 暂停</span
-          ><span><kbd>Backspace</kbd>退回并暂停</span
-          ><span><kbd>R</kbd>试听</span>
-        </div>
       </template>
     </div>
     <Modal :open="splitOpen" title="选择拆分位置" @close="splitOpen = false"
-      ><p class="small-note">
-        点击完整字符之间的分隔线；新单位的起点需要重新记录。
-      </p>
-      <div class="split-picker">
+      ><div class="split-picker">
         <template v-for="(char, index) in splitChars" :key="index"
           ><span>{{ char }}</span
           ><button
@@ -427,9 +469,8 @@ function selectedClass(index: number) {
       </div></Modal
     >
     <Modal :open="shiftOpen" title="整体平移歌词" @close="shiftOpen = false"
-      ><p>正数延后，负数提前。句首、逐字起点与收尾一同移动。</p>
-      <label class="native-field"
-        >偏移毫秒<input v-model="shiftMs" type="number" step="1"
+      ><label class="native-field"
+        >偏移毫秒（正数延后）<input v-model="shiftMs" type="number" step="1"
       /></label>
       <footer>
         <UiButton @click="shiftOpen = false">取消</UiButton

@@ -203,3 +203,49 @@ describe("explicit playback and recording modes", () => {
     expect(editor.error).toContain("音频");
   });
 });
+
+describe("audition ranges and isolated partial timing", () => {
+  it("keeps one pass fixed and loops the same target using committed boundaries", async () => {
+    const { audio, editor } = await session("[00:01]<00:01>今<00:02>日<00:03>");
+    editor.confirmLines();
+    editor.selectedUnit = 0;
+    editor.loopAudition = true;
+    await editor.review("boundary");
+    expect(editor.auditionRange).toEqual([600, 1600]);
+    editor.previewCommand("field", (p) => {
+      p.lines[0].startMs = 1300;
+      p.lines[0].units[0].startMs = 1300;
+    });
+    expect(editor.auditionRange).toEqual([600, 1600]);
+    audio.end();
+    await Promise.resolve();
+    expect(editor.auditionRange).toEqual([600, 1600]);
+    editor.commitPreview("调整起点");
+    editor.selectedUnit = 1;
+    audio.end();
+    await Promise.resolve();
+    expect(editor.auditionRange).toEqual([900, 1900]);
+    expect(editor.mode).toBe("review");
+    editor.pause();
+    expect(audio.playing).toBe(false);
+  });
+  it("fills only the missing segment and preserves later anchors and terminal", async () => {
+    const { audio, editor } = await session(
+      "[00:01]<00:01>今<00:02>日<00:03>も<00:04>",
+    );
+    editor.confirmLines();
+    editor.command("缺失边界", (p) => {
+      p.lines[0].units[1].startMs = null;
+    });
+    await editor.enter();
+    expect(audio.until).toBe(3000);
+    audio.position = 2200;
+    await editor.enter();
+    expect(editor.line?.units.map((unit) => unit.startMs)).toEqual([
+      1000, 2200, 3000,
+    ]);
+    expect(editor.line?.endMs).toBe(4000);
+    expect(editor.playing).toBe(false);
+    expect(editor.isComplete).toBe(true);
+  });
+});

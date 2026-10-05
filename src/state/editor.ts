@@ -12,6 +12,12 @@ import { importLyrics, exportLyrics } from "../domain/lrc";
 import { readBackup, downloadText } from "../domain/backup";
 import { setLineStart, setLineEnd, setUnitStart } from "../domain/edit";
 import { tokenize } from "../domain/tokenize";
+import {
+  createAudition,
+  type AuditionScope,
+  type AuditionTarget,
+} from "./audition";
+import { tokenIntervals } from "../domain/timing";
 import { loadDraft, saveDraft } from "./persistence";
 
 export type SessionMode =
@@ -62,6 +68,19 @@ export function createEditor(
   let saveGeneration = 0;
   let initialized = !persist;
   let retimeOne = false;
+  const audition = createAudition(
+    transport,
+    auditionBounds,
+    () => {
+      mode.value = "review";
+      recordingArmed.value = false;
+    },
+    sync,
+    (value) => {
+      showError(value);
+      mode.value = "idle";
+    },
+  );
   const lineIndex = computed(() =>
     Math.max(
       0,
@@ -88,7 +107,6 @@ export function createEditor(
       error.value = "";
       return true;
     } catch (value) {
-      showError(value);
       return false;
     }
   }
@@ -151,6 +169,7 @@ export function createEditor(
     playing.value = transport.playing;
   }
   function pause() {
+    audition.invalidate();
     transport.pause();
     sync();
     if (
@@ -237,7 +256,7 @@ export function createEditor(
       transport.seek(project.value.playheadMs);
       view({ audio: result.info });
       sync();
-      message.value = "音频已准备好。";
+      message.value = "";
     } catch (value) {
       showError(
         value instanceof DOMException
@@ -252,6 +271,8 @@ export function createEditor(
   }
   function importText(text: string, name = "未命名歌词") {
     pause();
+    audition.cancel();
+    recordingArmed.value = false;
     if (!text.trim()) {
       error.value = "请先输入或导入歌词。";
       return false;
@@ -266,13 +287,12 @@ export function createEditor(
       draft.stage = 0;
       draft.unlockedStage = 1;
     });
-    message.value =
-      imported.notices.join(" ") ||
-      `已导入 ${imported.lines.length} 行，下一步整理歌词。`;
+    message.value = imported.notices.join(" ");
     return success;
   }
   function resetProject() {
     pause();
+    audition.cancel();
     transport.reset();
     asset.value = null;
     history.clear();
@@ -289,6 +309,9 @@ export function createEditor(
     try {
       const draft = readBackup(text);
       pause();
+      audition.cancel();
+      clearPreview();
+      recordingArmed.value = false;
       transport.reset();
       asset.value = null;
       project.value = draft;
@@ -371,6 +394,7 @@ export function createEditor(
   }
   function selectLine(id: string) {
     recordingArmed.value = false;
+    audition.cancel();
     retimeOne = false;
     clearPreview();
     pause();
@@ -393,6 +417,9 @@ export function createEditor(
   function goStage(stage: number) {
     if (stage > project.value.unlockedStage) return;
     pause();
+    audition.cancel();
+    clearPreview();
+    recordingArmed.value = false;
     message.value = "";
     view({ stage });
     mode.value = "idle";
@@ -471,12 +498,15 @@ export function createEditor(
       return;
     }
     recordingArmed.value = true;
+    audition.cancel();
     message.value = "";
     mode.value = "starting";
     try {
       await transport.play(
         positionMs.value,
-        project.value.stage === 3 ? clipEnd() : asset.value.info.durationMs,
+        project.value.stage === 3
+          ? recordingEnd()
+          : asset.value.info.durationMs,
       );
       if (mode.value === "starting")
         mode.value = transport.playing ? "recording" : "paused";
@@ -528,7 +558,12 @@ export function createEditor(
       }
       selectedUnit.value = Math.min(cursor.value, current.units.length - 1);
       selectionEnd.value = selectedUnit.value;
-      if (isComplete.value) {
+      if (
+        isComplete.value ||
+        (unit < current.units.length &&
+          current.units[unit + 1]?.startMs !== null &&
+          current.units[unit + 1]?.startMs !== undefined)
+      ) {
         pause();
         mode.value = "idle";
         recordingArmed.value = false;
@@ -568,27 +603,70 @@ export function createEditor(
     seek((line.value.startMs ?? positionMs.value) - 1000);
     mode.value = "idle";
   }
-  async function review() {
+  function recordingEnd() {
+    const nextKnown = line.value?.units
+      .slice(cursor.value + 1)
+      .find((unit) => unit.startMs !== null)?.startMs;
+    return Math.min(
+      clipEnd(),
+      nextKnown ?? Infinity,
+      line.value?.endMs ?? Infinity,
+    );
+  }
+  function auditionBounds(
+    scope: AuditionScope,
+    target: AuditionTarget,
+    committed = false,
+  ): [number, number] {
+    const duration = asset.value?.info.durationMs ?? 0;
+    if (scope === "song") return [0, duration];
+    const index = project.value.lines.findIndex(
+      (line) => line.id === target.lineId,
+    );
+    const data = committed ? project.value : displayProject.value;
+    const current = data.lines[index];
+    if (!current) throw new Error("请选择歌词行。");
+    const limit = Math.min(
+      data.lines[index + 1]?.startMs ?? duration,
+      duration,
+    );
+    if (scope === "line")
+      return [
+        Math.max(0, (current.startMs ?? positionMs.value) - 800),
+        Math.min(duration, (current.endMs ?? limit) + 300),
+      ];
+    const unitIndex = current.units.findIndex(
+        (unit) => unit.id === target.unitId,
+      ),
+      unit = current.units[unitIndex];
+    if (!unit || unit.startMs === null) throw new Error("先记录选中项起点。");
+    if (scope === "boundary")
+      return [
+        Math.max(0, unit.startMs - 400),
+        Math.min(duration, unit.startMs + 600),
+      ];
+    const interval = tokenIntervals(current, limit).find(
+      (interval) => interval.id === unit.id,
+    );
+    if (interval?.kind !== "confirmed" || interval.endMs === null)
+      throw new Error("选中范围未确认，请试听边界。");
+    return [
+      Math.max(0, interval.startMs - 200),
+      Math.min(duration, interval.endMs + 200),
+    ];
+  }
+  async function review(scope: AuditionScope = "line") {
     if (!asset.value || !line.value) {
       error.value = "请先选择音频。";
       return;
     }
     pause();
     recordingArmed.value = false;
-    mode.value = "review";
-    try {
-      await transport.play(
-        Math.max(0, (line.value.startMs ?? 0) - 1000),
-        Math.min(
-          (line.value.endMs ?? clipEnd()) + 300,
-          asset.value.info.durationMs,
-        ),
-      );
-      sync();
-    } catch (value) {
-      mode.value = "idle";
-      showError(value);
-    }
+    message.value = "";
+    await audition.start(scope, {
+      lineId: line.value.id,
+      unitId: line.value.units[selectedUnit.value]?.id ?? null,
+    });
   }
   async function togglePlayback() {
     if (transport.playing || mode.value === "starting") {
@@ -596,24 +674,15 @@ export function createEditor(
       return;
     }
     if (recordingArmed.value && mode.value === "paused") await startRecording();
-    else if (asset.value) {
+    else if (asset.value && line.value) {
       recordingArmed.value = false;
-      mode.value = "review";
-      try {
-        await transport.play(
+      if (audition.range.value) await audition.resume(positionMs.value);
+      else
+        await audition.start(
+          project.value.stage === 3 ? "line" : "song",
+          { lineId: line.value.id, unitId: null },
           positionMs.value,
-          project.value.stage === 3
-            ? Math.min(
-                (line.value?.endMs ?? clipEnd()) + 300,
-                asset.value.info.durationMs,
-              )
-            : asset.value.info.durationMs,
         );
-        sync();
-      } catch (value) {
-        showError(value);
-        mode.value = "idle";
-      }
     }
   }
   function setRate(value: number) {
@@ -641,6 +710,8 @@ export function createEditor(
   function retime(index = 0) {
     if (!line.value) return;
     pause();
+    recordingArmed.value = false;
+    audition.cancel();
     command("从选中单位重打", (draft) => {
       const target = draft.lines[lineIndex.value];
       target.units.slice(index).forEach((u) => (u.startMs = null));
@@ -676,6 +747,7 @@ export function createEditor(
   }
   transport.onEnded = () => {
     sync();
+    if (mode.value === "review" && audition.handleEnd()) return;
     mode.value = mode.value === "recording" ? "ended" : "idle";
   };
 
@@ -684,6 +756,10 @@ export function createEditor(
     asset,
     displayProject,
     displayLine,
+    auditionScope: audition.scope,
+    auditionRange: audition.range,
+    auditionTarget: audition.target,
+    loopAudition: audition.loop,
     previewOwner,
     previewCommand,
     commitPreview,

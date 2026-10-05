@@ -9,7 +9,7 @@ import {
 } from "vue";
 import WaveSurfer from "wavesurfer.js";
 import { editor } from "../state/editor";
-import { formatTime } from "../domain/model";
+import { formatTime, completeLine } from "../domain/model";
 import {
   unitBounds,
   lineStartBounds,
@@ -19,7 +19,7 @@ import {
 } from "../domain/edit";
 import Icon from "./Icon.vue";
 import WaveformRegions from "./WaveformRegions.vue";
-import { timeToRatio, ratioToTime } from "../domain/viewport";
+import { intervalGeometry, timeToRatio, ratioToTime } from "../domain/viewport";
 
 const host = ref<HTMLDivElement>(),
   view = ref({ startTime: 0, endTime: 10 }),
@@ -30,7 +30,12 @@ const viewport = computed(() => ({
   startMs: view.value.startTime * 1000,
   endMs: view.value.endTime * 1000,
 }));
-const drag = ref<{ key: string; ms: number; point: Point } | null>(null);
+const drag = ref<{
+  key: string;
+  ms: number;
+  point: Point;
+  originX: number;
+} | null>(null);
 let wave: WaveSurfer | null = null,
   unsubscribe: (() => void) | undefined,
   resize: ResizeObserver | null = null;
@@ -41,6 +46,7 @@ interface Point {
   time: number;
   label: string;
   end: boolean;
+  wholeLine?: boolean;
 }
 const points = computed<Point[]>(() => {
   if (editor.project.stage === 2)
@@ -115,7 +121,7 @@ const ticks = computed(() => {
 function bounds(point: Point): [number, number] {
   const lines = editor.project.lines,
     line = lines[point.lineIndex];
-  if (editor.project.stage === 2)
+  if (editor.project.stage === 2 || point.wholeLine)
     return lineStartBounds(editor.project, point.lineIndex);
   if (point.end)
     return [
@@ -129,7 +135,7 @@ function bounds(point: Point): [number, number] {
   return unitBounds(editor.project, point.lineIndex, point.unitIndex);
 }
 function applyPoint(p: typeof editor.project, point: Point, ms: number) {
-  if (p.stage === 2) setLineStart(p, point.lineIndex, ms);
+  if (p.stage === 2 || point.wholeLine) setLineStart(p, point.lineIndex, ms);
   else if (point.end) setLineEnd(p, point.lineIndex, ms);
   else setUnitStart(p, point.lineIndex, point.unitIndex, ms);
 }
@@ -140,7 +146,7 @@ function selectPoint(point: Point) {
   if (editor.recordingArmed) editor.pause();
   if (editor.project.stage === 2)
     editor.view({ activeLineId: editor.project.lines[point.lineIndex].id });
-  else {
+  else if (!point.wholeLine) {
     editor.selectedUnit = Math.min(
       point.unitIndex,
       (editor.line?.units.length ?? 1) - 1,
@@ -148,15 +154,16 @@ function selectPoint(point: Point) {
     editor.selectionEnd = editor.selectedUnit;
   }
 }
-function pointerTime(event: PointerEvent) {
-  const rect = host.value!.getBoundingClientRect();
-  return ratioToTime((event.clientX - rect.left) / rect.width, viewport.value);
-}
 function startDrag(event: PointerEvent, point: Point) {
   if (event.button !== 0) return;
   if (editor.recordingArmed) editor.pause();
   following.value = false;
-  drag.value = { key: point.key, ms: point.time, point };
+  drag.value = {
+    key: point.key,
+    ms: point.time,
+    point,
+    originX: event.clientX,
+  };
   selectPoint(point);
   const button = event.currentTarget as HTMLButtonElement;
   button.focus();
@@ -167,7 +174,14 @@ function moveDrag(event: PointerEvent) {
   if (!drag.value) return;
   const [min, max] = bounds(drag.value.point);
   if (min > max) return;
-  drag.value.ms = Math.max(min, Math.min(pointerTime(event), max));
+  const delta =
+    ((event.clientX - drag.value.originX) / host.value!.clientWidth) *
+    span.value *
+    1000;
+  drag.value.ms = Math.max(
+    min,
+    Math.min(Math.round(drag.value.point.time + delta), max),
+  );
   editor.previewCommand("waveform", (p) =>
     applyPoint(p, drag.value!.point, drag.value!.ms),
   );
@@ -300,6 +314,67 @@ function wheel(event: WheelEvent) {
       ),
     );
 }
+const canMoveSentence = computed(
+  () =>
+    !!editor.line &&
+    completeLine(editor.line) &&
+    !editor.conflicts.some((issue) => issue.lineId === editor.line.id),
+);
+function auditionRegion(unitIndex: number | null) {
+  void editor.review(unitIndex === null ? "line" : "token");
+}
+const contextGeometry = computed(() =>
+  intervalGeometry(
+    editor.displayLine?.startMs ?? 0,
+    editor.displayLine?.endMs ??
+      editor.displayProject.lines[editor.lineIndex + 1]?.startMs ??
+      editor.project.audio?.durationMs ??
+      0,
+    viewport.value,
+  ),
+);
+function moveSentence(event: PointerEvent) {
+  if (!editor.line || !completeLine(editor.line)) return;
+  startDrag(event, {
+    key: editor.line.id + "-move",
+    lineIndex: editor.lineIndex,
+    unitIndex: 0,
+    time: editor.line.startMs!,
+    label: "整句",
+    end: false,
+    wholeLine: true,
+  });
+}
+function overview(event: PointerEvent) {
+  if (!wave || !editor.asset) return;
+  following.value = false;
+  const target = event.currentTarget as HTMLElement;
+  const box = target.getBoundingClientRect();
+  wave.setScrollTime(
+    Math.max(
+      0,
+      ((event.clientX - box.left) / box.width) * editor.asset.buffer.duration -
+        span.value / 2,
+    ),
+  );
+}
+let heightDrag: { y: number; height: number } | null = null;
+const waveHeight = ref(0);
+function heightStart(event: PointerEvent) {
+  const target = event.currentTarget as HTMLElement;
+  heightDrag = {
+    y: event.clientY,
+    height: host.value?.parentElement?.clientHeight ?? 180,
+  };
+  target.setPointerCapture(event.pointerId);
+}
+function heightMove(event: PointerEvent) {
+  if (heightDrag)
+    waveHeight.value = Math.max(
+      120,
+      Math.min(400, heightDrag.height + event.clientY - heightDrag.y),
+    );
+}
 function updateTheme() {
   if (host.value)
     wave?.setOptions({
@@ -356,7 +431,14 @@ onBeforeUnmount(() => {
         ><button class="text-link" @click="fit">适合当前句</button>
       </div>
     </div>
-    <div class="wave-stage" @click="seek" @wheel="wheel">
+    <div
+      class="wave-stage"
+      :style="
+        waveHeight ? { height: waveHeight + 'px', flex: '0 0 auto' } : undefined
+      "
+      @click="seek"
+      @wheel="wheel"
+    >
       <div ref="host" class="wave-canvas" />
       <div class="wave-ticks">
         <span
@@ -377,6 +459,41 @@ onBeforeUnmount(() => {
       >
         <span />
       </div>
+      <div
+        v-if="
+          editor.project.stage === 3 && editor.displayLine?.startMs !== null
+        "
+        class="wave-line-context"
+        :style="{
+          left: contextGeometry.left + '%',
+          width: contextGeometry.width + '%',
+        }"
+      >
+        <button
+          v-if="canMoveSentence"
+          class="line-move-grip"
+          aria-label="平移整句"
+          title="平移整句"
+          @pointerdown.stop="moveSentence"
+          @pointermove="moveDrag"
+          @pointerup="endDrag"
+          @pointercancel="
+            drag = null;
+            editor.clearPreview();
+          "
+          @click.stop
+          @keydown.escape.stop="
+            drag = null;
+            editor.clearPreview();
+          "
+        >
+          ↔
+        </button>
+        <span
+          >第 {{ editor.lineIndex + 1 }} 行
+          <small v-if="editor.displayLine?.endMs === null">· 参考</small></span
+        >
+      </div>
       <WaveformRegions
         :view="viewport"
         :width="width"
@@ -391,7 +508,7 @@ onBeforeUnmount(() => {
               end: false,
             })
         "
-        @audition="editor.review()"
+        @audition="auditionRegion"
       />
       <div class="point-layer">
         <button
@@ -424,12 +541,67 @@ onBeforeUnmount(() => {
           @keydown="markerKey($event, point)"
           @click.stop="selectPoint(point)"
         >
-          <span>{{ point.label }}</span
-          ><i /><small v-if="drag?.key === point.key">{{
+          <i /><small v-if="drag?.key === point.key">{{
             formatTime(drag.ms)
           }}</small>
         </button>
       </div>
     </div>
+    <div v-if="editor.asset" class="wave-overview">
+      <span>0:00</span>
+      <div
+        class="overview-track"
+        aria-label="全曲波形概览"
+        @pointerdown="overview"
+        @pointermove="
+          (event) => {
+            if (event.buttons === 1) overview(event);
+          }
+        "
+      >
+        <i
+          :style="{
+            left: (view.startTime / editor.asset.buffer.duration) * 100 + '%',
+            width:
+              Math.min(100, (span / editor.asset.buffer.duration) * 100) + '%',
+          }"
+        />
+      </div>
+      <time>{{ formatTime(editor.asset.info.durationMs).slice(0, 5) }}</time>
+      <input
+        class="sr-only"
+        type="range"
+        aria-label="波形视窗起点"
+        :value="view.startTime * 1000"
+        min="0"
+        :max="Math.max(0, editor.asset.info.durationMs - span * 1000)"
+        @input="
+          following = false;
+          wave?.setScrollTime(
+            Number(($event.target as HTMLInputElement).value) / 1000,
+          );
+        "
+      />
+    </div>
+    <button
+      class="wave-height-handle"
+      aria-label="调整波形高度"
+      title="拖动调整波形高度"
+      @pointerdown="heightStart"
+      @pointermove="heightMove"
+      @pointerup="heightDrag = null"
+      @pointercancel="heightDrag = null"
+      @keydown.up.prevent="waveHeight = Math.max(120, (waveHeight || 180) - 10)"
+      @keydown.down.prevent="
+        waveHeight = Math.min(400, (waveHeight || 180) + 10)
+      "
+    >
+      <i />
+    </button>
+    <span v-if="drag" class="wave-drag-readout"
+      >{{ drag.point.label }} {{ formatTime(drag.ms) }} ·
+      {{ drag.ms - drag.point.time >= 0 ? "+" : ""
+      }}{{ drag.ms - drag.point.time }}ms</span
+    >
   </div>
 </template>

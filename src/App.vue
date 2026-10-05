@@ -206,7 +206,11 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <div class="app-shell" @focusin="editingFocus">
+  <div
+    class="app-shell"
+    :class="{ 'is-timing': editor.project.stage >= 2 }"
+    @focusin="editingFocus"
+  >
     <header class="app-header">
       <a class="brand" href="./" @click.prevent="editor.goStage(0)"
         ><span class="brand-symbol"><i /><i /><i /><i /></span

@@ -5,36 +5,67 @@ const props = defineProps<{
   value: number | null;
   label: string;
   commit: (ms: number) => boolean;
+  preview?: (ms: number) => boolean;
+  cancel?: () => void;
   disabled?: boolean;
 }>();
 const input = ref<HTMLInputElement>(),
   text = ref(props.value === null ? "" : formatTime(props.value)),
-  error = ref("");
+  error = ref(""),
+  dirty = ref(false);
+function reset() {
+  props.cancel?.();
+  text.value = props.value === null ? "" : formatTime(props.value);
+  error.value = "";
+  dirty.value = false;
+}
 watch(
-  () => props.value,
-  (value) => {
-    text.value = value === null ? "" : formatTime(value);
+  () => [props.value, props.label],
+  () => {
+    text.value = props.value === null ? "" : formatTime(props.value);
     error.value = "";
+    dirty.value = false;
   },
 );
+function preview() {
+  dirty.value = true;
+  const ms = parseTime(text.value);
+  if (ms === null) props.cancel?.();
+  else props.preview?.(ms);
+}
 function apply() {
+  if (!dirty.value) return true;
   const ms = parseTime(text.value);
   if (ms === null) {
-    error.value = "输入 mm:ss.SSS，例如 00:12.340";
+    props.cancel?.();
+    error.value = "输入 mm:ss.SSS";
     return false;
   }
   if (!props.commit(ms)) {
+    props.cancel?.();
     error.value = "时间与相邻边界冲突";
     return false;
   }
   error.value = "";
   text.value = formatTime(ms);
+  dirty.value = false;
   return true;
 }
-function enter() {
-  if (apply()) {
+function key(event: KeyboardEvent) {
+  if (event.isComposing || event.keyCode === 229) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    reset();
     input.value?.blur();
-    (input.value?.closest("[data-workspace]") as HTMLElement)?.focus();
+    input.value?.closest<HTMLElement>("[data-workspace]")?.focus();
+  } else if (event.key === "Enter") {
+    event.preventDefault();
+    event.stopPropagation();
+    if (apply()) {
+      input.value?.blur();
+      input.value?.closest<HTMLElement>("[data-workspace]")?.focus();
+    }
   }
 }
 </script>
@@ -50,8 +81,9 @@ function enter() {
       placeholder="mm:ss.SSS"
       spellcheck="false"
       inputmode="decimal"
-      @change="apply"
-      @keydown.enter.prevent.stop="enter"
+      @input="preview"
+      @blur="apply"
+      @keydown="key"
     /><small v-if="error" class="field-error">{{ error }}</small></label
   >
 </template>
