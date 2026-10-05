@@ -1,0 +1,3 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, "Noto Sans CJK SC", "Noto Sans CJK JP", "Microsoft YaHei", system-ui, sans-serif; }
+main { max-width: 1200px; margin: 40px auto; padding: 24px; }
