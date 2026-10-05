@@ -94,6 +94,11 @@ export function createEditor(
   function pause() {
     transport.pause();
     sync();
+    if (
+      asset.value &&
+      project.value.playheadMs !== Math.round(positionMs.value)
+    )
+      view({ playheadMs: Math.round(positionMs.value) });
     if (mode.value !== "idle") mode.value = "paused";
   }
   function showError(value: unknown) {
@@ -366,6 +371,7 @@ export function createEditor(
     pause();
     transport.seek(ms);
     sync();
+    if (asset.value) view({ playheadMs: Math.round(positionMs.value) });
   }
   function clipEnd() {
     return Math.min(

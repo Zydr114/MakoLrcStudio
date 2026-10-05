@@ -158,15 +158,17 @@ function editingFocus(event: FocusEvent) {
       .some(
         (node) =>
           node instanceof HTMLElement &&
-          ["INPUT", "TEXTAREA", "SELECT", "MDUI-TEXT-FIELD"].includes(
-            node.tagName,
-          ),
+          (["TEXTAREA", "SELECT", "MDUI-TEXT-FIELD"].includes(node.tagName) ||
+            (node instanceof HTMLInputElement && node.type !== "range")),
       )
   )
     editor.pause();
 }
 const keyup = (event: KeyboardEvent) => held.delete(event.code);
 onMounted(async () => {
+  if (!window.isSecureContext)
+    editor.error =
+      "请通过 HTTPS 访问编辑器，或在 localhost 上运行。浏览器需要安全环境处理本地音频。";
   try {
     const saved = JSON.parse(localStorage.getItem("mako-theme") || "null");
     if (saved && ["auto", "light", "dark"].includes(saved.theme)) {

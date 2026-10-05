@@ -8,7 +8,9 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test --project=chromium --project=firefox",
+    "test:e2e:all": "playwright test",
+    "format": "prettier --write src tests *.config.ts tsconfig.json package.json"
   },
   "dependencies": {
     "mdui": "2.1.5",
