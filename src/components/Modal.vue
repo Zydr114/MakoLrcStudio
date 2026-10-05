@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onBeforeUnmount } from "vue";
-import Icon from "./Icon.vue";
+import UiIconButton from "./UiIconButton.vue";
 const props = defineProps<{ open: boolean; title: string }>();
 const emit = defineEmits<{ close: []; closed: [] }>();
 const dialog = ref<HTMLDialogElement>();
@@ -29,9 +29,7 @@ onBeforeUnmount(() => dialog.value?.close());
   >
     <header>
       <h2>{{ title }}</h2>
-      <button class="icon-button" aria-label="关闭" @click="emit('close')">
-        <Icon name="close" />
-      </button>
+      <UiIconButton icon="close" label="关闭" @click="emit('close')" />
     </header>
     <slot />
   </dialog>

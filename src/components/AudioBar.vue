@@ -2,7 +2,11 @@
 import { computed } from "vue";
 import { editor } from "../state/editor";
 import { formatTime } from "../domain/model";
-import Icon from "./Icon.vue";
+import UiSlider from "./UiSlider.vue";
+import UiSelect from "./UiSelect.vue";
+import UiButton from "./UiButton.vue";
+import UiIconButton from "./UiIconButton.vue";
+import { playbackRates } from "./controlOptions";
 const props = defineProps<{ embedded?: boolean }>();
 defineEmits<{ audio: [] }>();
 const selectedStart = computed(() =>
@@ -32,108 +36,104 @@ function locate() {
     role="group"
     aria-label="音频播放控制"
   >
-    <button
-      class="play-button"
+    <UiIconButton
+      class="transport-play"
+      variant="filled"
+      :icon="editor.playing ? 'pause' : 'play'"
+      :label="editor.playing ? '暂停' : '播放'"
       :disabled="!editor.asset || editor.loading || editor.editingText"
-      :aria-label="editor.playing ? '暂停' : '播放'"
       @click="play"
-    >
-      <Icon :name="editor.playing ? 'pause' : 'play'" :size="20" />
-    </button>
+    />
     <div class="audio-time">
       <strong>{{ formatTime(editor.positionMs) }}</strong
       ><span>/ {{ formatTime(editor.project.audio?.durationMs ?? null) }}</span>
     </div>
-    <label class="sr-only" for="audio-position">音频位置</label
-    ><input
-      id="audio-position"
+    <UiSlider
       class="audio-position"
       :class="{ 'sr-only': embedded }"
-      type="range"
-      min="0"
+      label="音频位置"
+      :model-value="editor.positionMs"
       :max="editor.project.audio?.durationMs ?? 1"
-      step="1"
-      :value="editor.positionMs"
+      :formatter="formatTime"
       :disabled="!editor.asset"
-      @input="editor.seek(Number(($event.target as HTMLInputElement).value))"
-    /><button
+      @update:model-value="editor.seek"
+    />
+    <UiButton
       v-if="embedded"
-      class="text-link locate-selected"
+      class="locate-selected"
+      variant="text"
       :disabled="selectedStart == null || editor.editingText"
       @click="locate"
+      >定位选中</UiButton
     >
-      定位选中</button
-    ><span v-if="embedded" class="transport-spacer" /><label class="speed-label"
-      >速度
-      <select
-        aria-label="播放速度"
-        :value="editor.rate"
-        @change="
-          editor.setRate(Number(($event.target as HTMLSelectElement).value))
-        "
-      >
-        <option :value="1">1×</option>
-        <option :value="0.75">0.75×</option>
-        <option :value="0.5">0.5×</option>
-      </select></label
-    ><label class="volume-label"
-      >音量<input
-        aria-label="音量"
-        type="range"
-        min="0"
-        max="1"
-        step="0.01"
-        :value="editor.volume"
-        @input="
-          editor.setVolume(Number(($event.target as HTMLInputElement).value))
-        " /></label
-    ><button
+    <span v-if="embedded" class="transport-spacer" />
+    <UiSelect
+      class="speed-control"
+      compact
+      label="播放速度"
+      :model-value="editor.rate"
+      :options="playbackRates"
+      @update:model-value="editor.setRate"
+    />
+    <div class="volume-control">
+      <span>音量</span
+      ><UiSlider
+        label="音量"
+        :model-value="editor.volume"
+        :max="1"
+        :step="0.01"
+        :formatter="(value) => Math.round(value * 100) + '%'"
+        @update:model-value="editor.setVolume"
+      />
+    </div>
+    <UiButton
       v-if="!embedded"
-      class="audio-name text-link"
+      class="audio-name"
+      variant="text"
+      icon="music"
       @click="$emit('audio')"
     >
-      <Icon name="music" :size="16" />{{
-        editor.asset ? editor.project.audio?.name : "选择音频"
-      }}
-    </button>
+      {{ editor.asset ? editor.project.audio?.name : "选择音频" }}
+    </UiButton>
   </div>
 </template>
-
 <style scoped>
 .audio-bar.embedded {
-  flex: 0 0 44px;
-  height: 44px;
+  flex: 0 0 52px;
+  min-height: 52px;
   padding: 6px 0 0;
-  gap: 14px;
+  gap: 12px;
   border-top: 1px solid var(--line);
 }
-.embedded .audio-time {
+.audio-time {
+  white-space: nowrap;
   font-size: 12px;
 }
-.embedded .speed-label,
-.embedded .volume-label {
+.speed-control {
+  width: 100px;
+  flex-shrink: 0;
+}
+.volume-control {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  font-size: 12px;
 }
-.embedded .volume-label input {
-  width: 70px;
+.volume-control .ui-slider {
+  width: 76px;
 }
 .transport-spacer {
   flex: 1;
 }
-.embedded .audio-position:focus-visible {
-  position: static;
-  clip: auto;
-  width: 100px;
-  height: auto;
-  overflow: visible;
+.audio-position {
+  flex: 1;
+  min-width: 80px;
 }
 @media (max-width: 800px) {
   .audio-bar.embedded {
     gap: 8px;
   }
-  .embedded .volume-label {
+  .volume-control {
     display: none;
   }
 }

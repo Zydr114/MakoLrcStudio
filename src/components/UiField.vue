@@ -6,6 +6,7 @@ withDefaults(
     placeholder?: string;
     multiline?: boolean;
     rows?: number;
+    type?: "text" | "number";
   }>(),
   { placeholder: "", multiline: false, rows: 3 },
 );
@@ -17,6 +18,7 @@ function update(event: Event) {
 <template>
   <mdui-text-field
     variant="outlined"
+    :type="type"
     :label="label"
     :value="modelValue"
     :placeholder="placeholder"

@@ -1,3 +1,4 @@
+import { setChecked } from "./controls";
 import { test, expect } from "@playwright/test";
 import { audio } from "./fixtures";
 
@@ -95,7 +96,7 @@ test("live preview follows shared boundary drafts and audition selection keeps p
   await input.press("Escape");
   await expect(marker).toHaveAttribute("aria-valuenow", "2000");
   await page.getByRole("button", { name: "试听边界", exact: true }).click();
-  await page.getByLabel("循环试听").check();
+  await setChecked(page, "循环试听");
   await page.waitForTimeout(1250);
   await expect(
     page.getByRole("button", { name: "暂停", exact: true }),

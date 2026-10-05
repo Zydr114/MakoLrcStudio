@@ -254,7 +254,7 @@
   flex: 0 0 28px;
 }
 .wave-toolbar > div,
-.wave-toolbar label {
+.wave-toolbar .wave-zoom {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -263,9 +263,9 @@
   gap: 6px;
   color: var(--muted);
 }
-.wave-toolbar input {
-  width: 90px;
-  height: 14px;
+.wave-toolbar .ui-slider {
+  width: 100px;
+  min-width: 100px;
 }
 .wave-toolbar .text-link {
   font-size: 12px;
@@ -392,15 +392,18 @@
   color: var(--muted);
   position: relative;
 }
-.time-input input {
-  width: 112px;
-  color: var(--ink);
-  background: var(--soft);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 7px 10px;
+.time-input mdui-text-field {
+  width: 126px;
+  --shape-corner: 10px;
+}
+.time-input mdui-text-field::part(container) {
+  height: 36px;
+  min-height: 36px;
+}
+.time-input mdui-text-field::part(input) {
+  padding: 8px 10px;
   font:
-    12px ui-monospace,
+    14px ui-monospace,
     monospace;
 }
 .field-error {

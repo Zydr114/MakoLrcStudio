@@ -10,6 +10,9 @@ import {
 } from "../domain/edit";
 import { playingLineIndex, tokenIntervals } from "../domain/timing";
 import UiButton from "../components/UiButton.vue";
+import UiSelect from "../components/UiSelect.vue";
+import UiToggle from "../components/UiToggle.vue";
+import { previewModes } from "../components/controlOptions";
 import Icon from "../components/Icon.vue";
 import TimeInput from "../components/TimeInput.vue";
 import Waveform from "../components/Waveform.vue";
@@ -358,20 +361,14 @@ watch(
               @click="audition('boundary')"
             >
               试听边界</button
-            ><label class="check-label"
-              ><input
-                v-model="editor.loopAudition"
-                type="checkbox"
-                aria-label="循环试听"
-              />循环</label
-            ><select
+            ><UiToggle switch v-model="editor.loopAudition" label="循环试听" />
+            <UiSelect
               v-if="!lineMode"
               v-model="fillPreview"
-              aria-label="预览方式"
-            >
-              <option :value="false">起点高亮</option>
-              <option :value="true">区间填色（均匀）</option></select
-            ><span
+              label="预览方式"
+              compact
+              :options="previewModes"
+            /><span
               v-if="
                 editor.auditionScope === 'line' && editor.line.endMs === null
               "

@@ -1,3 +1,4 @@
+import { choose } from "./controls";
 import { test, expect, type Page } from "@playwright/test";
 import { audio } from "./fixtures";
 async function openProject(page: Page) {
@@ -184,7 +185,7 @@ test("transport is inside the waveform and source position links regions, previe
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByLabel("主题", { exact: true }).selectOption("dark");
+  await choose(page, "主题", "dark");
   await page.keyboard.press("Escape");
   await page.screenshot({
     path: testInfo.outputPath("integrated-audio-dark-1440.png"),

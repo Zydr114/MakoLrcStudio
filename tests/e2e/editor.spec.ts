@@ -1,3 +1,4 @@
+import { choose, setChecked } from "./controls";
 import { test, expect, type Page } from "@playwright/test";
 
 import { audio, wav } from "./fixtures";
@@ -26,9 +27,9 @@ test("complete workflow: clean text, record lines, undo, precise words, independ
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await importProject(page, "  今日も（きょう）\n\nhello world\n作词：某人");
-  await page.getByLabel("选择第 4 行").check();
+  await setChecked(page, "选择第 4 行");
   await page.getByRole("button", { name: "删除 1" }).click();
-  await page.getByLabel("删除括号里的内容").check();
+  await setChecked(page, "删除括号里的内容");
   await page.getByRole("button", { name: "预览整理结果" }).click();
   await page.getByRole("button", { name: "应用整理" }).click();
   await expect(page.getByLabel("第 1 行歌词")).toHaveValue("今日も");
@@ -184,7 +185,7 @@ test("backup restore, input Enter isolation, dark theme and Shift-JIS preview", 
   await page.keyboard.press("Enter");
   await expect(page.locator(".prepare-view")).toBeVisible();
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByLabel("主题", { exact: true }).selectOption("dark");
+  await choose(page, "主题", "dark");
   await page.keyboard.press("Escape");
   await expect(page.locator("html")).toHaveClass(/mdui-theme-dark/);
   const download = page.waitForEvent("download");
@@ -211,7 +212,7 @@ test("backup restore, input Enter isolation, dark theme and Shift-JIS preview", 
     mimeType: "text/plain",
     buffer: Buffer.from([0x82, 0xa0, 0x82, 0xa2]),
   });
-  await page.getByRole("combobox").first().selectOption("shift_jis");
+  await choose(page, "编码", "shift_jis");
   await expect(page.getByLabel("粘贴歌词")).toHaveValue("あい");
 });
 
@@ -219,7 +220,7 @@ test("half speed uses source time, record button returns keyboard focus, termina
   page,
 }) => {
   await wordStage(page);
-  await page.getByRole("combobox", { name: "播放速度" }).selectOption("0.5");
+  await choose(page, "播放速度", "0.5");
   await page.getByRole("button", { name: /^开始打轴/ }).click();
   await expect(page.locator("[data-workspace]")).toBeFocused();
   await expect(page.locator(".state-label")).toContainText("正在记录");

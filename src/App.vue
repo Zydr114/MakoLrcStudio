@@ -9,6 +9,10 @@ import TimingView from "./views/TimingView.vue";
 import AudioBar from "./components/AudioBar.vue";
 import UiButton from "./components/UiButton.vue";
 import UiField from "./components/UiField.vue";
+import UiSelect from "./components/UiSelect.vue";
+import UiIconButton from "./components/UiIconButton.vue";
+import { themes } from "./components/controlOptions";
+import type { Tabs } from "mdui/components/tabs.js";
 import Icon from "./components/Icon.vue";
 import Modal from "./components/Modal.vue";
 const audioInput = ref<HTMLInputElement>(),
@@ -20,6 +24,11 @@ const theme = ref<"auto" | "light" | "dark">("auto"),
   seed = ref("#536b56");
 const tabs = ["文本处理", "逐行打轴", "逐字打轴"];
 function tabKey(event: KeyboardEvent, index: number) {
+  if (event.key === "Enter" || event.code === "Space") {
+    event.preventDefault();
+    editor.goStage(index + 1);
+    return;
+  }
   if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
   event.preventDefault();
   const next =
@@ -30,6 +39,10 @@ function tabKey(event: KeyboardEvent, index: number) {
         : (index + (event.key === "ArrowRight" ? 1 : 2)) % 3;
   document.getElementById(`editor-tab-${next + 1}`)?.focus();
   editor.goStage(next + 1);
+}
+function changeTab(event: Event) {
+  const stage = Number((event.currentTarget as Tabs).value);
+  if (stage !== editor.project.stage) editor.goStage(stage);
 }
 let frame = 0;
 const held = new Set<string>();
@@ -91,9 +104,17 @@ function editable(event: KeyboardEvent) {
       (node) =>
         node instanceof HTMLElement &&
         (node.isContentEditable ||
-          ["INPUT", "TEXTAREA", "SELECT", "MDUI-TEXT-FIELD"].includes(
-            node.tagName,
-          )),
+          [
+            "INPUT",
+            "TEXTAREA",
+            "SELECT",
+            "MDUI-TEXT-FIELD",
+            "MDUI-SELECT",
+            "MDUI-SLIDER",
+            "MDUI-CHECKBOX",
+            "MDUI-SWITCH",
+            "MDUI-MENU-ITEM",
+          ].includes(node.tagName)),
     );
 }
 function keydown(event: KeyboardEvent) {
@@ -127,7 +148,9 @@ function keydown(event: KeyboardEvent) {
       .some(
         (node) =>
           node instanceof HTMLElement &&
-          ["BUTTON", "MDUI-BUTTON"].includes(node.tagName) &&
+          ["BUTTON", "MDUI-BUTTON", "MDUI-BUTTON-ICON"].includes(
+            node.tagName,
+          ) &&
           node.getAttribute("role") !== "slider",
       )
   )
@@ -247,40 +270,37 @@ onBeforeUnmount(() => {
           @click="editor.goStage(0)"
           >导入</UiButton
         >
-        <button
-          class="icon-button"
-          aria-label="撤销"
+        <UiIconButton
+          icon="undo"
+          label="撤销"
           title="撤销 Ctrl / Cmd + Z"
           :disabled="!editor.canUndo || editor.editingText"
           @click="editor.undo"
-        >
-          <Icon name="undo" /></button
-        ><button
-          class="icon-button"
-          aria-label="重做"
+        />
+        <UiIconButton
+          icon="redo"
+          label="重做"
           :disabled="!editor.canRedo || editor.editingText"
           @click="editor.redo"
-        >
-          <Icon name="redo" /></button
-        ><span class="header-divider" /><button
-          class="icon-button"
-          aria-label="快捷键帮助"
+        />
+        <span class="header-divider" />
+        <UiIconButton
+          icon="help"
+          label="快捷键帮助"
           @click="
             editor.pause();
             helpOpen = true;
           "
-        >
-          <Icon name="help" /></button
-        ><button
-          class="icon-button"
-          aria-label="设置"
+        />
+        <UiIconButton
+          icon="settings"
+          label="设置"
           @click="
             editor.pause();
             settingsOpen = true;
           "
-        >
-          <Icon name="settings" /></button
-        ><UiButton
+        />
+        <UiButton
           class="backup-header"
           variant="text"
           @click="editor.backup"
@@ -295,13 +315,17 @@ onBeforeUnmount(() => {
         >
       </div>
     </header>
-    <nav
+    <mdui-tabs
       v-if="editor.project.stage > 0"
       class="editor-tabs"
       role="tablist"
       aria-label="歌词编辑视图"
+      variant="secondary"
+      placement="top"
+      :value="String(editor.project.stage)"
+      @change="changeTab"
     >
-      <button
+      <mdui-tab
         v-for="(tab, index) in tabs"
         :id="`editor-tab-${index + 1}`"
         :key="tab"
@@ -309,13 +333,13 @@ onBeforeUnmount(() => {
         :aria-selected="editor.project.stage === index + 1"
         aria-controls="editor-panel"
         :tabindex="editor.project.stage === index + 1 ? 0 : -1"
-        :disabled="!editor.project.lines.length"
-        @click="editor.goStage(index + 1)"
+        :aria-disabled="!editor.project.lines.length"
+        :value="String(index + 1)"
         @keydown="tabKey($event, index)"
       >
         {{ tab }}
-      </button>
-    </nav>
+      </mdui-tab>
+    </mdui-tabs>
     <div v-if="editor.error" class="notice error-notice" role="alert">
       <span>{{ editor.error }}</span
       ><button
@@ -397,25 +421,25 @@ onBeforeUnmount(() => {
     </Modal>
     <Modal :open="settingsOpen" title="设置" @close="settingsOpen = false"
       ><div class="settings-grid">
-        <label class="native-field"
-          >主题<select aria-label="主题" v-model="theme" @change="applyTheme">
-            <option value="auto">跟随系统</option>
-            <option value="light">浅色</option>
-            <option value="dark">深色</option>
-          </select></label
-        ><label class="native-field"
+        <UiSelect
+          v-model="theme"
+          label="主题"
+          :options="themes"
+          @change="applyTheme"
+        /><label class="native-field"
           >主题色<input
             v-model="seed"
             type="color"
             @input="applyTheme" /></label
-        ><label class="native-field"
-          >录点提前补偿（ms）<input
-            v-model.number="editor.compensation"
-            type="number"
-            min="-1000"
-            max="1000"
-            step="10"
-        /></label>
+        ><UiField
+          :model-value="String(editor.compensation)"
+          label="录点提前补偿（ms）"
+          type="number"
+          min="-1000"
+          max="1000"
+          step="10"
+          @update:model-value="editor.compensation = Number($event)"
+        />
         <p class="small-note">
           默认 0。正值让新记录时间提前；已有时标使用整体平移。
         </p>

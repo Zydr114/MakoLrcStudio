@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { editor } from "../state/editor";
 import UiButton from "../components/UiButton.vue";
 import Icon from "../components/Icon.vue";
+import UiSelect from "../components/UiSelect.vue";
 const emit = defineEmits<{ audio: []; backup: [] }>();
 const text = ref(""),
   invalidEncoding = ref(false),
@@ -99,14 +100,17 @@ function next() {
               ? `已导入 ${editor.project.lines.length} 行`
               : "TXT / LRC / 增强 LRC")
           }}</span
-          ><label
-            >编码
-            <select v-model="encoding" @change="decode">
-              <option value="utf-8">UTF-8</option>
-              <option value="gb18030">GB18030</option>
-              <option value="shift_jis">Shift-JIS</option>
-            </select></label
-          >
+          ><UiSelect
+            compact
+            label="编码"
+            v-model="encoding"
+            :options="[
+              { value: 'utf-8', label: 'UTF-8' },
+              { value: 'gb18030', label: 'GB18030' },
+              { value: 'shift_jis', label: 'Shift-JIS' },
+            ]"
+            @change="decode"
+          />
         </div>
       </div>
       <button
@@ -119,7 +123,9 @@ function next() {
         /></span>
         <h2>{{ editor.asset ? "音频已准备" : "选择音频（可稍后）" }}</h2>
         <p>{{ editor.project.audio?.name || "点击选择或拖入音频" }}</p>
-        <span v-if="editor.loading" class="small-note">正在解码音频…</span>
+        <span v-if="editor.loading" class="audio-loading"
+          ><mdui-linear-progress aria-label="正在解码音频"
+        /></span>
       </button>
     </div>
     <div class="import-footer">

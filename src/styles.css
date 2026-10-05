@@ -198,24 +198,17 @@ kbd {
   margin: 0 8px;
 }
 .editor-tabs {
-  display: flex;
   flex: 0 0 auto;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 16px;
+  padding: 0 16px 4px;
 }
-.editor-tabs button {
-  border: 0;
-  padding: 10px 24px;
-  border-radius: 14px;
+.editor-tabs::part(container) {
   background: transparent;
-  color: var(--muted);
-  font-size: 14px;
 }
-.editor-tabs button[aria-selected="true"] {
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
+.editor-tabs mdui-tab {
+  min-width: 132px;
+}
+.editor-tabs mdui-tab::part(container) {
+  min-height: 44px;
 }
 .text-row.active {
   box-shadow: inset 3px 0 var(--accent);
@@ -650,6 +643,11 @@ kbd {
   height: 100%;
   place-items: center;
   color: var(--muted);
+}
+.audio-loading {
+  display: block;
+  width: 70%;
+  margin: 16px auto 0;
 }
 @media (max-height: 800px) and (min-width: 960px) {
   .app-header {

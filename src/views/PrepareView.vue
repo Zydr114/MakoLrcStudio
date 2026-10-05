@@ -11,8 +11,9 @@ import {
 } from "../domain/edit";
 import UiButton from "../components/UiButton.vue";
 import UiField from "../components/UiField.vue";
-import Icon from "../components/Icon.vue";
 import Modal from "../components/Modal.vue";
+import UiToggle from "../components/UiToggle.vue";
+import UiIconButton from "../components/UiIconButton.vue";
 const emit = defineEmits<{ audio: [] }>();
 const selected = ref<string[]>([]),
   previewOpen = ref(false);
@@ -101,20 +102,17 @@ function apply() {
     <div class="prepare-grid">
       <div class="surface lyric-sheet">
         <div class="sheet-toolbar">
-          <label class="check-label"
-            ><input
-              type="checkbox"
-              :checked="
-                selected.length === editor.project.lines.length &&
-                !!selected.length
-              "
-              @change="
-                selected = selected.length
-                  ? []
-                  : editor.project.lines.map((l) => l.id)
-              "
-            />{{ editor.project.lines.length }} 行歌词</label
-          ><UiButton
+          <UiToggle
+            :model-value="
+              selected.length === editor.project.lines.length &&
+              !!selected.length
+            "
+            :label="`${editor.project.lines.length} 行歌词`"
+            @update:model-value="
+              selected = $event ? editor.project.lines.map((l) => l.id) : []
+            "
+          />
+          <UiButton
             variant="text"
             icon="trash"
             :disabled="!selected.length"
@@ -134,12 +132,13 @@ function apply() {
             active: editor.project.activeLineId === line.id,
           }"
         >
-          <input
-            type="checkbox"
-            :aria-label="`选择第 ${index + 1} 行`"
-            :checked="selected.includes(line.id)"
-            @change="toggle(line.id)"
-          /><span class="row-number">{{
+          <UiToggle
+            :model-value="selected.includes(line.id)"
+            :label="`选择第 ${index + 1} 行`"
+            :show-label="false"
+            @update:model-value="toggle(line.id)"
+          />
+          <span class="row-number">{{
             String(index + 1).padStart(2, "0")
           }}</span
           ><textarea
@@ -179,22 +178,17 @@ function apply() {
               title="句首已保留；修改行的逐字时间需重打。"
               >逐字待重打</small
             ></span
-          ><button
-            class="icon-button"
-            aria-label="在光标处拆句"
-            title="在光标处拆句"
+          ><UiIconButton
+            icon="split"
+            label="在光标处拆句"
             @click="split(line.id)"
-          >
-            <Icon name="split" /></button
-          ><button
-            class="icon-button"
-            aria-label="合并下一句"
-            title="合并下一句"
+          />
+          <UiIconButton
+            icon="merge"
+            label="合并下一句"
             :disabled="index === editor.project.lines.length - 1"
             @click="merge(line.id)"
-          >
-            <Icon name="merge" />
-          </button>
+          />
         </div>
         <button
           class="add-line"
@@ -209,20 +203,9 @@ function apply() {
       </div>
       <aside class="surface cleanup-panel">
         <h2>文本清理</h2>
-        <label class="check-label"
-          ><input
-            v-model="options.trim"
-            type="checkbox"
-          />去掉行首、行尾空白</label
-        ><label class="check-label"
-          ><input v-model="options.blanks" type="checkbox" />删除空行</label
-        ><label class="check-label"
-          ><input
-            v-model="options.brackets"
-            type="checkbox"
-          />删除括号里的内容</label
-        >
-
+        <UiToggle v-model="options.trim" label="去掉行首、行尾空白" />
+        <UiToggle v-model="options.blanks" label="删除空行" />
+        <UiToggle v-model="options.brackets" label="删除括号里的内容" />
         <div class="divider" />
         <UiField v-model="options.find" label="查找文字" /><UiField
           v-model="options.replacement"

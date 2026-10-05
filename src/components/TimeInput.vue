@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, watchEffect } from "vue";
+import type { TextField } from "mdui/components/text-field.js";
+import { controlInput } from "./controlLabel";
 import { formatTime, parseTime } from "../domain/model";
 const props = defineProps<{
   value: number | null;
@@ -9,10 +11,21 @@ const props = defineProps<{
   cancel?: () => void;
   disabled?: boolean;
 }>();
-const input = ref<HTMLInputElement>(),
+const input = ref<TextField>(),
   text = ref(props.value === null ? "" : formatTime(props.value)),
   error = ref(""),
   dirty = ref(false);
+watchEffect(async () => {
+  const element = input.value,
+    label = props.label,
+    invalid = !!error.value;
+  if (!element) return;
+  const field = await controlInput(element);
+  field?.setAttribute("aria-label", label);
+  field?.setAttribute("aria-invalid", String(invalid));
+  field?.setAttribute("inputmode", "decimal");
+  field?.setAttribute("spellcheck", "false");
+});
 function reset() {
   props.cancel?.();
   text.value = props.value === null ? "" : formatTime(props.value);
@@ -70,20 +83,23 @@ function key(event: KeyboardEvent) {
 }
 </script>
 <template>
-  <label class="time-input"
-    ><span>{{ label }}</span
-    ><input
+  <div class="time-input">
+    <span>{{ label }}</span
+    ><mdui-text-field
       ref="input"
-      v-model="text"
-      :aria-label="label"
-      :aria-invalid="!!error"
+      :value="text"
+      variant="outlined"
+      :invalid-style="!!error"
       :disabled="disabled"
       placeholder="mm:ss.SSS"
       spellcheck="false"
       inputmode="decimal"
-      @input="preview"
+      @input="
+        text = ($event.currentTarget as TextField).value;
+        preview();
+      "
       @blur="apply"
       @keydown="key"
-    /><small v-if="error" class="field-error">{{ error }}</small></label
-  >
+    /><small v-if="error" class="field-error">{{ error }}</small>
+  </div>
 </template>

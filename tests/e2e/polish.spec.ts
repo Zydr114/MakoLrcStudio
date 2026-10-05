@@ -1,3 +1,4 @@
+import { choose } from "./controls";
 import { test, expect, type Page } from "@playwright/test";
 import { audio } from "./fixtures";
 
@@ -26,9 +27,9 @@ test("whole-song preview shares timing, handles gaps and preserves the editing s
   await expect(dialog.locator(".preview-token.playing")).toHaveText("日");
   await dialog.getByLabel("整曲试听位置").fill("4500");
   await expect(dialog.locator(".preview-token.playing")).toHaveCount(0);
-  await dialog.getByLabel("整曲定位歌词").selectOption("1");
+  await choose(page, "整曲定位歌词", "1");
   await expect(dialog.locator(".preview-token.playing")).toHaveText("hello ");
-  await dialog.getByLabel("整曲试听速度").selectOption("0.5");
+  await choose(page, "整曲试听速度", "0.5");
   await dialog.getByRole("button", { name: "播放整曲", exact: true }).click();
   await expect(dialog.getByRole("button", { name: "暂停整曲" })).toBeVisible();
   await dialog.getByRole("button", { name: "关闭", exact: true }).click();
@@ -79,7 +80,7 @@ test("dense regions keep proportional widths, remain selectable and align after 
   expect(width).toBeLessThan(9); // 9 ms x 800 px/sec, never widened for labels.
   await page.screenshot({ path: testInfo.outputPath("dense-light-1440.png") });
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByLabel("主题", { exact: true }).selectOption("dark");
+  await choose(page, "主题", "dark");
   await page.keyboard.press("Escape");
   await expect(page.locator("html")).toHaveClass(/mdui-theme-dark/);
   await expect.poll(aligned).toBeLessThan(2);
@@ -137,7 +138,7 @@ test("unknown successors have no invented regions or playback fill and long line
   await expect(page.locator("[data-editing-text]")).toBeVisible();
   await page.getByRole("button", { name: "取消切分", exact: true }).click();
   await page.getByRole("button", { name: "设置", exact: true }).click();
-  await page.getByLabel("主题", { exact: true }).selectOption("dark");
+  await choose(page, "主题", "dark");
   await page.keyboard.press("Escape");
   const [actions, workspaceBox] = await Promise.all([
     page.locator(".workspace-actions").boundingBox(),

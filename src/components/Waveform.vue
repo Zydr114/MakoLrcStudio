@@ -12,6 +12,7 @@ import {
 } from "../domain/edit";
 import Icon from "./Icon.vue";
 import AudioBar from "./AudioBar.vue";
+import UiSlider from "./UiSlider.vue";
 import WaveformRegions from "./WaveformRegions.vue";
 import { intervalGeometry, timeToRatio, ratioToTime } from "../domain/viewport";
 
@@ -299,17 +300,16 @@ onBeforeUnmount(() => {
         }}
       </button>
       <div>
-        <label
-          ><Icon name="zoom" :size="16" /><input
-            aria-label="波形缩放"
-            type="range"
-            min="10"
-            max="1000"
-            :value="zoom"
-            @input="
-              setZoom(Number(($event.target as HTMLInputElement).value))
-            " /></label
-        ><button
+        <div class="wave-zoom">
+          <Icon name="zoom" :size="16" /><UiSlider
+            label="波形缩放"
+            :model-value="zoom"
+            :min="10"
+            :max="1000"
+            @update:model-value="setZoom"
+          />
+        </div>
+        <button
           v-if="!following"
           class="text-link"
           @click="
@@ -460,16 +460,14 @@ onBeforeUnmount(() => {
         />
       </div>
       <time>{{ formatTime(editor.asset.info.durationMs).slice(0, 5) }}</time>
-      <input
+      <UiSlider
         class="sr-only"
-        type="range"
-        aria-label="波形视窗起点"
-        :value="view.startTime * 1000"
-        min="0"
+        label="波形视窗起点"
+        :model-value="view.startTime * 1000"
         :max="Math.max(0, editor.asset.info.durationMs - span * 1000)"
-        @input="
+        @update:model-value="
           following = false;
-          scrollTo(Number(($event.target as HTMLInputElement).value) / 1000);
+          scrollTo($event / 1000);
         "
       />
     </div>
