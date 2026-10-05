@@ -52,10 +52,6 @@ function next() {
     editor.error = "请导入或粘贴歌词。";
     return;
   }
-  if (!editor.asset) {
-    editor.error = "请选择音频再继续。";
-    return;
-  }
   editor.goStage(1);
 }
 </script>
@@ -68,9 +64,7 @@ function next() {
     :class="{ dragging }"
   >
     <div class="page-heading">
-      <span class="eyebrow">FROM TEXT TO TIMING</span>
-      <h1>让歌词，跟上音乐。</h1>
-      <p>先把文字整理好，再一行一行听，一字一字记录。</p>
+      <h1>导入歌词</h1>
     </div>
     <div class="import-grid">
       <button
@@ -81,12 +75,11 @@ function next() {
         <span class="drop-icon"
           ><Icon :name="editor.asset ? 'check' : 'music'" :size="34"
         /></span>
-        <h2>{{ editor.asset ? "音频已准备" : "导入一首歌" }}</h2>
+        <h2>{{ editor.asset ? "音频已准备" : "选择音频（可稍后）" }}</h2>
         <p>{{ editor.project.audio?.name || "点击选择，或把音频拖到这里" }}</p>
         <span class="file-types">{{
           editor.loading ? "正在解码音频…" : "MP3 · WAV · 浏览器支持的音频"
-        }}</span
-        ><span class="small-note">音频始终留在你的设备上</span>
+        }}</span>
       </button>
       <div class="lyrics-import surface">
         <div class="section-title">
@@ -111,7 +104,7 @@ function next() {
             editor.error = '';
           "
           spellcheck="false"
-          placeholder="把歌词粘贴在这里，每句一行。&#10;&#10;已有 LRC？直接导入，时间戳会保留。"
+          placeholder="粘贴歌词，每句一行"
         />
         <div class="import-meta">
           <span>{{
@@ -140,10 +133,6 @@ function next() {
         @click="next"
         >下一步，整理歌词</UiButton
       >
-    </div>
-    <div class="workflow-note">
-      <span>01　整理文字</span><i>→</i><span>02　给每句定起点</span><i>→</i
-      ><span>03　逐字记录与微调</span>
     </div>
   </section>
 </template>

@@ -49,6 +49,7 @@ export function createEditor(
     message = ref(""),
     saveState = ref("尚无草稿");
   const mode = ref<SessionMode>("idle");
+  const recordingArmed = ref(false);
   const positionMs = ref(0),
     playing = ref(false),
     rate = ref(1),
@@ -121,6 +122,21 @@ export function createEditor(
         (line) => completeLine(line) && validLine(line.id),
       ).length,
   );
+  const lastRecorded = computed(() => {
+    historyVersion.value;
+    const entry = [...history.past].reverse().find((entry) => entry.point);
+    if (!entry?.point) return null;
+    const sourceLine = entry.after.lines.find(
+      (line) => line.id === entry.point!.lineId,
+    );
+    return {
+      ...entry.point,
+      text:
+        entry.after.stage === 2
+          ? sourceLine?.text
+          : (sourceLine?.units[entry.point.index]?.text ?? "收尾"),
+    };
+  });
   const canUndo = computed(() => {
     historyVersion.value;
     return history.past.length > 0;
@@ -261,6 +277,8 @@ export function createEditor(
     asset.value = null;
     history.clear();
     historyVersion.value++;
+    clearPreview();
+    recordingArmed.value = false;
     project.value = newProject();
     mode.value = "idle";
     error.value = "";
@@ -334,6 +352,8 @@ export function createEditor(
     view({ activeLineId: point.lineId });
     seek(point.timeMs - 1000);
     mode.value = "paused";
+    recordingArmed.value = true;
+    retimeOne = project.value.stage === 2 && line.value?.startMs !== null;
     selectedUnit.value = Math.min(
       point.index,
       Math.max(0, (line.value?.units.length ?? 1) - 1),
@@ -350,6 +370,8 @@ export function createEditor(
       });
   }
   function selectLine(id: string) {
+    recordingArmed.value = false;
+    retimeOne = false;
     clearPreview();
     pause();
     view({ activeLineId: id });
@@ -427,6 +449,7 @@ export function createEditor(
     );
   }
   async function startRecording() {
+    sync();
     if (!asset.value || !line.value) {
       error.value = "请先选择音频。";
       return;
@@ -439,7 +462,15 @@ export function createEditor(
       error.value = "本行有时间冲突，请调整时标或从选中单位重打。";
       return;
     }
-    retimeOne = project.value.stage === 2 && line.value.startMs !== null;
+    if (
+      project.value.stage === 2 &&
+      line.value.startMs !== null &&
+      !retimeOne
+    ) {
+      message.value = "句首已有时间，选择重打本句以修改。";
+      return;
+    }
+    recordingArmed.value = true;
     message.value = "";
     mode.value = "starting";
     try {
@@ -474,8 +505,10 @@ export function createEditor(
       if (!retimeOne && next) view({ activeLineId: next.id });
       else {
         pause();
+        recordingArmed.value = false;
+        retimeOne = false;
         mode.value = "idle";
-        message.value = "句首已记录。检查时间后进入逐字打轴。";
+        message.value = "";
       }
     } else {
       const unit = cursor.value;
@@ -498,7 +531,8 @@ export function createEditor(
       if (isComplete.value) {
         pause();
         mode.value = "idle";
-        message.value = "本行完成。先试听，再进入下一句。";
+        recordingArmed.value = false;
+        message.value = "";
       }
     }
   }
@@ -519,17 +553,20 @@ export function createEditor(
       }
       recordPoint(ms - Math.round(correction));
     } else if (mode.value === "ended") {
-      if (
-        project.value.stage === 3 &&
-        cursor.value === line.value?.units.length &&
-        !isComplete.value
-      )
-        recordPoint(positionMs.value);
-      else {
-        message.value = "已到播放边界。请回退补打，或调整下一句的起点。";
-        mode.value = "paused";
-      }
+      message.value = "范围结束，定位后补打。";
     } else await startRecording();
+  }
+  function stopRecording() {
+    pause();
+    recordingArmed.value = false;
+  }
+  function retimeLine() {
+    if (!line.value) return;
+    pause();
+    recordingArmed.value = false;
+    retimeOne = true;
+    seek((line.value.startMs ?? positionMs.value) - 1000);
+    mode.value = "idle";
   }
   async function review() {
     if (!asset.value || !line.value) {
@@ -537,6 +574,7 @@ export function createEditor(
       return;
     }
     pause();
+    recordingArmed.value = false;
     mode.value = "review";
     try {
       await transport.play(
@@ -557,12 +595,25 @@ export function createEditor(
       pause();
       return;
     }
-    if (project.value.stage >= 2 && !isComplete.value) await startRecording();
-    else if (line.value && project.value.stage >= 2) await review();
+    if (recordingArmed.value && mode.value === "paused") await startRecording();
     else if (asset.value) {
+      recordingArmed.value = false;
       mode.value = "review";
-      await transport.play(positionMs.value);
-      sync();
+      try {
+        await transport.play(
+          positionMs.value,
+          project.value.stage === 3
+            ? Math.min(
+                (line.value?.endMs ?? clipEnd()) + 300,
+                asset.value.info.durationMs,
+              )
+            : asset.value.info.durationMs,
+        );
+        sync();
+      } catch (value) {
+        showError(value);
+        mode.value = "idle";
+      }
     }
   }
   function setRate(value: number) {
@@ -643,6 +694,10 @@ export function createEditor(
     message,
     saveState,
     mode,
+    recordingArmed,
+    lastRecorded,
+    stopRecording,
+    retimeLine,
     positionMs,
     playing,
     rate,

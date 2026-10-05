@@ -132,7 +132,7 @@ describe("recording session transitions", () => {
     await editor.enter();
     expect(editor.line?.endMs).toBe(2500);
   });
-  it("stops at next sentence and allows an explicit Enter for its terminal", async () => {
+  it("stops at next sentence without claiming its boundary is a measured terminal", async () => {
     const { audio, editor } = await session("[00:01]君\n[00:04]次");
     editor.confirmLines();
     await editor.enter();
@@ -141,8 +141,8 @@ describe("recording session transitions", () => {
     audio.end();
     expect(editor.mode).toBe("ended");
     await editor.enter();
-    expect(editor.line?.endMs).toBe(4000);
-    expect(editor.isComplete).toBe(true);
+    expect(editor.line?.endMs).toBeNull();
+    expect(editor.isComplete).toBe(false);
   });
   it("requires valid lines, ignores input before timing stages, preserves prefix on local retime", async () => {
     const { audio, editor } = await session("今日");
@@ -163,5 +163,43 @@ describe("recording session transitions", () => {
     expect(editor.line?.endMs).toBe(3000);
     editor.redo();
     expect(editor.line?.units.map((u) => u.startMs)).toEqual([1000, null]);
+  });
+});
+
+describe("explicit playback and recording modes", () => {
+  it("lets ordinary playback audition incomplete lyrics without recording", async () => {
+    const { audio, editor } = await session("[00:01]今日");
+    editor.confirmLines();
+    await editor.togglePlayback();
+    expect(editor.mode).toBe("review");
+    expect(editor.recordingArmed).toBe(false);
+    audio.position = 1500;
+    await editor.enter();
+    expect(editor.line?.units[0].startMs).toBeNull();
+    expect(editor.mode).toBe("recording");
+    audio.position = 1600;
+    await editor.enter();
+    expect(editor.line?.units[0].startMs).toBe(1600);
+  });
+  it("protects imported line onsets until explicitly armed for retiming", async () => {
+    const { audio, editor } = await session("[00:01]今日");
+    await editor.enter();
+    expect(audio.playing).toBe(false);
+    expect(editor.line?.startMs).toBe(1000);
+    editor.retimeLine();
+    await editor.enter();
+    audio.position = 1300;
+    await editor.enter();
+    expect(editor.line?.startMs).toBe(1300);
+  });
+  it("allows text preparation without an audio prerequisite but gates timing", async () => {
+    const editor = createEditor(undefined, false);
+    await editor.initialize();
+    editor.importText("今日");
+    editor.goStage(1);
+    expect(editor.project.stage).toBe(1);
+    editor.confirmText();
+    expect(editor.project.stage).toBe(1);
+    expect(editor.error).toContain("音频");
   });
 });

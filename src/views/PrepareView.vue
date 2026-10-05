@@ -13,6 +13,7 @@ import UiButton from "../components/UiButton.vue";
 import UiField from "../components/UiField.vue";
 import Icon from "../components/Icon.vue";
 import Modal from "../components/Modal.vue";
+const emit = defineEmits<{ audio: [] }>();
 const selected = ref<string[]>([]),
   previewOpen = ref(false);
 const options = ref<CleanOptions>({
@@ -84,9 +85,7 @@ function apply() {
 <template>
   <section class="prepare-view">
     <div class="page-heading compact">
-      <span class="eyebrow">A LITTLE CLEANUP</span>
-      <h1>先把歌词整理好。</h1>
-      <p>去掉无关行，拆成适合一口气唱完的句子。已有时间会保留。</p>
+      <h1>整理歌词</h1>
     </div>
     <div class="prepare-grid">
       <div class="surface lyric-sheet">
@@ -184,8 +183,7 @@ function apply() {
         </button>
       </div>
       <aside class="surface cleanup-panel">
-        <span class="eyebrow">整理工具</span>
-        <h2>少一点杂音。</h2>
+        <h2>文本清理</h2>
         <label class="check-label"
           ><input
             v-model="options.trim"
@@ -199,7 +197,7 @@ function apply() {
             type="checkbox"
           />删除括号里的内容</label
         >
-        <p class="small-note">日语括号可能是读音或歌词，应用前请检查预览。</p>
+
         <div class="divider" />
         <UiField v-model="options.find" label="查找文字" /><UiField
           v-model="options.replacement"
@@ -210,7 +208,8 @@ function apply() {
       </aside>
     </div>
     <div class="step-footer">
-      <span class="small-note">文本变化的行需要重新做逐字时间。</span
+      <UiButton v-if="!editor.asset" variant="tonal" @click="emit('audio')"
+        >选择音频</UiButton
       ><UiButton variant="filled" icon="arrow" @click="editor.confirmText"
         >确认文本，开始逐行打轴</UiButton
       >

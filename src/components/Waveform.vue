@@ -18,10 +18,18 @@ import {
   setLineEnd,
 } from "../domain/edit";
 import Icon from "./Icon.vue";
+import WaveformRegions from "./WaveformRegions.vue";
+import { timeToRatio, ratioToTime } from "../domain/viewport";
 
 const host = ref<HTMLDivElement>(),
   view = ref({ startTime: 0, endTime: 10 }),
-  zoom = ref(100);
+  zoom = ref(100),
+  width = ref(0),
+  following = ref(true);
+const viewport = computed(() => ({
+  startMs: view.value.startTime * 1000,
+  endMs: view.value.endTime * 1000,
+}));
 const drag = ref<{ key: string; ms: number; point: Point } | null>(null);
 let wave: WaveSurfer | null = null,
   unsubscribe: (() => void) | undefined,
@@ -36,7 +44,7 @@ interface Point {
 }
 const points = computed<Point[]>(() => {
   if (editor.project.stage === 2)
-    return editor.project.lines.flatMap((l, i) =>
+    return editor.displayProject.lines.flatMap((l, i) =>
       l.startMs === null
         ? []
         : [
@@ -50,7 +58,7 @@ const points = computed<Point[]>(() => {
             },
           ],
     );
-  const line = editor.line;
+  const line = editor.displayLine;
   if (!line) return [];
   const result: Point[] = line.units.flatMap((u, i) =>
     u.startMs === null
@@ -80,8 +88,7 @@ const points = computed<Point[]>(() => {
 const span = computed(() =>
   Math.max(0.001, view.value.endTime - view.value.startTime),
 );
-const left = (ms: number) =>
-  ((ms / 1000 - view.value.startTime) / span.value) * 100;
+const left = (ms: number) => timeToRatio(ms, viewport.value) * 100;
 const visiblePoints = computed(() =>
   points.value.filter((p) => left(p.time) >= -1 && left(p.time) <= 101),
 );
@@ -121,15 +128,16 @@ function bounds(point: Point): [number, number] {
     ];
   return unitBounds(editor.project, point.lineIndex, point.unitIndex);
 }
+function applyPoint(p: typeof editor.project, point: Point, ms: number) {
+  if (p.stage === 2) setLineStart(p, point.lineIndex, ms);
+  else if (point.end) setLineEnd(p, point.lineIndex, ms);
+  else setUnitStart(p, point.lineIndex, point.unitIndex, ms);
+}
 function setPoint(point: Point, ms: number) {
-  return editor.command("调整时间边界", (p) => {
-    if (p.stage === 2) setLineStart(p, point.lineIndex, ms);
-    else if (point.end) setLineEnd(p, point.lineIndex, ms);
-    else setUnitStart(p, point.lineIndex, point.unitIndex, ms);
-  });
+  return editor.command("调整时间边界", (p) => applyPoint(p, point, ms));
 }
 function selectPoint(point: Point) {
-  editor.pause();
+  if (editor.recordingArmed) editor.pause();
   if (editor.project.stage === 2)
     editor.view({ activeLineId: editor.project.lines[point.lineIndex].id });
   else {
@@ -142,14 +150,12 @@ function selectPoint(point: Point) {
 }
 function pointerTime(event: PointerEvent) {
   const rect = host.value!.getBoundingClientRect();
-  return Math.round(
-    (view.value.startTime +
-      ((event.clientX - rect.left) / rect.width) * span.value) *
-      1000,
-  );
+  return ratioToTime((event.clientX - rect.left) / rect.width, viewport.value);
 }
 function startDrag(event: PointerEvent, point: Point) {
   if (event.button !== 0) return;
+  if (editor.recordingArmed) editor.pause();
+  following.value = false;
   drag.value = { key: point.key, ms: point.time, point };
   selectPoint(point);
   const button = event.currentTarget as HTMLButtonElement;
@@ -160,17 +166,21 @@ function startDrag(event: PointerEvent, point: Point) {
 function moveDrag(event: PointerEvent) {
   if (!drag.value) return;
   const [min, max] = bounds(drag.value.point);
+  if (min > max) return;
   drag.value.ms = Math.max(min, Math.min(pointerTime(event), max));
+  editor.previewCommand("waveform", (p) =>
+    applyPoint(p, drag.value!.point, drag.value!.ms),
+  );
 }
 function endDrag() {
   if (!drag.value) return;
-  const { point, ms } = drag.value;
   drag.value = null;
-  setPoint(point, ms);
+  editor.commitPreview("调整时间边界");
 }
 function markerKey(event: KeyboardEvent, point: Point) {
   if (event.key === "Escape") {
     drag.value = null;
+    editor.clearPreview();
     event.stopPropagation();
     return;
   }
@@ -194,14 +204,14 @@ function markerKey(event: KeyboardEvent, point: Point) {
 function seek(event: MouseEvent) {
   if (!host.value) return;
   const rect = host.value.getBoundingClientRect();
+  editor.clearPreview();
   editor.seek(
-    (view.value.startTime +
-      ((event.clientX - rect.left) / rect.width) * span.value) *
-      1000,
+    ratioToTime((event.clientX - rect.left) / rect.width, viewport.value),
   );
 }
 function fit() {
   if (!wave || !host.value || !editor.asset) return;
+  following.value = true;
   const line = editor.line;
   const start = Math.max(0, (line?.startMs ?? editor.positionMs) / 1000 - 1);
   const end = Math.min(
@@ -259,18 +269,37 @@ watch(() => editor.asset, mountWave);
 watch(
   () => [editor.project.activeLineId, editor.project.stage],
   () => {
-    if (!drag.value) nextTick(fit);
+    if (!drag.value && !editor.playing) nextTick(fit);
   },
 );
 watch(
   () => editor.positionMs,
   (value) => {
-    if (!wave || !editor.playing || drag.value) return;
+    if (!wave || !editor.playing || drag.value || !following.value) return;
     const t = value / 1000;
     if (t > view.value.endTime - span.value * 0.16 || t < view.value.startTime)
       wave.setScrollTime(Math.max(0, t - span.value * 0.3));
   },
 );
+function wheel(event: WheelEvent) {
+  if (!wave) return;
+  event.preventDefault();
+  following.value = false;
+  if (event.altKey)
+    setZoom(
+      Math.max(
+        10,
+        Math.min(1000, zoom.value * (event.deltaY < 0 ? 1.15 : 0.85)),
+      ),
+    );
+  else
+    wave.setScrollTime(
+      Math.max(
+        0,
+        view.value.startTime + (event.deltaX || event.deltaY) / zoom.value,
+      ),
+    );
+}
 function updateTheme() {
   if (host.value)
     wave?.setOptions({
@@ -282,7 +311,10 @@ onMounted(() => {
   void mountWave();
   document.addEventListener("mako-theme", updateTheme);
   resize = new ResizeObserver(() => {
-    if (host.value) wave?.setOptions({ height: host.value.clientHeight });
+    if (host.value) {
+      width.value = host.value.clientWidth;
+      wave?.setOptions({ height: host.value.clientHeight });
+    }
     if (!editor.playing && !drag.value) fit();
   });
   if (host.value) resize.observe(host.value);
@@ -292,14 +324,13 @@ onBeforeUnmount(() => {
   unsubscribe?.();
   resize?.disconnect();
   wave?.destroy();
+  if (editor.previewOwner === "waveform") editor.clearPreview();
 });
 </script>
 <template>
   <div class="wave-panel">
     <div class="wave-toolbar">
-      <span class="small-note">{{
-        editor.asset ? "拖动时标微调，点击波形定位" : "请选择音频以显示波形"
-      }}</span>
+      <span class="small-note">波形</span>
       <div>
         <label
           ><Icon name="zoom" :size="16" /><input
@@ -311,10 +342,21 @@ onBeforeUnmount(() => {
             @input="
               setZoom(Number(($event.target as HTMLInputElement).value))
             " /></label
+        ><button
+          v-if="!following"
+          class="text-link"
+          @click="
+            following = true;
+            wave?.setScrollTime(
+              Math.max(0, editor.positionMs / 1000 - span * 0.3),
+            );
+          "
+        >
+          回到播放头</button
         ><button class="text-link" @click="fit">适合当前句</button>
       </div>
     </div>
-    <div class="wave-stage" @click="seek">
+    <div class="wave-stage" @click="seek" @wheel="wheel">
       <div ref="host" class="wave-canvas" />
       <div class="wave-ticks">
         <span
@@ -335,6 +377,22 @@ onBeforeUnmount(() => {
       >
         <span />
       </div>
+      <WaveformRegions
+        :view="viewport"
+        :width="width"
+        @select="
+          (li, ui) =>
+            selectPoint({
+              key: '',
+              lineIndex: li,
+              unitIndex: ui ?? 0,
+              time: 0,
+              label: '',
+              end: false,
+            })
+        "
+        @audition="editor.review()"
+      />
       <div class="point-layer">
         <button
           v-for="point in visiblePoints"
@@ -359,7 +417,10 @@ onBeforeUnmount(() => {
           @pointerdown="startDrag($event, point)"
           @pointermove="moveDrag"
           @pointerup="endDrag"
-          @pointercancel="drag = null"
+          @pointercancel="
+            drag = null;
+            editor.clearPreview();
+          "
           @keydown="markerKey($event, point)"
           @click.stop="selectPoint(point)"
         >
@@ -369,10 +430,6 @@ onBeforeUnmount(() => {
           }}</small>
         </button>
       </div>
-    </div>
-    <div class="wave-caption">
-      <span>起点与前一单位终点共用边界</span
-      ><span>聚焦时标：← → 10ms · Shift 1ms</span>
     </div>
   </div>
 </template>

@@ -62,7 +62,7 @@ function focusWorkspace() {
   );
 }
 watch(
-  () => [editor.project.stage, editor.project.activeLineId],
+  () => editor.project.stage,
   () => {
     if (editor.project.stage >= 2) focusWorkspace();
   },
@@ -133,7 +133,7 @@ function keydown(event: KeyboardEvent) {
     void editor.review();
   } else if (event.key === "Escape") {
     event.preventDefault();
-    editor.pause();
+    editor.stopRecording();
   } else if (["ArrowLeft", "ArrowRight"].includes(event.key)) {
     event.preventDefault();
     editor.seek(
@@ -166,7 +166,7 @@ function editingFocus(event: FocusEvent) {
             (node instanceof HTMLInputElement && node.type !== "range")),
       )
   )
-    editor.pause();
+    if (editor.recordingArmed) editor.pause();
 }
 const keyup = (event: KeyboardEvent) => held.delete(event.code);
 onMounted(async () => {
@@ -320,10 +320,10 @@ onBeforeUnmount(() => {
         v-else-if="editor.project.stage === 0"
         @audio="audioInput?.click()"
         @backup="backupInput?.click()"
-      /><PrepareView v-else-if="editor.project.stage === 1" /><TimingView
-        v-else
+      /><PrepareView
+        v-else-if="editor.project.stage === 1"
         @audio="audioInput?.click()"
-      />
+      /><TimingView v-else @audio="audioInput?.click()" />
     </main>
     <AudioBar @audio="audioInput?.click()" />
     <input

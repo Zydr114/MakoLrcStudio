@@ -74,6 +74,8 @@ function focusWorkspace() {
 }
 function recordClick() {
   focusWorkspace();
+  if (lineMode.value && editor.line?.startMs !== null && !editor.recordingArmed)
+    editor.retimeLine();
   void editor.enter();
 }
 function retimeClick() {
