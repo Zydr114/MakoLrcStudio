@@ -493,6 +493,7 @@ kbd {
 .modal {
   max-width: min(560px, calc(100vw - 40px));
   max-height: 85dvh;
+  overflow: auto;
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 24px;
@@ -539,6 +540,27 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+.about-list {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 14px;
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.about-list dt {
+  margin: 0;
+  color: var(--muted);
+}
+.about-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.about-list a {
+  color: var(--accent);
 }
 .native-field {
   display: flex;

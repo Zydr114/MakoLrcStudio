@@ -22,6 +22,8 @@ const helpOpen = ref(false),
   newOpen = ref(false);
 const theme = ref<"auto" | "light" | "dark">("auto"),
   seed = ref("#01cff0");
+// AGPL 第 13 条：网络使用者应能取得源码，设置里给出仓库地址。
+const sourceUrl = "https://github.com/Zydr114/MakoLrcStudio";
 const tabs = ["文本处理", "逐行打轴", "逐字打轴"];
 function tabKey(event: KeyboardEvent, index: number) {
   if (event.key === "Enter" || event.code === "Space") {
@@ -466,6 +468,19 @@ onBeforeUnmount(() => {
           "
           >新建空白项目</UiButton
         >
+        <dl class="about-list">
+          <dt>许可证</dt>
+          <dd>AGPL-3.0</dd>
+          <dt>源代码</dt>
+          <dd>
+            <a
+              :href="sourceUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              >{{ sourceUrl }}</a
+            >
+          </dd>
+        </dl>
       </div>
       <p class="small-note">
         刷新后需要重新选择原音频。慢速播放会降低音高。
