@@ -2,7 +2,7 @@
 
 调研日期：2026-10-06。基线：`a486a0a`。
 
-**状态：步骤 1–6 已完成，用户确认基本打轴顺手；试用后的三个调整已实现，见第 13 节。** 前版证据见第 12 节，各步独立提交。当前三个编辑视图为共享数据的自由页签，第 13 节替代前文的阶段解锁及底部独立播放条布局。新调整的用户体验仍待实际反馈，真实设备验证范围见第 12 节。旧版实施记录可从 Git 历史查看。
+**状态：步骤 1–6 已完成，用户确认基本打轴顺手；试用后的三个调整已实现，见第 13 节。** 前版证据见第 12 节，各步独立提交。当前三个编辑视图为共享数据的自由页签，第 13 节替代前文的阶段解锁及底部独立播放条布局。新调整的用户体验仍待实际反馈，真实设备验证范围见第 12 节。旧版实施记录可从 Git 历史查看。项目已于 2026-10-08 改名为 **MakoLrcStudio**，并加上品牌标识与 GitHub 仓库，见第 20 节。
 
 ## 1. 目标、现状与本次决定
 
@@ -657,3 +657,66 @@
 4. 回归：`twikoo`／`music`／`chess` 三个既有站点仍 308 → HTTPS，`caddy` 为 `active`；HTTP 访问 `tool.talium.site` 仍重定向到 HTTPS。
 5. 证书复用既有 Let's Encrypt 证书（`CN=tool.talium.site`，2026-10-05 至 2027-01-03），未重新签发，未消耗重复证书配额。
 6. 本地 `npm test` **44 项通过**；`npm run build`（`vue-tsc --noEmit` 与 `vite build`）通过，部署直接使用该构建产物。
+
+## 20. 改名为 MakoLrcStudio、品牌标识与重新发布（2026-10-08）
+
+项目名由 MakoLrcEditor 改为 MakoLrcStudio：本地目录、包名、页面标题、文档、部署路径与 GitHub 仓库一并更新，并加入品牌标识（页头徽标、首页字标、标签页图标）与取自字标主色的默认主题色。第 19 节记录的是改名前的路径，保留原样。
+
+### 20.1 已确认选择
+
+| 项               | 选择                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------- |
+| 页头左上角       | 用徽标图替换原 CSS 画的小方块（CSS 40×34），右侧「mako / LRC STUDIO」文字不动                            |
+| 首页             | `Main` 宽字标放在「导入歌词」标题上方（CSS 152×72），标题保留                                            |
+| 标签页图标       | 徽标导出 32／48 透明 PNG；`apple-touch-icon` 用白底，与徽标自带的白色贴纸面一致，可保留藏青外描边         |
+| 配色             | 整体换成徽标色系，只改默认主题色（`#536b56` → `#01cff0`），仍可在设置里改                                |
+| 重命名范围       | 本地目录 + 线上路径全改；旧地址 `/MakoLrcEditor/` 返回 404，不留跳转                                     |
+| 尾斜杠           | 保留新路径自身的 `308`（应用用相对资源路径，缺尾斜杠会直接 404）                                        |
+| IndexedDB 库名   | 改为 `mako-lrc-studio`，不做迁移（用户确认；旧库草稿不再被读取，线上路径改名仍在同一 origin 不影响库）  |
+
+源图为 `/mnt/Data/Program/MakoLrcStudio-Main.png`（1774×887，宽字标）与 `MakoLrcStudio-Logo.png`（1316×1195，方徽标），不纳入仓库；派生资源由 `scripts/build-brand-assets.sh` 生成，先裁掉透明边再按 CSS 尺寸的 3 倍导出。
+
+### 20.2 交付
+
+实现提交：
+
+1. `1b666ad feat: add MakoLrcStudio brand mark, wordmark and tab icon` —— 新增 `scripts/build-brand-assets.sh`、`src/assets/brand/mark.webp`（120×103）、`src/assets/brand/wordmark.webp`（456×216）、`public/favicon-32.png`、`public/favicon-48.png`、`public/apple-touch-icon.png`；改 `index.html` 图标链接、`App.vue` 页头、`ImportView.vue` 首页、`styles.css` 与默认主题色；删除 `public/favicon.svg`。
+2. `refactor: rename project to MakoLrcStudio` —— 包名与 `package-lock.json`、页面标题、IndexedDB 库名、部署路径、Caddy 站点块、README；`deploy-remote.sh` 合并 Caddyfile 前先移除旧项目名标记块（否则会出现两个 `tool.talium.site` 块，`caddy validate` 以站点定义重复失败）。
+
+页内图片用 WebP：同一源图下 26.2 KB / 6.8 KB，对应 PNG 为 111.5 KB / 19.8 KB。品牌源图的最外圈是徽标自带的深藏青描边而非白色，因此浅色与深色主题下轮廓都完整。
+
+### 20.3 验证证据
+
+自动检查：`npm test` **44 项通过**，`npm run build`（`vue-tsc --noEmit` 与 `vite build`）通过，Chromium／Firefox `npm run test:e2e` **50 项通过**。
+
+合并脚本先用远端 Caddyfile 的结构离线演练：旧块被移除、`tool.talium.site` 站点块数为 1、重复执行为「Caddyfile 未变化」。线上实际合并输出「已移除旧项目名的站点块」，`caddy validate` 为 `Valid configuration`，随后 reload。
+
+发布构建 `dist/index.html` sha256 `3d7b3eded0c64a01b733f7f4efaf8ad8cba7b487cdca477613d565fd78d7f5cb`，`assets/` 为 `index-DI7x7Ov4.js`（125.3 KB gzip）、`index-DM0TkFzb.css`（9.6 KB gzip）、`mark-csrfNqlf.webp`、`wordmark-MwB63DRh.webp`。线上响应体与本地 `dist/index.html` 哈希一致；`rsync --checksum --dry-run` 比对远端站点目录无差异。
+
+HTTPS 探活与回归：
+
+| 检查                                                   | 结果                                                          |
+| ------------------------------------------------------ | ------------------------------------------------------------- |
+| `/MakoLrcStudio`（不带尾斜杠）                          | 308 → `/MakoLrcStudio/`                                       |
+| `/MakoLrcStudio/`                                       | 200                                                           |
+| `/MakoLrcEditor/`、`/MakoLrcEditor`                     | 404（旧地址按选择下线）                                        |
+| 站点根                                                  | 404                                                           |
+| `favicon-32.png`／`favicon-48.png`／`apple-touch-icon.png` | 200；旧 `favicon.svg` 404                                  |
+| `assets/index-DI7x7Ov4.js`、`assets/index-DM0TkFzb.css`  | 200 且带 `immutable`；入口 `Cache-Control: no-cache`          |
+| 证书                                                    | 复用既有 Let's Encrypt 证书（`CN=tool.talium.site`，2026-10-05 至 2027-01-03） |
+
+Chromium 加载线上地址（[浅色 1280×720](docs/screenshots/live-makolrcstudio-1280.png)）：标题 `MakoLrc Studio · 增强 LRC 编辑器`，三个图标分别解码为 32×32／48×48／180×180，页头徽标渲染 40×34、首页字标 152×72，`--mdui-color-primary` 为 `rgb(0, 104, 121)`，8 个请求全部同源，无控制台错误或请求失败。
+
+本地生产构建的浅色／深色对照：[导入页浅色](docs/screenshots/brand-import-light-1280.png)、[导入页深色](docs/screenshots/brand-import-dark-1440.png)、[逐字打轴浅色](docs/screenshots/brand-timing-light-1280.png)、[逐字打轴深色](docs/screenshots/brand-timing-dark-1440.png)。
+
+GitHub 仓库接为 `origin`（`git@github.com:Zydr114/MakoLrcStudio.git`），`main` 与远端一致。旧站点目录 `/var/www/tool.talium.site/MakoLrcEditor/` 已删除，远端只保留 `MakoLrcStudio/`。
+
+### 20.4 发现的既有问题（本次未修）
+
+`twikoo.talium.site` 与 `music.talium.site` 当前返回 **502**：Caddy 正常，但 `reverse_proxy` 指向的 `127.0.0.1:8080`（twikoo）与 `127.0.0.1:3000`（music）没有进程在监听，远端也没有对应的 systemd 单元。改动前后的 Caddyfile `diff` 只涉及 `tool.talium.site` 块，且不经代理直连复测结果相同，两者与本次改名无关；HTTP 访问仍正常 308 跳转到 HTTPS。`chess.talium.site`（上游 `127.0.0.1:17333`）返回 200。该问题另行处理。
+
+## 21. 待办与遗留
+
+- `scripts/deploy-remote.sh` 中针对旧项目名的标记块清理、README 中的旧地址说明，确认迁移完成且不再需要后可以移除。
+- 页头徽标在 40×34 下为缩小图，标签页图标在 32px 下音符与星光已不可辨；若需要更清晰的小尺寸版本，需另出简化图形。
+- 真实设备验收范围仍见第 12 节（Safari、输入法候选窗口、实际耳机／蓝牙输出延迟、人工听感）。
