@@ -5,7 +5,7 @@ let database: Promise<IDBDatabase> | null = null;
 function open(): Promise<IDBDatabase> {
   if (!database)
     database = new Promise((resolve, reject) => {
-      const request = indexedDB.open("mako-lrc-editor", 1);
+      const request = indexedDB.open("mako-lrc-studio", 1);
       request.onupgradeneeded = () =>
         request.result.createObjectStore("drafts");
       request.onsuccess = () => resolve(request.result);

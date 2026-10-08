@@ -1,4 +1,4 @@
-# MakoLrcEditor 打轴工作区 UI 改进计划
+# MakoLrcStudio 打轴工作区 UI 改进计划
 
 调研日期：2026-10-06。基线：`a486a0a`。
 
@@ -631,6 +631,8 @@
 实际截图：[浅色 1280×720](docs/screenshots/scrolling-lyrics-light-1280.png)、[深色 1440×900](docs/screenshots/scrolling-lyrics-dark-1440.png)。验证结果：`npm test` **44 项通过**，`npm run build` 通过，Chromium／Firefox `npm run test:e2e` **50 项通过**，`test-results/.last-run.json` 为 `passed`。WebKit 主机依赖限制沿用第 15.3 节；整体 goal 仍等待用户验收，不标记完成。
 
 ## 19. 线上发布到 tool.talium.site（2026-10-06）
+
+> 本节记录当时的项目名与路径。项目已于 2026-10-08 改名为 MakoLrcStudio，线上入口迁到 `/MakoLrcStudio/`，详见第 20 节。
 
 用户提供 `tool.talium.site` 的 A 记录并指定目标位置 `/MakoLrcEditor`。本次只做发布与部署支持代码，不改动应用逻辑。
 

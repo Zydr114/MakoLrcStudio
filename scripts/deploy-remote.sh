@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 把当前生产构建发布到 ssh tencent 的 Caddy 静态站点。
-# 目标入口：https://tool.talium.site/MakoLrcEditor/
+# 目标入口：https://tool.talium.site/MakoLrcStudio/
 #
 # 步骤：本地构建 → rsync 同步 dist → 合并站点块到远端 Caddyfile → 校验并 reload → HTTPS 探活。
 # 可覆盖：DEPLOY_HOST / SITE_DOMAIN / APP_PATH / REMOTE_ROOT / CADDYFILE / DEPLOY_SKIP_BUILD=1
@@ -11,7 +11,7 @@ SNIPPET="${ROOT_DIR}/scripts/tool.talium.site.caddyfile"
 
 HOST="${DEPLOY_HOST:-tencent}"
 SITE_DOMAIN="${SITE_DOMAIN:-tool.talium.site}"
-APP_PATH="${APP_PATH:-/MakoLrcEditor}"
+APP_PATH="${APP_PATH:-/MakoLrcStudio}"
 REMOTE_ROOT="${REMOTE_ROOT:-/var/www/${SITE_DOMAIN}}"
 REMOTE_APP_DIR="${REMOTE_ROOT}${APP_PATH}"
 CADDYFILE="${CADDYFILE:-/etc/caddy/Caddyfile}"
@@ -49,13 +49,34 @@ rsync -az --delete --chmod=D755,F644 \
 	"${ROOT_DIR}/dist/" "${HOST}:${REMOTE_APP_DIR}/"
 
 step "4/5 更新 Caddy 站点块"
-scp "${SSH_OPTS[@]}" "$SNIPPET" "${HOST}:/tmp/mako-lrc-editor.caddyfile"
-ssh_run 'cat > /tmp/mako-lrc-editor-merge.py' <<'PY'
+scp "${SSH_OPTS[@]}" "$SNIPPET" "${HOST}:/tmp/mako-lrc-studio.caddyfile"
+ssh_run 'cat > /tmp/mako-lrc-studio-merge.py' <<'PY'
 import pathlib
+import re
 import sys
 
-BEGIN = "# >>> MakoLrcEditor deploy block"
-END = "# <<< MakoLrcEditor deploy block <<<"
+BEGIN = "# >>> MakoLrcStudio deploy block"
+END = "# <<< MakoLrcStudio deploy block <<<"
+# 旧项目名留下的标记块。改名后必须先删掉，否则 Caddyfile 会出现两个
+# tool.talium.site 站点块，caddy validate 以站点定义重复失败。
+LEGACY = [
+    ("# >>> MakoLrcEditor deploy block", "# <<< MakoLrcEditor deploy block <<<"),
+]
+
+
+def remove_blocks(text, markers):
+    """删除标记块（含标记行本身）并合并多余空行。"""
+    kept, skipping = [], False
+    for line in text.splitlines(keepends=True):
+        stripped = line.strip()
+        if any(stripped == begin for begin, _ in markers):
+            skipping = True
+        elif skipping and any(stripped == end for _, end in markers):
+            skipping = False
+        elif not skipping:
+            kept.append(line)
+    return re.sub(r"\n{3,}", "\n\n", "".join(kept))
+
 
 snippet_path, caddyfile_path = sys.argv[1], sys.argv[2]
 snippet = pathlib.Path(snippet_path).read_text(encoding="utf-8")
@@ -64,7 +85,10 @@ if BEGIN not in snippet or END not in snippet:
 block = snippet.split(BEGIN, 1)[1].split(END, 1)[0].strip("\n")
 
 caddyfile = pathlib.Path(caddyfile_path)
-current = caddyfile.read_text(encoding="utf-8")
+original = caddyfile.read_text(encoding="utf-8")
+current = remove_blocks(original, LEGACY)
+if original != current:
+    print("已移除旧项目名的站点块")
 if BEGIN in current and END in current:
     head, rest = current.split(BEGIN, 1)
     _, tail = rest.split(END, 1)
@@ -72,15 +96,15 @@ if BEGIN in current and END in current:
 else:
     updated = current.rstrip("\n") + "\n\n" + BEGIN + "\n" + block + "\n" + END + "\n"
 
-if updated == current:
+if updated == original:
     print("Caddyfile 未变化")
 else:
     backup = caddyfile.with_name(caddyfile.name + ".mako-bak")
-    backup.write_text(current, encoding="utf-8")
+    backup.write_text(original, encoding="utf-8")
     caddyfile.write_text(updated, encoding="utf-8")
     print(f"Caddyfile 已更新，改动前备份 {backup}")
 PY
-ssh_run "sudo -n python3 /tmp/mako-lrc-editor-merge.py /tmp/mako-lrc-editor.caddyfile '${CADDYFILE}'"
+ssh_run "sudo -n python3 /tmp/mako-lrc-studio-merge.py /tmp/mako-lrc-studio.caddyfile '${CADDYFILE}'"
 ssh_run "sudo -n caddy validate --config '${CADDYFILE}' --adapter caddyfile"
 ssh_run "sudo -n systemctl reload caddy"
 

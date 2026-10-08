@@ -74,7 +74,7 @@ npm run build
 npm run preview -- --port 4173
 ```
 
-将 **dist 目录中的内容**复制到服务器站点目录，例如 `/lrc/`。入口访问 `/lrc/` 或 `/lrc/index.html`，包含 `assets/` 和 `favicon.svg`。资源路径是相对路径，无 URL 路由，无需 SPA 重写规则，也没有后端 API。
+将 **dist 目录中的内容**复制到服务器站点目录，例如 `/lrc/`。入口访问 `/lrc/` 或 `/lrc/index.html`，包含 `assets/`、`favicon-32.png`、`favicon-48.png` 与 `apple-touch-icon.png`。资源路径是相对路径，无 URL 路由，无需 SPA 重写规则，也没有后端 API。
 
 线上使用 **HTTPS**，本地使用 localhost／127.0.0.1。音频摘要和唯一标识需要浏览器的安全环境；直接打开 `file://` 不适合作为运行方式。站点域名或端口改变会使用另一份浏览器存储。
 
@@ -82,17 +82,17 @@ Nginx 等常规静态服务器应正确发送 HTML、JavaScript、CSS、SVG MIME
 
 ## 部署到 tool.talium.site
 
-线上入口是 <https://tool.talium.site/MakoLrcEditor/>，静态文件由 `ssh tencent` 上的 Caddy 提供：
+线上入口是 <https://tool.talium.site/MakoLrcStudio/>，静态文件由 `ssh tencent` 上的 Caddy 提供：
 
 ```sh
 ./scripts/deploy-remote.sh
 ```
 
-脚本依次执行：本地 `npm run build` → `rsync --delete` 把 `dist/` 同步到远端 `/var/www/tool.talium.site/MakoLrcEditor/` → 把 `scripts/tool.talium.site.caddyfile` 合并进远端 `/etc/caddy/Caddyfile` 的标记块（改动前存 `Caddyfile.mako-bak`）→ `caddy validate` 并 reload → HTTPS 探活。探活要求：入口不带尾斜杠 308、`/MakoLrcEditor/` 200、站点根 404、哈希资源 200 且带 immutable 缓存头、首页 `Cache-Control: no-cache`。
+脚本依次执行：本地 `npm run build` → `rsync --delete` 把 `dist/` 同步到远端 `/var/www/tool.talium.site/MakoLrcStudio/` → 把 `scripts/tool.talium.site.caddyfile` 合并进远端 `/etc/caddy/Caddyfile` 的标记块（合并前先移除旧项目名 `MakoLrcEditor` 留下的标记块，改动前存 `Caddyfile.mako-bak`）→ `caddy validate` 并 reload → HTTPS 探活。探活要求：入口不带尾斜杠 308、`/MakoLrcStudio/` 200、站点根 404、哈希资源 200 且带 immutable 缓存头、首页 `Cache-Control: no-cache`。
 
 可用环境变量覆盖：`DEPLOY_HOST`（默认 `tencent`）、`SITE_DOMAIN`、`APP_PATH`、`REMOTE_ROOT`（默认 `/var/www/$SITE_DOMAIN`）、`CADDYFILE`（默认 `/etc/caddy/Caddyfile`）、`DEPLOY_SKIP_BUILD=1`（跳过构建，直接用现有 `dist/`）。
 
-Caddy 站点块只暴露 `/MakoLrcEditor/` 子路径：站点根、其他路径及 `/assets/` 返回 404；访问不带尾斜杠的 `/MakoLrcEditor` 会 308 跳到带斜杠地址，因为资源使用相对路径。入口页面不长期缓存，`assets/*` 使用一年期 immutable 缓存，替换发布时整套更新 `index.html` 与 `assets/`。站点块由脚本维护，手工编辑会在下次部署被覆盖。
+Caddy 站点块只暴露 `/MakoLrcStudio/` 子路径：站点根、其他路径、旧项目名的 `/MakoLrcEditor/` 及 `/assets/` 都返回 404；访问不带尾斜杠的 `/MakoLrcStudio` 会 308 跳到带斜杠地址，因为资源使用相对路径。入口页面不长期缓存，`assets/*` 使用一年期 immutable 缓存，替换发布时整套更新 `index.html` 与 `assets/`。站点块由脚本维护，手工编辑会在下次部署被覆盖。
 
 ## 验证与结构
 
@@ -111,6 +111,10 @@ npm run test:e2e
 | `src/audio`                    | 共享解码数据、播放和输出时钟映射                   |
 | `src/state`                    | 打轴状态机、共享编辑视图、草稿持久化               |
 | `src/views` / `src/components` | 工作区、波形时标、精确输入及 mdui 适配             |
+| `src/assets/brand`             | 页头品牌标与首页字标（WebP）                      |
+| `public`                       | 标签页图标与苹果触屏图标（固定文件名，不发哈希）   |
 | `tests/unit` / `tests/e2e`     | 数据、状态机及生产浏览器流程                       |
+
+品牌资源由 `scripts/build-brand-assets.sh <含源图的目录>` 生成，源图为 `MakoLrcStudio-Main.png`（宽字标）与 `MakoLrcStudio-Logo.png`（方徽标），两者不纳入仓库。默认主题色 `#01cff0` 取自字标主色青，可在设置里自行修改。
 
 实现及实际验收记录见 [PLAN.md](PLAN.md)。当前自动验证范围是 Chromium、Firefox；Safari、真实输入法候选窗口、实际耳机／蓝牙输出延迟及人工听感仍需真实设备验收。
