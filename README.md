@@ -15,12 +15,6 @@ npm ci
 npm run dev
 ```
 
-本机需要代理时：
-
-```sh
-npm ci --proxy=http://127.0.0.1:7897 --https-proxy=http://127.0.0.1:7897
-```
-
 ## 制作一首歌
 
 1. **导入歌词**文件或粘贴文字。音频可在此时选择，也可整理后加载。支持 TXT、普通 LRC、尖括号增强 LRC；文件可选择 UTF-8、GB18030、Shift-JIS 预览。
@@ -80,20 +74,6 @@ npm run preview -- --port 4173
 
 Nginx 等常规静态服务器应正确发送 HTML、JavaScript、CSS、SVG MIME 类型。替换发布时整套更新 index.html 和 assets；入口页面避免长期缓存，带哈希的 assets 可以长期缓存。无需 CORS 音频服务，用户直接选本地文件。
 
-## 部署到 tool.talium.site
-
-线上入口是 <https://tool.talium.site/MakoLrcStudio/>，静态文件由 `ssh tencent` 上的 Caddy 提供：
-
-```sh
-./scripts/deploy-remote.sh
-```
-
-脚本依次执行：本地 `npm run build` → `rsync --delete` 把 `dist/` 同步到远端 `/var/www/tool.talium.site/MakoLrcStudio/` → 把 `scripts/tool.talium.site.caddyfile` 合并进远端 `/etc/caddy/Caddyfile` 的标记块（合并前先移除旧项目名 `MakoLrcEditor` 留下的标记块，改动前存 `Caddyfile.mako-bak`）→ `caddy validate` 并 reload → HTTPS 探活。探活要求：入口不带尾斜杠 308、`/MakoLrcStudio/` 200、站点根 404、哈希资源 200 且带 immutable 缓存头、首页 `Cache-Control: no-cache`。
-
-可用环境变量覆盖：`DEPLOY_HOST`（默认 `tencent`）、`SITE_DOMAIN`、`APP_PATH`、`REMOTE_ROOT`（默认 `/var/www/$SITE_DOMAIN`）、`CADDYFILE`（默认 `/etc/caddy/Caddyfile`）、`DEPLOY_SKIP_BUILD=1`（跳过构建，直接用现有 `dist/`）。
-
-Caddy 站点块只暴露 `/MakoLrcStudio/` 子路径：站点根、其他路径、旧项目名的 `/MakoLrcEditor/` 及 `/assets/` 都返回 404；访问不带尾斜杠的 `/MakoLrcStudio` 会 308 跳到带斜杠地址，因为资源使用相对路径。入口页面不长期缓存，`assets/*` 使用一年期 immutable 缓存，替换发布时整套更新 `index.html` 与 `assets/`。站点块由脚本维护，手工编辑会在下次部署被覆盖。
-
 ## 验证与结构
 
 ```sh
@@ -117,4 +97,4 @@ npm run test:e2e
 
 品牌资源由 `scripts/build-brand-assets.sh <含源图的目录>` 从源图 `MakoLrcStudio-Main.png`（宽字标）与 `MakoLrcStudio-Logo.png`（方徽标）生成，生成时裁掉透明边、按 PNG 无损导出，源图本身不纳入仓库。页内图片按 CSS 像素的 3 倍导出，`wordmark-full.png` 保留原始分辨率供 README 使用。默认主题色 `#01cff0` 取自字标主色青，可在设置里自行修改。
 
-实现及实际验收记录见 [PLAN.md](PLAN.md)。当前自动验证范围是 Chromium、Firefox；Safari、真实输入法候选窗口、实际耳机／蓝牙输出延迟及人工听感仍需真实设备验收。
+当前自动验证范围是 Chromium、Firefox；Safari、真实输入法候选窗口、实际耳机／蓝牙输出延迟及人工听感仍需真实设备验收。

@@ -5,3 +5,8 @@ test-results/
 playwright-report/
 .vite/
 *.local
+
+# 本机独有的开发记录与部署配置
+PLAN.md
+scripts/deploy-remote.sh
+scripts/tool.talium.site.caddyfile
