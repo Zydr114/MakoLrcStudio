@@ -1,4 +1,8 @@
-# Mako LRC Studio
+<p align="center">
+  <img src="src/assets/brand/wordmark.webp" alt="MakoLrc Studio" width="360">
+</p>
+
+# MakoLrc Studio
 
 在浏览器里把歌词制作成带逐字／词时间的增强 LRC。Vue 3、TypeScript、Vite、mdui 2；音频、文字、编辑进度都在本机处理。生产发布只需要静态文件服务器。
 

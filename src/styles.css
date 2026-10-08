@@ -133,30 +133,9 @@ kbd {
   color: var(--muted);
 }
 .brand-symbol {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
+  display: block;
   width: 40px;
-  height: 40px;
-  border-radius: 13px;
-  background: var(--accent);
-  transform: rotate(-6deg);
-}
-.brand-symbol i {
-  width: 3px;
-  border-radius: 4px;
-  background: var(--on-accent);
-  height: 13px;
-}
-.brand-symbol i:nth-child(2) {
-  height: 24px;
-}
-.brand-symbol i:nth-child(3) {
-  height: 19px;
-}
-.brand-symbol i:nth-child(4) {
-  height: 9px;
+  height: auto;
 }
 .project-info {
   display: flex;
@@ -264,6 +243,12 @@ kbd {
 }
 .page-heading {
   margin: 18px 0;
+}
+.page-wordmark {
+  display: block;
+  height: 72px;
+  width: auto;
+  margin-bottom: 14px;
 }
 .page-heading h1 {
   font-size: 28px;
@@ -693,7 +678,6 @@ kbd {
   }
   .brand-symbol {
     width: 32px;
-    height: 32px;
   }
   .header-actions {
     gap: 2px;

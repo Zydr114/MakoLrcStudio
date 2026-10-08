@@ -4,6 +4,7 @@ import { editor } from "../state/editor";
 import UiButton from "../components/UiButton.vue";
 import Icon from "../components/Icon.vue";
 import UiSelect from "../components/UiSelect.vue";
+import brandWordmark from "../assets/brand/wordmark.webp";
 const emit = defineEmits<{ audio: []; backup: [] }>();
 const text = ref(""),
   invalidEncoding = ref(false),
@@ -65,6 +66,13 @@ function next() {
     :class="{ dragging }"
   >
     <div class="page-heading">
+      <img
+        class="page-wordmark"
+        :src="brandWordmark"
+        alt=""
+        width="456"
+        height="216"
+      />
       <h1>导入歌词</h1>
     </div>
     <div class="import-grid">

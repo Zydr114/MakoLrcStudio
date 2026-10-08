@@ -14,13 +14,14 @@ import UiIconButton from "./components/UiIconButton.vue";
 import { themes } from "./components/controlOptions";
 import type { Tabs } from "mdui/components/tabs.js";
 import Modal from "./components/Modal.vue";
+import brandMark from "./assets/brand/mark.webp";
 const audioInput = ref<HTMLInputElement>(),
   backupInput = ref<HTMLInputElement>();
 const helpOpen = ref(false),
   settingsOpen = ref(false),
   newOpen = ref(false);
 const theme = ref<"auto" | "light" | "dark">("auto"),
-  seed = ref("#536b56");
+  seed = ref("#01cff0");
 const tabs = ["文本处理", "逐行打轴", "逐字打轴"];
 function tabKey(event: KeyboardEvent, index: number) {
   if (event.key === "Enter" || event.code === "Space") {
@@ -253,8 +254,13 @@ onBeforeUnmount(() => {
   >
     <header class="app-header">
       <a class="brand" href="./" @click.prevent="editor.goStage(0)"
-        ><span class="brand-symbol"><i /><i /><i /><i /></span
-        ><span>mako<small>LRC STUDIO</small></span></a
+        ><img
+          class="brand-symbol"
+          :src="brandMark"
+          alt=""
+          width="40"
+          height="34"
+        /><span>mako<small>LRC STUDIO</small></span></a
       >
       <div class="project-info">
         <span>{{

@@ -17,5 +17,5 @@ import App from "./App.vue";
 import "./styles.css";
 import "./styles/timing.css";
 
-setColorScheme("#536b56");
+setColorScheme("#01cff0");
 createApp(App).mount("#app");
