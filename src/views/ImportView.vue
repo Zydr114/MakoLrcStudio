@@ -4,7 +4,7 @@ import { editor } from "../state/editor";
 import UiButton from "../components/UiButton.vue";
 import Icon from "../components/Icon.vue";
 import UiSelect from "../components/UiSelect.vue";
-import brandWordmark from "../assets/brand/wordmark.webp";
+import brandWordmark from "../assets/brand/wordmark.png";
 const emit = defineEmits<{ audio: []; backup: [] }>();
 const text = ref(""),
   invalidEncoding = ref(false),

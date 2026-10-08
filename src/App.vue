@@ -14,7 +14,7 @@ import UiIconButton from "./components/UiIconButton.vue";
 import { themes } from "./components/controlOptions";
 import type { Tabs } from "mdui/components/tabs.js";
 import Modal from "./components/Modal.vue";
-import brandMark from "./assets/brand/mark.webp";
+import brandMark from "./assets/brand/mark.png";
 const audioInput = ref<HTMLInputElement>(),
   backupInput = ref<HTMLInputElement>();
 const helpOpen = ref(false),

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/assets/brand/wordmark.webp" alt="MakoLrc Studio" width="360">
+  <img src="src/assets/brand/wordmark-full.png" alt="MakoLrc Studio" width="360">
 </p>
 
 # MakoLrc Studio
@@ -111,10 +111,10 @@ npm run test:e2e
 | `src/audio`                    | 共享解码数据、播放和输出时钟映射                   |
 | `src/state`                    | 打轴状态机、共享编辑视图、草稿持久化               |
 | `src/views` / `src/components` | 工作区、波形时标、精确输入及 mdui 适配             |
-| `src/assets/brand`             | 页头品牌标与首页字标（WebP）                      |
+| `src/assets/brand`             | 页头品牌标、首页字标与 README 用原始分辨率字标      |
 | `public`                       | 标签页图标与苹果触屏图标（固定文件名，不发哈希）   |
 | `tests/unit` / `tests/e2e`     | 数据、状态机及生产浏览器流程                       |
 
-品牌资源由 `scripts/build-brand-assets.sh <含源图的目录>` 生成，源图为 `MakoLrcStudio-Main.png`（宽字标）与 `MakoLrcStudio-Logo.png`（方徽标），两者不纳入仓库。默认主题色 `#01cff0` 取自字标主色青，可在设置里自行修改。
+品牌资源由 `scripts/build-brand-assets.sh <含源图的目录>` 从源图 `MakoLrcStudio-Main.png`（宽字标）与 `MakoLrcStudio-Logo.png`（方徽标）生成，生成时裁掉透明边、按 PNG 无损导出，源图本身不纳入仓库。页内图片按 CSS 像素的 3 倍导出，`wordmark-full.png` 保留原始分辨率供 README 使用。默认主题色 `#01cff0` 取自字标主色青，可在设置里自行修改。
 
 实现及实际验收记录见 [PLAN.md](PLAN.md)。当前自动验证范围是 Chromium、Firefox；Safari、真实输入法候选窗口、实际耳机／蓝牙输出延迟及人工听感仍需真实设备验收。
