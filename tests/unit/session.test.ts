@@ -220,6 +220,18 @@ describe("explicit playback and recording modes", () => {
     await editor.enter();
     expect(editor.line?.startMs).toBe(1300);
   });
+  it("re-recording a line onset keeps later units and the end where they are", async () => {
+    const { audio, editor } = await session(
+      "[00:01]<00:01>今<00:02>日<00:03>\n[00:06]次",
+    );
+    editor.retimeLine();
+    await editor.enter();
+    audio.position = 1500;
+    await editor.enter();
+    expect(editor.line?.startMs).toBe(1500);
+    expect(editor.line?.units.map((u) => u.startMs)).toEqual([1500, 2000]);
+    expect(editor.line?.endMs).toBe(3000);
+  });
   it("allows text preparation without an audio prerequisite but gates timing", async () => {
     const editor = createEditor(undefined, false);
     await editor.initialize();

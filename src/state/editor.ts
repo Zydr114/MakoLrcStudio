@@ -10,7 +10,7 @@ import {
 import { ProjectHistory, type PointChange } from "../domain/history";
 import { importLyrics, exportLyrics } from "../domain/lrc";
 import { readBackup, downloadText } from "../domain/backup";
-import { setLineStart, setLineEnd, setUnitStart } from "../domain/edit";
+import { setLineStartBoundary, setLineEnd, setUnitStart } from "../domain/edit";
 import { tokenize } from "../domain/tokenize";
 import {
   createAudition,
@@ -556,11 +556,15 @@ export function createEditor(
     const index = lineIndex.value;
     if (project.value.stage === 2) {
       if (
-        !command("记录句首", (draft) => setLineStart(draft, index, ms), {
-          lineId: current.id,
-          index: 0,
-          timeMs: ms,
-        })
+        !command(
+          "记录句首",
+          (draft) => setLineStartBoundary(draft, index, ms),
+          {
+            lineId: current.id,
+            index: 0,
+            timeMs: ms,
+          },
+        )
       )
         return;
       const next =
