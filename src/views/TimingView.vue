@@ -122,7 +122,8 @@ function applyStart(p: typeof editor.project, ms: number) {
   else setUnitStart(p, editor.lineIndex, editor.selectedUnit, ms);
 }
 function applyEnd(p: typeof editor.project, ms: number) {
-  if (editor.selectedUnit === p.lines[editor.lineIndex].units.length - 1)
+  if (lineMode.value) setLineEnd(p, editor.lineIndex, ms);
+  else if (editor.selectedUnit === p.lines[editor.lineIndex].units.length - 1)
     setLineEnd(p, editor.lineIndex, ms);
   else setUnitStart(p, editor.lineIndex, editor.selectedUnit + 1, ms);
 }
@@ -334,22 +335,29 @@ watch(
             :cancel="() => cancelField('start-field')"
           />
           <TimeInput
-            v-if="!lineMode"
-            :value="selectedEnd ?? null"
+            :value="lineMode ? editor.line.endMs : (selectedEnd ?? null)"
             :label="
-              editor.selectedUnit === editor.line.units.length - 1
-                ? '本句收尾'
-                : `「${selected?.text.trim() ?? ''}」终点`
+              lineMode
+                ? '本句终点'
+                : editor.selectedUnit === editor.line.units.length - 1
+                  ? '本句收尾'
+                  : `「${selected?.text.trim() ?? ''}」终点`
             "
             :commit="fieldEnd"
             :preview="previewEnd"
             :cancel="() => cancelField('end-field')"
+            :disabled="lineMode && editor.line.startMs === null"
             :title="
-              editor.selectedUnit === editor.line.units.length - 1
-                ? '真实收尾'
-                : '与下一项起点共用边界'
+              lineMode
+                ? '留空时取下一句起点作为参考终点'
+                : editor.selectedUnit === editor.line.units.length - 1
+                  ? '真实收尾'
+                  : '与下一项起点共用边界'
             "
           />
+          <span v-if="lineMode && editor.line.endMs === null" class="small-note"
+            >参考范围</span
+          >
           <span
             v-if="!lineMode && selectedInterval?.kind === 'confirmed'"
             class="duration-label"
