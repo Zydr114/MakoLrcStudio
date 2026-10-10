@@ -445,11 +445,8 @@
   align-items: center;
   gap: 12px;
 }
-/* The bar height is global now; only the gutter follows this view's 16px workspace. */
-.is-timing .app-header {
-  padding: 0 16px;
-}
-
+/* The top bar is 56px and inset by --chrome-gutter in every view, so the timing
+   views no longer need a compact variant of their own. */
 .is-timing .app-main {
   padding: 0 16px 12px;
 }

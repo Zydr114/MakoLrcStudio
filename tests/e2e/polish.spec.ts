@@ -183,34 +183,50 @@ test("unknown successors have no invented regions or playback fill and long line
 async function topBar(page: Page) {
   return page.evaluate(() => {
     const header = document.querySelector(".app-header") as HTMLElement;
-    const main = document.querySelector(".app-main") as HTMLElement;
     const tabs = document.querySelector(".editor-tabs") as HTMLElement | null;
+    const bar = document.querySelector(".audio-bar") as HTMLElement | null;
+    const brand = document.querySelector(".app-header .brand") as HTMLElement;
     const round = (value: number) => Math.round(value * 10) / 10;
+    const inset = (el: Element | null, side: "paddingLeft" | "marginLeft") =>
+      el ? round(parseFloat(getComputedStyle(el)[side])) : null;
     return {
       height: round(header.getBoundingClientRect().height),
-      gutter: round(parseFloat(getComputedStyle(header).paddingLeft)),
-      mainGutter: round(parseFloat(getComputedStyle(main).paddingLeft)),
+      gutter: inset(header, "paddingLeft"),
+      tabsGutter: inset(tabs, "marginLeft"),
+      barGutter: bar ? inset(bar, "paddingLeft") : null,
+      brandX: round(brand.getBoundingClientRect().x),
       tabsY: tabs ? round(tabs.getBoundingClientRect().y) : null,
     };
   });
 }
 
-test("the top bar keeps one height and follows each view's gutter", async ({
+test("the frame bars keep one height and one gutter in every view", async ({
   page,
 }) => {
   await page.goto("/");
   await page.getByLabel("粘贴歌词").fill("[00:01]今日\n[00:06]次");
   await page.getByRole("button", { name: "下一步，整理歌词" }).click();
   const text = await topBar(page);
-  expect(text.height).toBe(56);
-  expect(text.gutter).toBe(text.mainGutter);
+  expect(text).toMatchObject({
+    height: 56,
+    gutter: 16,
+    tabsGutter: 16,
+    barGutter: 16,
+    brandX: 16,
+  });
   await page.locator('input[type=file][accept^="audio"]').setInputFiles(audio);
   await page.getByRole("button", { name: "确认文本，开始逐行打轴" }).click();
+  // Switching views must not move the bar, the brand or the row of tabs.
   const timing = await topBar(page);
-  // Switching tabs must not move the bar or the row below it.
-  expect(timing.height).toBe(text.height);
-  expect(timing.tabsY).toBe(text.tabsY);
-  expect(timing.gutter).toBe(timing.mainGutter);
+  expect(timing).toMatchObject({
+    height: text.height,
+    gutter: text.gutter,
+    brandX: text.brandX,
+    tabsY: text.tabsY,
+  });
+  // Tall windows and quiet windows keep the same frame inset.
   await page.setViewportSize({ width: 1440, height: 900 });
   expect((await topBar(page)).height).toBe(56);
+  await page.setViewportSize({ width: 800, height: 720 });
+  expect((await topBar(page)).gutter).toBe(16);
 });
