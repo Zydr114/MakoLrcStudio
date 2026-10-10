@@ -230,3 +230,55 @@ test("the frame bars keep one height and one gutter in every view", async ({
   await page.setViewportSize({ width: 800, height: 720 });
   expect((await topBar(page)).gutter).toBe(16);
 });
+
+async function panelGeometry(page: Page) {
+  return page.evaluate(() => {
+    const workspace = document.querySelector(
+      ".timing-workspace",
+    ) as HTMLElement;
+    const panel = document.querySelector(".wave-panel") as HTMLElement;
+    const stage = document.querySelector(".wave-stage") as HTMLElement;
+    const round = (value: number) => Math.round(value * 10) / 10;
+    const box = workspace.getBoundingClientRect();
+    return {
+      bottom: round(panel.getBoundingClientRect().bottom),
+      contentBottom: round(
+        box.bottom - parseFloat(getComputedStyle(workspace).paddingBottom),
+      ),
+      stage: round(stage.getBoundingClientRect().height),
+      overflow: workspace.scrollHeight - workspace.clientHeight,
+    };
+  });
+}
+
+test("the audio panel stays anchored to the bottom in both timing views", async ({
+  page,
+}) => {
+  await workspace(page, "[00:01]<00:01>今<00:02>日\n[00:06]次");
+  const character = await panelGeometry(page);
+  expect(Math.abs(character.bottom - character.contentBottom)).toBeLessThan(2);
+  expect(character.overflow).toBeLessThanOrEqual(1);
+  expect(character.stage).toBeGreaterThanOrEqual(72);
+  await page.getByRole("tab", { name: "逐行打轴", exact: true }).click();
+  const line = await panelGeometry(page);
+  expect(Math.abs(line.bottom - line.contentBottom)).toBeLessThan(2);
+  expect(line.overflow).toBeLessThanOrEqual(1);
+  // The extra row of the character view costs peaks height, not the bottom edge.
+  expect(Math.abs(line.bottom - character.bottom)).toBeLessThan(2);
+  expect(line.stage).toBeGreaterThan(character.stage);
+  // A taller window keeps the panel anchored with its peaks at full height.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const wide = await panelGeometry(page);
+  expect(Math.abs(wide.bottom - wide.contentBottom)).toBeLessThan(2);
+  expect(wide.overflow).toBeLessThanOrEqual(1);
+  expect(wide.stage).toBeGreaterThan(character.stage);
+  // Asking for taller peaks still works: the preview above gives up the room.
+  const handle = page.getByRole("button", { name: "调整波形高度" });
+  await handle.focus();
+  await page.keyboard.press("ArrowDown");
+  const taller = await panelGeometry(page);
+  expect(taller.stage).toBe(wide.stage + 10);
+  expect(Math.abs(taller.bottom - taller.contentBottom)).toBeLessThan(2);
+  await page.keyboard.press("ArrowUp");
+  expect((await panelGeometry(page)).stage).toBe(wide.stage);
+});

@@ -381,9 +381,7 @@ onBeforeUnmount(() => {
     </div>
     <div
       class="wave-stage"
-      :style="
-        waveHeight ? { height: waveHeight + 'px', flex: '0 0 auto' } : undefined
-      "
+      :style="waveHeight ? { flex: `0 1 ${waveHeight}px` } : undefined"
       @click="seek"
       @wheel="wheel"
     >
