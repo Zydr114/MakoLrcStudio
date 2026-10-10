@@ -49,10 +49,12 @@ interface Point {
   label: string;
   end: boolean;
   wholeLine?: boolean;
+  reference?: boolean;
 }
 const points = computed<Point[]>(() => {
-  if (editor.project.stage === 2)
-    return editor.displayProject.lines.flatMap((l, i) =>
+  if (editor.project.stage === 2) {
+    const lines = editor.displayProject.lines;
+    const result: Point[] = lines.flatMap((l, i) =>
       l.startMs === null
         ? []
         : [
@@ -66,6 +68,28 @@ const points = computed<Point[]>(() => {
             },
           ],
     );
+    // 行收尾手柄只属于当前行：未选中的行不显示该手柄，也就无法拖动它。
+    const index = editor.lineIndex;
+    const line = lines[index];
+    if (line?.startMs != null) {
+      const reference =
+        line.endMs ??
+        lines[index + 1]?.startMs ??
+        editor.project.audio?.durationMs ??
+        null;
+      if (reference !== null && reference > line.startMs)
+        result.push({
+          key: `${line.id}-end`,
+          lineIndex: index,
+          unitIndex: line.units.length,
+          time: reference,
+          label: line.endMs === null ? "参考收尾" : "收尾",
+          end: true,
+          reference: line.endMs === null,
+        });
+    }
+    return result;
+  }
   const line = editor.displayLine;
   if (!line) return [];
   const result: Point[] = line.units.flatMap((u, i) =>
@@ -120,8 +144,6 @@ const ticks = computed(() => {
 function bounds(point: Point): [number, number] {
   const lines = editor.project.lines,
     line = lines[point.lineIndex];
-  if (editor.project.stage === 2 || point.wholeLine)
-    return lineStartBounds(editor.project, point.lineIndex);
   if (point.end)
     return [
       Math.max(line.startMs ?? 0, ...line.units.map((u) => u.startMs ?? -1)) +
@@ -131,11 +153,14 @@ function bounds(point: Point): [number, number] {
         lines[point.lineIndex + 1]?.startMs ?? Infinity,
       ),
     ];
+  if (editor.project.stage === 2 || point.wholeLine)
+    return lineStartBounds(editor.project, point.lineIndex);
   return unitBounds(editor.project, point.lineIndex, point.unitIndex);
 }
 function applyPoint(p: typeof editor.project, point: Point, ms: number) {
-  if (p.stage === 2 || point.wholeLine) setLineStart(p, point.lineIndex, ms);
-  else if (point.end) setLineEnd(p, point.lineIndex, ms);
+  if (point.end) setLineEnd(p, point.lineIndex, ms);
+  else if (p.stage === 2 || point.wholeLine)
+    setLineStart(p, point.lineIndex, ms);
   else setUnitStart(p, point.lineIndex, point.unitIndex, ms);
 }
 function pointConflict(point: Point) {
@@ -409,15 +434,18 @@ onBeforeUnmount(() => {
           class="time-marker"
           :class="{
             active:
+              !point.end &&
               point.lineIndex === editor.lineIndex &&
               (editor.project.stage === 2 ||
                 point.unitIndex === editor.selectedUnit),
             ending: point.end,
+            reference: point.reference === true,
             conflict: pointConflict(point),
           }"
           :disabled="editor.editingText"
           role="slider"
           :aria-label="`${point.label}时间边界`"
+          :title="`${point.label} ${formatTime(point.time)}`"
           :aria-valuemin="bounds(point)[0]"
           :aria-valuemax="bounds(point)[1]"
           :aria-valuenow="point.time"
