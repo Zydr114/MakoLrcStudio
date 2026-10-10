@@ -104,9 +104,11 @@ kbd {
   display: flex;
   flex-direction: column;
 }
+/* The top bar is one height in every view: the timing views are dense and need the
+   room, and a bar that changes height when switching tabs reads as a glitch. */
 .app-header {
-  height: 76px;
-  flex: 0 0 76px;
+  height: 56px;
+  flex: 0 0 56px;
   display: flex;
   align-items: center;
   padding: 0 32px;
@@ -622,10 +624,6 @@ kbd {
   margin: 16px auto 0;
 }
 @media (max-height: 800px) and (min-width: 960px) {
-  .app-header {
-    height: 60px;
-    flex-basis: 60px;
-  }
   .audio-bar {
     height: 58px;
     flex-basis: 58px;
@@ -671,10 +669,6 @@ kbd {
   .project-info {
     display: none;
   }
-  .app-header {
-    flex-basis: 64px;
-    height: 64px;
-  }
   .prepare-grid {
     grid-template-columns: 1fr;
   }
@@ -690,8 +684,9 @@ kbd {
   }
 }
 @media (max-width: 640px) {
+  /* Keep the bar aligned with .app-main, which uses 12px at this width. */
   .app-header {
-    padding: 0 14px;
+    padding: 0 12px;
     gap: 10px;
   }
   .brand small {

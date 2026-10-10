@@ -179,3 +179,38 @@ test("unknown successors have no invented regions or playback fill and long line
     })
     .toBe(true);
 });
+
+async function topBar(page: Page) {
+  return page.evaluate(() => {
+    const header = document.querySelector(".app-header") as HTMLElement;
+    const main = document.querySelector(".app-main") as HTMLElement;
+    const tabs = document.querySelector(".editor-tabs") as HTMLElement | null;
+    const round = (value: number) => Math.round(value * 10) / 10;
+    return {
+      height: round(header.getBoundingClientRect().height),
+      gutter: round(parseFloat(getComputedStyle(header).paddingLeft)),
+      mainGutter: round(parseFloat(getComputedStyle(main).paddingLeft)),
+      tabsY: tabs ? round(tabs.getBoundingClientRect().y) : null,
+    };
+  });
+}
+
+test("the top bar keeps one height and follows each view's gutter", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByLabel("粘贴歌词").fill("[00:01]今日\n[00:06]次");
+  await page.getByRole("button", { name: "下一步，整理歌词" }).click();
+  const text = await topBar(page);
+  expect(text.height).toBe(56);
+  expect(text.gutter).toBe(text.mainGutter);
+  await page.locator('input[type=file][accept^="audio"]').setInputFiles(audio);
+  await page.getByRole("button", { name: "确认文本，开始逐行打轴" }).click();
+  const timing = await topBar(page);
+  // Switching tabs must not move the bar or the row below it.
+  expect(timing.height).toBe(text.height);
+  expect(timing.tabsY).toBe(text.tabsY);
+  expect(timing.gutter).toBe(timing.mainGutter);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  expect((await topBar(page)).height).toBe(56);
+});

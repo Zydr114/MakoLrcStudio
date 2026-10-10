@@ -445,10 +445,9 @@
   align-items: center;
   gap: 12px;
 }
+/* The bar height is global now; only the gutter follows this view's 16px workspace. */
 .is-timing .app-header {
-  height: 56px;
-  flex-basis: 56px;
-  padding: 0 20px;
+  padding: 0 16px;
 }
 
 .is-timing .app-main {
