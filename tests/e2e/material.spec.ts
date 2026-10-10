@@ -12,6 +12,57 @@ async function workspace(page: Page) {
   await page.getByRole("tab", { name: "逐字打轴", exact: true }).click();
 }
 
+async function indicator(page: Page) {
+  return page.evaluate(() => {
+    const host = document.querySelector(".editor-tabs") as HTMLElement;
+    const bar = host
+      .shadowRoot!.querySelector(".indicator")!
+      .getBoundingClientRect();
+    const tabs = [...host.querySelectorAll("mdui-tab")];
+    const active = tabs.find((tab) => tab.hasAttribute("active"))!;
+    const box = active.getBoundingClientRect();
+    return {
+      label: (active as HTMLElement).textContent?.trim(),
+      left: Math.round(bar.x - box.x),
+      width: Math.round(bar.width - box.width),
+      bottom: Math.round(box.bottom - bar.bottom),
+      centres: tabs.map((tab) => {
+        const rect = tab.getBoundingClientRect();
+        return Math.round((rect.x + rect.width / 2) * 10) / 10;
+      }),
+    };
+  });
+}
+/** The indicator animates between tabs, so wait until it has settled. */
+async function settledIndicator(page: Page) {
+  await expect
+    .poll(async () => {
+      const value = await indicator(page);
+      return `${value.left}|${value.width}|${value.bottom}`;
+    })
+    .toBe("0|0|0");
+  return indicator(page);
+}
+
+test("the tab indicator stays on the active tab and the tabs stay evenly spaced", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByLabel("粘贴歌词").fill("[00:01]今日\n[00:06]次");
+  await page.getByRole("button", { name: "下一步，整理歌词" }).click();
+  await page.locator('input[type=file][accept^="audio"]').setInputFiles(audio);
+  expect(await settledIndicator(page)).toMatchObject({ label: "文本处理" });
+  await page.getByRole("button", { name: "确认文本，开始逐行打轴" }).click();
+  expect(await settledIndicator(page)).toMatchObject({ label: "逐行打轴" });
+  await page.getByRole("tab", { name: "逐字打轴", exact: true }).click();
+  const box = await settledIndicator(page);
+  expect(box).toMatchObject({ label: "逐字打轴" });
+  const gaps = box.centres
+    .slice(1)
+    .map((centre, index) => centre - box.centres[index]);
+  expect(gaps[0]).toBe(gaps[1]);
+});
+
 test("mdui menus and sliders keep native keyboard actions isolated from recording", async ({
   page,
 }) => {
@@ -21,7 +72,7 @@ test("mdui menus and sliders keep native keyboard actions isolated from recordin
   await speed.focus();
   await speed.press("Enter");
   await expect(speed).toHaveAttribute("aria-expanded", "true");
-  await expect(page.locator("mdui-menu-item[value=\"1\"]")).toBeFocused();
+  await expect(page.locator('mdui-menu-item[value="1"]')).toBeFocused();
   await page.waitForTimeout(200);
   // mdui keeps focus on the selected item; move through the real menu with ArrowDown.
   await page.keyboard.press("ArrowDown");
@@ -40,7 +91,9 @@ test("mdui menus and sliders keep native keyboard actions isolated from recordin
   for (const name of ["试听本行", "试听选中", "试听边界"]) {
     const button = page.getByRole("button", { name, exact: true });
     await expect(button).toBeVisible();
-    expect((await button.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(40);
+    expect((await button.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(
+      40,
+    );
   }
   await progress.fill("1900");
   const volume = page.getByRole("slider", { name: "音量", exact: true });

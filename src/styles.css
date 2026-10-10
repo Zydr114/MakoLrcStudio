@@ -186,9 +186,11 @@ kbd {
   background: var(--line);
   margin: 0 8px;
 }
+/* The indicator is placed from the tab offsetLeft inside the shadow container, so the
+   gutter must be a margin on the host: horizontal padding shifts the bar right. */
 .editor-tabs {
   flex: 0 0 auto;
-  padding: 0 16px 4px;
+  margin: 0 16px 4px;
 }
 .editor-tabs::part(container) {
   background: transparent;
