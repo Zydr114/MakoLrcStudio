@@ -111,6 +111,50 @@ test("the line end handle belongs to the current line and stops at the next line
   await expect(page.locator(".time-marker.ending")).toHaveCount(0);
 });
 
+test("line handles only trim their own boundary while the block middle moves the line", async ({
+  page,
+}) => {
+  const toMs = (value: string) => {
+    const [minutes, seconds] = value.split(":");
+    return Number(minutes) * 60000 + Math.round(Number(seconds) * 1000);
+  };
+  await page.goto("/");
+  await page
+    .getByLabel("粘贴歌词")
+    .fill("[00:01]<00:01>今<00:02>日<00:03>\n[00:06]次");
+  await page.getByRole("button", { name: "下一步，整理歌词" }).click();
+  await page.locator('input[type=file][accept^="audio"]').setInputFiles(audio);
+  await page.getByRole("button", { name: "确认文本，开始逐行打轴" }).click();
+  // The start handle trims the line start only: the end and later units stay put.
+  const start = page.getByRole("slider", { name: "1时间边界", exact: true }),
+    box = (await start.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + 45);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + 45);
+  await page.mouse.up();
+  expect(await page.getByLabel("本句起点").inputValue()).not.toBe("00:01.000");
+  await expect(page.getByLabel("本句终点")).toHaveValue("00:03.000");
+  await page.keyboard.press("Control+z");
+  await expect(page.getByLabel("本句起点")).toHaveValue("00:01.000");
+  // Dragging the middle of the block translates the start and the end together.
+  const region = page.locator(".timing-region").first(),
+    middle = (await region.boundingBox())!;
+  await page.mouse.move(
+    middle.x + middle.width / 2,
+    middle.y + middle.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    middle.x + middle.width / 2 + 120,
+    middle.y + middle.height / 2,
+  );
+  await page.mouse.up();
+  const lineStart = toMs(await page.getByLabel("本句起点").inputValue()),
+    lineEnd = toMs(await page.getByLabel("本句终点").inputValue());
+  expect(lineStart).not.toBe(1000);
+  expect(lineEnd - lineStart).toBe(2000);
+});
+
 async function completeWordWorkspace(page: import("@playwright/test").Page) {
   await page.goto("/");
   await page

@@ -8,6 +8,7 @@ import {
   lineStartBounds,
   setUnitStart,
   setLineStart,
+  setLineStartBoundary,
   setLineEnd,
 } from "../domain/edit";
 import Icon from "./Icon.vue";
@@ -144,6 +145,7 @@ const ticks = computed(() => {
 function bounds(point: Point): [number, number] {
   const lines = editor.project.lines,
     line = lines[point.lineIndex];
+  if (point.wholeLine) return lineStartBounds(editor.project, point.lineIndex);
   if (point.end)
     return [
       Math.max(line.startMs ?? 0, ...line.units.map((u) => u.startMs ?? -1)) +
@@ -153,14 +155,15 @@ function bounds(point: Point): [number, number] {
         lines[point.lineIndex + 1]?.startMs ?? Infinity,
       ),
     ];
-  if (editor.project.stage === 2 || point.wholeLine)
-    return lineStartBounds(editor.project, point.lineIndex);
+  // The line timing stage only moves the line start boundary; later units and the end stay.
+  if (editor.project.stage === 2)
+    return unitBounds(editor.project, point.lineIndex, 0);
   return unitBounds(editor.project, point.lineIndex, point.unitIndex);
 }
 function applyPoint(p: typeof editor.project, point: Point, ms: number) {
-  if (point.end) setLineEnd(p, point.lineIndex, ms);
-  else if (p.stage === 2 || point.wholeLine)
-    setLineStart(p, point.lineIndex, ms);
+  if (point.wholeLine) setLineStart(p, point.lineIndex, ms);
+  else if (point.end) setLineEnd(p, point.lineIndex, ms);
+  else if (p.stage === 2) setLineStartBoundary(p, point.lineIndex, ms);
   else setUnitStart(p, point.lineIndex, point.unitIndex, ms);
 }
 function pointConflict(point: Point) {
@@ -203,10 +206,10 @@ function moveDrag(event: PointerEvent) {
   if (!drag.value) return;
   const [min, max] = bounds(drag.value.point);
   if (min > max) return;
-  const delta =
-    ((event.clientX - drag.value.originX) / host.value!.clientWidth) *
-    span.value *
-    1000;
+  const moved = event.clientX - drag.value.originX;
+  // A wide block is easy to click by accident: whole-line moves wait for a real drag.
+  if (drag.value.point.wholeLine && Math.abs(moved) < 4) return;
+  const delta = (moved / host.value!.clientWidth) * span.value * 1000;
   drag.value.ms = Math.max(
     min,
     Math.min(Math.round(drag.value.point.time + delta), max),
@@ -219,6 +222,11 @@ function endDrag() {
   if (!drag.value) return;
   drag.value = null;
   editor.commitPreview("调整时间边界");
+}
+function cancelDrag() {
+  if (!drag.value) return;
+  drag.value = null;
+  editor.clearPreview();
 }
 function markerKey(event: KeyboardEvent, point: Point) {
   if (
@@ -287,6 +295,29 @@ function moveSentence(event: PointerEvent) {
     lineIndex: editor.lineIndex,
     unitIndex: 0,
     time: editor.line.startMs!,
+    label: "整句",
+    end: false,
+    wholeLine: true,
+  });
+}
+/** Dragging the middle of a line block translates the whole line; the handles only trim. */
+function lineDrag(
+  action: "start" | "move" | "end" | "cancel",
+  lineIndex: number,
+  event: PointerEvent,
+) {
+  if (action === "move") return moveDrag(event);
+  if (action === "end") return endDrag();
+  if (action === "cancel") return cancelDrag();
+  if (editor.project.stage !== 2 || event.button !== 0 || editor.editingText)
+    return;
+  const line = editor.project.lines[lineIndex];
+  if (!line || line.startMs === null) return;
+  startDrag(event, {
+    key: `${line.id}-move`,
+    lineIndex,
+    unitIndex: 0,
+    time: line.startMs,
     label: "整句",
     end: false,
     wholeLine: true,
@@ -426,6 +457,7 @@ onBeforeUnmount(() => {
             })
         "
         @audition="auditionRegion"
+        @line-drag="lineDrag"
       />
       <div class="point-layer">
         <button

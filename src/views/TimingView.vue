@@ -3,7 +3,7 @@ import { computed, ref, watch, nextTick } from "vue";
 import { editor } from "../state/editor";
 import { completeLine, formatTime } from "../domain/model";
 import {
-  setLineStart,
+  setLineStartBoundary,
   setUnitStart,
   setLineEnd,
   shiftAll,
@@ -118,7 +118,7 @@ function choose(id: string) {
   focus();
 }
 function applyStart(p: typeof editor.project, ms: number) {
-  if (lineMode.value) setLineStart(p, editor.lineIndex, ms);
+  if (lineMode.value) setLineStartBoundary(p, editor.lineIndex, ms);
   else setUnitStart(p, editor.lineIndex, editor.selectedUnit, ms);
 }
 function applyEnd(p: typeof editor.project, ms: number) {

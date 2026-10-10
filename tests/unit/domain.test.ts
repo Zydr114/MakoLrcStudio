@@ -13,6 +13,7 @@ import {
   cleanProject,
   setUnitStart,
   setLineStart,
+  setLineStartBoundary,
   setLineEnd,
   splitLine,
 } from "../../src/domain/edit";
@@ -135,6 +136,22 @@ describe("editing invariants", () => {
     setLineEnd(last, 0, 4000);
     expect(last.lines[0].endMs).toBe(4000);
     expect(() => setLineEnd(last, 0, 4001)).toThrow("相邻边界");
+  });
+  it("moves only the line start, keeping later units and the end in place", () => {
+    const project = {
+      ...newProject(),
+      ...importLyrics("[00:01]<00:01>今<00:02>日<00:03>\n[00:06]次"),
+    };
+    setLineStartBoundary(project, 0, 1500);
+    expect(project.lines[0].startMs).toBe(1500);
+    expect(project.lines[0].units.map((u) => u.startMs)).toEqual([1500, 2000]);
+    expect(project.lines[0].endMs).toBe(3000);
+    expect(validate(project, false)).toEqual([]);
+    expect(() => setLineStartBoundary(project, 0, 2000)).toThrow("相邻边界");
+    expect(() => setLineStartBoundary(project, 0, -1)).toThrow("相邻边界");
+    setLineStart(project, 0, 2000);
+    expect(project.lines[0].units.map((u) => u.startMs)).toEqual([2000, 2500]);
+    expect(project.lines[0].endMs).toBe(3500);
   });
   it("formats rollover exactly and rejects invalid time fields", () => {
     expect(formatTime(60000)).toBe("01:00.000");

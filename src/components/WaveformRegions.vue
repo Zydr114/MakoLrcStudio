@@ -13,6 +13,11 @@ const props = defineProps<{ view: TimeViewport; width: number }>();
 const emit = defineEmits<{
   select: [lineIndex: number, unitIndex: number | null];
   audition: [unitIndex: number | null];
+  lineDrag: [
+    action: "start" | "move" | "end" | "cancel",
+    lineIndex: number,
+    event: PointerEvent,
+  ];
 }>();
 const lineMode = computed(() => editor.project.stage === 2);
 const limit = computed(() =>
@@ -112,6 +117,10 @@ function title(interval: TimingInterval) {
         )
       "
       @dblclick.stop="emit('audition', interval.unitIndex)"
+      @pointerdown="emit('lineDrag', 'start', interval.lineIndex, $event)"
+      @pointermove="emit('lineDrag', 'move', interval.lineIndex, $event)"
+      @pointerup="emit('lineDrag', 'end', interval.lineIndex, $event)"
+      @pointercancel="emit('lineDrag', 'cancel', interval.lineIndex, $event)"
     >
       <span
         v-if="(geometry(interval).width / 100) * width > 26"

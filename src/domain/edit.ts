@@ -186,6 +186,23 @@ export function setLineStart(
   if (line.endMs !== null) line.endMs += delta;
 }
 
+/**
+ * Move only the line start, keeping later units and the end where they are.
+ * The first unit shares this boundary, so it follows when it already has a time.
+ */
+export function setLineStartBoundary(
+  project: ProjectDraft,
+  index: number,
+  ms: number,
+): void {
+  const line = project.lines[index];
+  const [min, max] = unitBounds(project, index, 0);
+  assertRange(ms, min, max);
+  line.startMs = ms;
+  const first = line.units[0];
+  if (first && first.startMs !== null) first.startMs = ms;
+}
+
 export interface CleanOptions {
   trim: boolean;
   blanks: boolean;

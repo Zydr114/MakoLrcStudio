@@ -339,17 +339,21 @@ test("conflicting imported word times remain editable and cannot masquerade as a
   await expect(page.locator(".conflict-note")).toHaveCount(0);
 });
 
-test("line drag clamps the entire finished sentence and undo restores its relative times", async ({
+test("block drag clamps the entire finished sentence and undo restores its relative times", async ({
   page,
 }) => {
   await importProject(page, "[00:01]<00:01>今<00:02>日<00:04>\n[00:06]次");
   await page.getByRole("button", { name: "确认文本，开始逐行打轴" }).click();
+  // The start handle only trims the line start, so it stops before the next unit.
   const marker = page.getByRole("slider", { name: "1时间边界" });
-  await expect(marker).toHaveAttribute("aria-valuemax", "3000");
-  const box = await marker.boundingBox();
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + 15);
+  await expect(marker).toHaveAttribute("aria-valuemax", "1999");
+  // The middle of the block translates the whole sentence, clamped by the next line.
+  await page.getByLabel("波形缩放").fill("100");
+  const region = page.locator(".timing-region").first(),
+    box = (await region.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
-  await page.mouse.move(box!.x + 500, box!.y + 15);
+  await page.mouse.move(box.x + box.width / 2 + 300, box.y + box.height / 2);
   await page.mouse.up();
   await expect(marker).toHaveAttribute("aria-valuenow", "3000");
   await page.locator("[data-workspace]").focus();
