@@ -54,6 +54,63 @@ test("line reference overlays and boundary cancellation preserve real endpoints"
   expect(draft.lines[0].endMs).toBeNull();
 });
 
+test("the line end handle belongs to the current line and stops at the next line start", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page
+    .getByLabel("粘贴歌词")
+    .fill("[00:01]今日\n[00:06]次\n[00:09]も\nまだ");
+  await page.getByRole("button", { name: "下一步，整理歌词" }).click();
+  await page.locator('input[type=file][accept^="audio"]').setInputFiles(audio);
+  await page.getByRole("button", { name: "确认文本，开始逐行打轴" }).click();
+  // Only the current line exposes an end handle; its implicit end is a reference.
+  await expect(page.locator(".time-marker.ending")).toHaveCount(1);
+  await expect(page.locator(".time-marker.ending")).toHaveAttribute(
+    "aria-valuenow",
+    "6000",
+  );
+  await expect(
+    page.getByRole("slider", { name: "参考收尾时间边界", exact: true }),
+  ).toHaveCount(1);
+  const end = page.getByLabel("本句终点");
+  await expect(end).toHaveValue("");
+  await expect(page.getByText("参考范围")).toHaveCount(1);
+  await end.fill("00:04.500");
+  await end.press("Enter");
+  await expect(end).toHaveValue("00:04.500");
+  await expect(page.getByText("参考范围")).toHaveCount(0);
+  await expect(page.locator(".time-marker.ending")).toHaveAttribute(
+    "aria-valuenow",
+    "4500",
+  );
+  await expect(page.locator(".timing-region.confirmed")).toHaveCount(1);
+  // Zoom out so the handle has room to travel inside the viewport, then drag it
+  // past the next line start: it stops there instead of overlapping.
+  await page.getByLabel("波形缩放").fill("100");
+  const marker = page.locator(".time-marker.ending"),
+    box = (await marker.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + 45);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 300, box.y + 45);
+  await page.mouse.up();
+  await expect(marker).toHaveAttribute("aria-valuenow", "6000");
+  await expect(page.locator(".timing-region.conflict")).toHaveCount(0);
+  await page.keyboard.press("Control+z");
+  await expect(marker).toHaveAttribute("aria-valuenow", "4500");
+  // Selecting another line moves the handle with the selection.
+  await page.locator(".lyric-nav-list button").nth(1).click();
+  await expect(page.locator(".time-marker.ending")).toHaveCount(1);
+  await expect(page.locator(".time-marker.ending")).toHaveAttribute(
+    "aria-valuenow",
+    "9000",
+  );
+  // A line without a start has no end: the field is disabled and no handle exists.
+  await page.locator(".lyric-nav-list button").nth(3).click();
+  await expect(page.getByLabel("本句终点")).toBeDisabled();
+  await expect(page.locator(".time-marker.ending")).toHaveCount(0);
+});
+
 async function completeWordWorkspace(page: import("@playwright/test").Page) {
   await page.goto("/");
   await page

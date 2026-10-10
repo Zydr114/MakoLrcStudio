@@ -117,6 +117,25 @@ describe("editing invariants", () => {
     expect(() => setUnitStart(project, 0, 1, 1499)).toThrow();
     expect(() => setLineStart(project, 0, 4500)).toThrow();
   });
+  it("keeps a line end between its own start and the next line start", () => {
+    const project = {
+      ...newProject(),
+      ...importLyrics("[00:01]今日\n[00:06]次"),
+    };
+    setLineEnd(project, 0, 6000);
+    expect(project.lines[0].endMs).toBe(6000);
+    expect(validate(project, false)).toEqual([]);
+    expect(() => setLineEnd(project, 0, 6001)).toThrow("相邻边界");
+    expect(() => setLineEnd(project, 0, 1000)).toThrow("相邻边界");
+    const last = {
+      ...newProject(),
+      ...importLyrics("[00:01]今日"),
+      audio: { name: "x", size: 1, hash: "a".repeat(64), durationMs: 4000 },
+    };
+    setLineEnd(last, 0, 4000);
+    expect(last.lines[0].endMs).toBe(4000);
+    expect(() => setLineEnd(last, 0, 4001)).toThrow("相邻边界");
+  });
   it("formats rollover exactly and rejects invalid time fields", () => {
     expect(formatTime(60000)).toBe("01:00.000");
     expect(parseTime("01:00.001")).toBe(60001);
