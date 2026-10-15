@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, nextTick, onMounted } from "vue";
+import { computed, ref, nextTick, onMounted, watch } from "vue";
+import type { Menu } from "mdui/components/menu.js";
 import { editor } from "../state/editor";
 import {
   activeLines,
@@ -21,6 +22,8 @@ import UiField from "../components/UiField.vue";
 import Modal from "../components/Modal.vue";
 import UiToggle from "../components/UiToggle.vue";
 import UiIconButton from "../components/UiIconButton.vue";
+import PartPanel from "../components/PartPanel.vue";
+import { transferLines } from "../domain/parts";
 const emit = defineEmits<{ audio: [] }>();
 const selected = ref<string[]>([]),
   previewOpen = ref(false);
@@ -90,6 +93,29 @@ function remove() {
   });
   selected.value = [];
 }
+watch(
+  () => editor.project.activePartId,
+  () => (selected.value = []),
+);
+const otherParts = computed(() =>
+  editor.project.parts.filter((part) => part.id !== editor.part.id),
+);
+function transfer(event: Event, copy: boolean) {
+  const menu = event.currentTarget as Menu;
+  const target = otherParts.value.find((part) => part.id === menu.value);
+  menu.value = "";
+  if (!target) return;
+  const count = selected.value.length;
+  let appended = false;
+  if (
+    editor.command(copy ? "复制到声部" : "移到声部", (p) => {
+      appended = transferLines(p, selected.value, target.id, copy).appended;
+    })
+  ) {
+    selected.value = [];
+    editor.message = `已${copy ? "复制" : "移动"} ${count} 行到「${target.name}」${appended ? "末尾" : "，按句首排序"}。`;
+  }
+}
 function apply() {
   editor.command("批量整理歌词", (p) => {
     cleanProject(p, options.value);
@@ -117,16 +143,45 @@ function apply() {
               selected = $event ? editor.lines.map((l) => l.id) : []
             "
           />
-          <UiButton
-            variant="text"
-            icon="trash"
-            :disabled="!selected.length"
-            @click="remove"
-            >删除 {{ selected.length || "" }}</UiButton
-          >
+          <div class="sheet-actions">
+            <mdui-dropdown
+              v-for="copy in [false, true]"
+              :key="String(copy)"
+              :disabled="!selected.length || !otherParts.length"
+            >
+              <UiButton
+                slot="trigger"
+                variant="text"
+                :disabled="!selected.length || !otherParts.length"
+                :title="otherParts.length ? undefined : '先在右侧新增声部'"
+                >{{ copy ? "复制到声部" : "移到声部" }}</UiButton
+              >
+              <mdui-menu
+                selects="single"
+                :aria-label="copy ? '复制到声部' : '移到声部'"
+                @change="transfer($event, copy)"
+              >
+                <mdui-menu-item
+                  v-for="part in otherParts"
+                  :key="part.id"
+                  :value="part.id"
+                  >{{ part.name }}</mdui-menu-item
+                >
+              </mdui-menu>
+            </mdui-dropdown>
+            <UiButton
+              variant="text"
+              icon="trash"
+              :disabled="!selected.length"
+              @click="remove"
+              >删除 {{ selected.length || "" }}</UiButton
+            >
+          </div>
         </div>
         <div v-if="!editor.lines.length" class="empty-note">
-          没有歌词行。添加一行，或返回导入歌词。
+          「{{
+            editor.part.name
+          }}」还没有歌词行。添加一行，从其他声部移入，或返回导入歌词。
         </div>
         <div
           v-for="(line, index) in editor.lines"
@@ -204,19 +259,22 @@ function apply() {
           ＋ 添加一行
         </UiButton>
       </div>
-      <aside class="surface cleanup-panel">
-        <h2>文本清理</h2>
-        <UiToggle v-model="options.trim" label="去掉行首、行尾空白" />
-        <UiToggle v-model="options.blanks" label="删除空行" />
-        <UiToggle v-model="options.brackets" label="删除括号里的内容" />
-        <div class="divider" />
-        <UiField v-model="options.find" label="查找文字" /><UiField
-          v-model="options.replacement"
-          label="替换成"
-        /><UiButton variant="tonal" @click="previewOpen = true"
-          >预览整理结果</UiButton
-        >
-      </aside>
+      <div class="prepare-side">
+        <section class="surface part-card"><PartPanel /></section>
+        <aside class="surface cleanup-panel">
+          <h2>文本清理</h2>
+          <UiToggle v-model="options.trim" label="去掉行首、行尾空白" />
+          <UiToggle v-model="options.blanks" label="删除空行" />
+          <UiToggle v-model="options.brackets" label="删除括号里的内容" />
+          <div class="divider" />
+          <UiField v-model="options.find" label="查找文字" /><UiField
+            v-model="options.replacement"
+            label="替换成"
+          /><UiButton variant="tonal" @click="previewOpen = true"
+            >预览整理结果</UiButton
+          >
+        </aside>
+      </div>
     </div>
     <div class="step-footer">
       <UiButton v-if="!editor.asset" variant="tonal" @click="emit('audio')"

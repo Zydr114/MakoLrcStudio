@@ -1,60 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createEditor, type TransportPort } from "../../src/state/editor";
-import type { AudioAsset } from "../../src/audio/transport";
+import { createEditor } from "../../src/state/editor";
+import { FakeTransport } from "./helpers";
 import { activeLines, unitStart } from "../../src/domain/model";
 
-class FakeTransport implements TransportPort {
-  asset = {
-    info: {
-      name: "test.wav",
-      size: 100,
-      hash: "a".repeat(64),
-      durationMs: 20000,
-    },
-    peaks: new Float32Array(),
-    buffer: {} as AudioBuffer,
-  } satisfies AudioAsset;
-  playing = false;
-  rate = 1;
-  volume = 0.8;
-  position = 0;
-  until = 20000;
-  onEnded: (() => void) | null = null;
-  async load() {
-    return this.asset;
-  }
-  async play(from = 0, until = 20000) {
-    this.position = from;
-    this.until = until;
-    this.playing = true;
-  }
-  pause() {
-    this.playing = false;
-  }
-  seek(ms: number) {
-    this.position = Math.max(0, Math.min(20000, ms));
-  }
-  setRate(rate: number) {
-    this.rate = rate;
-  }
-  setVolume(volume: number) {
-    this.volume = volume;
-  }
-  reset() {
-    this.position = 0;
-  }
-  captureMs() {
-    return this.playing ? this.position : null;
-  }
-  nowMs() {
-    return this.position;
-  }
-  end() {
-    this.position = this.until;
-    this.playing = false;
-    this.onEnded?.();
-  }
-}
 async function session(text: string) {
   const audio = new FakeTransport(),
     editor = createEditor(audio, false);

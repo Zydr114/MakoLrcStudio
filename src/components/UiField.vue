@@ -1,5 +1,8 @@
 <script setup lang="ts">
-withDefaults(
+import { ref, watchEffect } from "vue";
+import type { TextField } from "mdui/components/text-field.js";
+import { controlInput } from "./controlLabel";
+const props = withDefaults(
   defineProps<{
     modelValue: string;
     label: string;
@@ -11,12 +14,20 @@ withDefaults(
   { placeholder: "", multiline: false, rows: 3 },
 );
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
+const control = ref<TextField>();
+// mdui's floating label is not tied to its input; name the input itself.
+watchEffect(async () => {
+  const element = control.value,
+    label = props.label;
+  if (element) (await controlInput(element))?.setAttribute("aria-label", label);
+});
 function update(event: Event) {
   emit("update:modelValue", (event.target as HTMLInputElement).value);
 }
 </script>
 <template>
   <mdui-text-field
+    ref="control"
     variant="outlined"
     :type="type"
     :label="label"

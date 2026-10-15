@@ -14,6 +14,7 @@ import UiIconButton from "./components/UiIconButton.vue";
 import { themes } from "./components/controlOptions";
 import type { Tabs } from "mdui/components/tabs.js";
 import Modal from "./components/Modal.vue";
+import PartSwitcher from "./components/PartSwitcher.vue";
 import brandMark from "./assets/brand/mark.png";
 const audioInput = ref<HTMLInputElement>(),
   backupInput = ref<HTMLInputElement>();
@@ -322,31 +323,33 @@ onBeforeUnmount(() => {
         >
       </div>
     </header>
-    <mdui-tabs
-      v-if="editor.project.stage > 0"
-      class="editor-tabs"
-      role="tablist"
-      aria-label="歌词编辑视图"
-      variant="secondary"
-      placement="top"
-      :value="String(editor.project.stage)"
-      @change="changeTab"
-    >
-      <mdui-tab
-        v-for="(tab, index) in tabs"
-        :id="`editor-tab-${index + 1}`"
-        :key="tab"
-        role="tab"
-        :aria-selected="editor.project.stage === index + 1"
-        aria-controls="editor-panel"
-        :tabindex="editor.project.stage === index + 1 ? 0 : -1"
-        :aria-disabled="!editor.lineTotal"
-        :value="String(index + 1)"
-        @keydown="tabKey($event, index)"
+    <div v-if="editor.project.stage > 0" class="editor-tabbar">
+      <mdui-tabs
+        class="editor-tabs"
+        role="tablist"
+        aria-label="歌词编辑视图"
+        variant="secondary"
+        placement="top"
+        :value="String(editor.project.stage)"
+        @change="changeTab"
       >
-        {{ tab }}
-      </mdui-tab>
-    </mdui-tabs>
+        <mdui-tab
+          v-for="(tab, index) in tabs"
+          :id="`editor-tab-${index + 1}`"
+          :key="tab"
+          role="tab"
+          :aria-selected="editor.project.stage === index + 1"
+          aria-controls="editor-panel"
+          :tabindex="editor.project.stage === index + 1 ? 0 : -1"
+          :aria-disabled="!editor.lineTotal"
+          :value="String(index + 1)"
+          @keydown="tabKey($event, index)"
+        >
+          {{ tab }}
+        </mdui-tab>
+      </mdui-tabs>
+      <PartSwitcher />
+    </div>
     <div v-if="editor.error" class="notice error-notice" role="alert">
       <span>{{ editor.error }}</span
       ><UiIconButton

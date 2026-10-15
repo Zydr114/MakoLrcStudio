@@ -193,9 +193,18 @@ kbd {
 }
 /* The indicator is placed from the tab offsetLeft inside the shadow container, so the
    gutter must be a margin on the host: horizontal padding shifts the bar right. */
-.editor-tabs {
+.editor-tabbar {
   flex: 0 0 auto;
-  margin: 0 var(--chrome-gutter) 4px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+  padding-right: var(--chrome-gutter);
+}
+.editor-tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 0 0 var(--chrome-gutter);
 }
 .editor-tabs::part(container) {
   background: transparent;
@@ -367,6 +376,13 @@ kbd {
   gap: 14px;
   margin-top: 24px;
 }
+.import-next {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 16px;
+}
 .text-link {
   display: inline-flex;
   gap: 6px;
@@ -444,6 +460,24 @@ kbd {
   background: transparent;
   color: var(--accent);
   font-size: 12px;
+}
+.prepare-side {
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.part-card {
+  padding: 18px 16px 8px 20px;
+}
+.prepare-side > .cleanup-panel {
+  align-self: stretch;
+}
+.sheet-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .cleanup-panel {
   align-self: start;

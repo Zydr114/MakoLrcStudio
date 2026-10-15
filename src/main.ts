@@ -11,6 +11,8 @@ import "mdui/components/button-icon.js";
 import "mdui/components/tabs.js";
 import "mdui/components/tab.js";
 import "mdui/components/tab-panel.js";
+import "mdui/components/dropdown.js";
+import "mdui/components/menu.js";
 import "mdui/components/linear-progress.js";
 import { setColorScheme } from "mdui/functions/setColorScheme.js";
 import App from "./App.vue";

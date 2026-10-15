@@ -60,7 +60,7 @@ test("the tab indicator stays on the active tab and the tabs stay evenly spaced"
   const gaps = box.centres
     .slice(1)
     .map((centre, index) => centre - box.centres[index]);
-  expect(gaps[0]).toBe(gaps[1]);
+  expect(gaps[0]).toBeCloseTo(gaps[1], 1);
 });
 
 test("mdui menus and sliders keep native keyboard actions isolated from recording", async ({

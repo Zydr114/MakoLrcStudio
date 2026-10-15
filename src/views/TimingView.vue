@@ -449,6 +449,11 @@ watch(
         </div>
         <Waveform @audio="emit('audio')" />
       </template>
+      <p v-else class="empty-note">
+        「{{
+          editor.part.name
+        }}」还没有歌词行。请到文本处理添加，或切换到其他声部。
+      </p>
     </div>
     <SongPreview
       :open="songOpen"

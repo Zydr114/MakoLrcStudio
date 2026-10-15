@@ -8,6 +8,9 @@ import {
   activePart,
   activeLines,
   lineCount,
+  mainPart,
+  partColors,
+  validateLines,
   syllableRefs,
   syllablesOf,
   syllableLabel,
@@ -24,6 +27,7 @@ import {
   setSyllableStart,
 } from "../domain/edit";
 import { tokenize } from "../domain/tokenize";
+import { lrcLosses, nextPartName } from "../domain/parts";
 import {
   createAudition,
   type AuditionScope,
@@ -305,7 +309,8 @@ export function createEditor(
       loading.value = false;
     }
   }
-  function importText(text: string, name = "未命名歌词") {
+  /** Imports replace the project, or join it as one more part (asPart). */
+  function importText(text: string, name = "未命名歌词", asPart = false) {
     pause();
     audition.cancel();
     recordingArmed.value = false;
@@ -314,6 +319,29 @@ export function createEditor(
       return false;
     }
     const imported = importLyrics(text);
+    if (asPart) {
+      const success = command("作为新声部导入", (draft) => {
+        const base = name.replace(/\.(lrc|elrc|txt)$/i, "").trim();
+        const part = newPart(
+          base && !draft.parts.some((p) => p.name === base)
+            ? base
+            : nextPartName(draft),
+          imported.lines,
+        );
+        const used = new Set(draft.parts.map((p) => p.color));
+        part.color = partColors.find((color) => !used.has(color)) ?? part.color;
+        draft.parts.push(part);
+        draft.activePartId = part.id;
+        draft.activeLineId = imported.lines[0]?.id ?? null;
+      });
+      message.value = [
+        success ? `已作为新声部「${part.value.name}」加入。` : "",
+        ...imported.notices,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return success;
+    }
     const success = command("导入歌词", (draft) => {
       const main = newPart("主唱", imported.lines);
       draft.parts = [main];
@@ -415,6 +443,7 @@ export function createEditor(
     if (
       !point ||
       entry.after.stage !== project.value.stage ||
+      !lines.value.some((line) => line.id === point.lineId) ||
       (project.value.stage === 3 && point.lineId !== line.value?.id)
     ) {
       message.value = "暂无可回退的打点；其他编辑可以使用撤销。";
@@ -812,13 +841,74 @@ export function createEditor(
     }
     return success;
   }
+  /** Remembered per part for this session, so switching back returns to the same line. */
+  const partLines = new Map<string, string>();
+  function switchPart(id: string) {
+    const target = project.value.parts.find((part) => part.id === id);
+    if (!target || id === project.value.activePartId) return;
+    pause();
+    audition.cancel();
+    clearPreview();
+    recordingArmed.value = false;
+    editingText.value = false;
+    retimeOne = false;
+    if (project.value.activeLineId)
+      partLines.set(project.value.activePartId, project.value.activeLineId);
+    const remembered = partLines.get(id);
+    // Otherwise the line sung at the playhead: parts are usually aligned by ear.
+    const atPlayhead = target.lines
+      .filter((l) => l.startMs !== null && l.startMs <= positionMs.value)
+      .at(-1);
+    const lineId =
+      (remembered && target.lines.some((l) => l.id === remembered)
+        ? remembered
+        : atPlayhead?.id) ??
+      target.lines[0]?.id ??
+      null;
+    view({ activePartId: id, activeLineId: lineId });
+    mode.value = "idle";
+    message.value = "";
+    error.value = "";
+    if (project.value.stage === 3) prepareUnits();
+    selectedUnit.value = Math.min(cursor.value, lastSyllable());
+    selectionEnd.value = selectedUnit.value;
+  }
+  /** Progress per part: line starts while timing lines, finished lines otherwise. */
+  const partStats = computed(() =>
+    project.value.parts.map((part) => {
+      const duration = project.value.audio?.durationMs ?? Infinity;
+      const wrong = new Set(
+        validateLines(part.lines, duration).map((issue) => issue.lineId),
+      );
+      return {
+        id: part.id,
+        name: part.name,
+        color: part.color,
+        total: part.lines.length,
+        done:
+          project.value.stage === 2
+            ? part.lines.filter((line) => line.startMs !== null).length
+            : part.lines.filter((line) => !wrong.has(line.id)).length,
+      };
+    }),
+  );
   function exportLrc() {
     try {
       downloadText(exportLyrics(project.value), `${project.value.name}.lrc`);
-      message.value = "增强 LRC 已导出。";
+      const losses = lrcLosses(project.value);
+      message.value = losses.length
+        ? `增强 LRC 已导出，只含主声部「${mainPart(project.value).name}」。LRC 不支持，未导出：${losses.join("、")}。`
+        : "增强 LRC 已导出。";
     } catch (value) {
-      const first = issues.value[0];
-      if (first) selectLine(first.lineId);
+      const main = mainPart(project.value);
+      const first = validateLines(
+        main.lines,
+        project.value.audio?.durationMs ?? Infinity,
+      )[0];
+      if (first) {
+        switchPart(main.id);
+        selectLine(first.lineId);
+      }
       showError(value);
     }
   }
@@ -914,6 +1004,8 @@ export function createEditor(
     clearLineTiming,
     exportLrc,
     backup,
+    switchPart,
+    partStats,
   });
 }
 

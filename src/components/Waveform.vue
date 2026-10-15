@@ -22,6 +22,7 @@ import AudioBar from "./AudioBar.vue";
 import UiSlider from "./UiSlider.vue";
 import UiButton from "./UiButton.vue";
 import WaveformRegions from "./WaveformRegions.vue";
+import PartReferenceBand from "./PartReferenceBand.vue";
 import { intervalGeometry, timeToRatio, ratioToTime } from "../domain/viewport";
 
 const emit = defineEmits<{ audio: [] }>();
@@ -438,6 +439,11 @@ onBeforeUnmount(() => {
           <small v-if="editor.displayLine?.endMs === null">· 参考</small></span
         >
       </div>
+      <PartReferenceBand
+        v-if="editor.project.stage === 2"
+        :view="viewport"
+        :width="width"
+      />
       <WaveformRegions
         :view="viewport"
         :width="width"

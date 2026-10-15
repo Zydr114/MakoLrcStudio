@@ -2,8 +2,8 @@
 import { computed, watch } from "vue";
 import { editor } from "../state/editor";
 import { formatTime } from "../domain/model";
-import { playingLineIndex } from "../domain/timing";
-import LyricPreview from "./LyricPreview.vue";
+import { songLines, type SongLine } from "../domain/song";
+import KaraokeLine from "./KaraokeLine.vue";
 import Modal from "./Modal.vue";
 import UiSlider from "./UiSlider.vue";
 import UiSelect from "./UiSelect.vue";
@@ -11,22 +11,25 @@ import UiIconButton from "./UiIconButton.vue";
 import { playbackRates } from "./controlOptions";
 const props = defineProps<{ open: boolean; fill: boolean }>();
 const emit = defineEmits<{ close: [] }>();
+/** Every part at once, laid out like a player shows a duet. */
+const song = computed(() => songLines(editor.displayProject));
+const multiPart = computed(() => editor.project.parts.length > 1);
+const sounding = (entry: SongLine) =>
+  editor.positionMs >= entry.line.startMs! && editor.positionMs < entry.endMs;
 const index = computed(() => {
-  const active = playingLineIndex(editor.displayProject, editor.positionMs);
+  const active = song.value.findIndex(sounding);
   if (active >= 0) return active;
   return Math.max(
     0,
-    editor.displayLines.findLastIndex(
-      (line) => line.startMs !== null && line.startMs <= editor.positionMs,
+    song.value.findLastIndex(
+      (entry) => entry.line.startMs! <= editor.positionMs,
     ),
   );
 });
-const line = computed(() => editor.displayLines[index.value]);
-const limit = computed(() =>
-  Math.min(
-    editor.project.audio?.durationMs ?? Infinity,
-    editor.displayLines[index.value + 1]?.startMs ?? Infinity,
-  ),
+const visible = computed(() =>
+  song.value
+    .map((entry, i) => ({ entry, i }))
+    .slice(Math.max(0, index.value - 1), index.value + 3),
 );
 let previousLoop = false;
 watch(
@@ -50,7 +53,7 @@ function focusWorkspace() {
     ?.focus({ preventScroll: true });
 }
 function locate(value: number) {
-  const ms = editor.lines[value]?.startMs;
+  const ms = song.value[value]?.line.startMs;
   if (ms !== null && ms !== undefined) editor.seek(ms);
 }
 function keydown(event: KeyboardEvent) {
@@ -91,19 +94,38 @@ function keydown(event: KeyboardEvent) {
     @closed="focusWorkspace"
   >
     <div v-if="open" class="song-review" tabindex="0" @keydown="keydown">
-      <p class="song-neighbor">
-        {{ editor.displayLines[index - 1]?.text || "\u00a0" }}
-      </p>
-      <LyricPreview
-        v-if="line"
-        :line="line"
-        :position-ms="editor.positionMs"
-        :limit-ms="limit"
-        :fill="fill"
-      />
-      <p class="song-neighbor">
-        {{ editor.displayLines[index + 1]?.text || "\u00a0" }}
-      </p>
+      <div class="song-lines" :class="{ 'multi-part': multiPart }">
+        <p v-if="!song.length" class="song-neighbor">还没有记录句首的歌词。</p>
+        <div
+          v-for="{ entry, i } in visible"
+          :key="entry.line.id"
+          class="song-line"
+          :class="[
+            entry.side,
+            { active: sounding(entry), current: i === index },
+          ]"
+          :style="{ '--part-color': entry.part.color }"
+        >
+          <small v-if="multiPart" class="song-part">{{
+            entry.part.name
+          }}</small>
+          <KaraokeLine
+            :line="entry.line"
+            :position-ms="editor.positionMs"
+            :limit-ms="entry.limitMs"
+            :fill="fill"
+          />
+          <KaraokeLine
+            v-for="voice in entry.backgrounds"
+            :key="voice.line.id"
+            class="song-background"
+            :line="voice.line"
+            :position-ms="editor.positionMs"
+            :limit-ms="voice.limitMs"
+            :fill="fill"
+          />
+        </div>
+      </div>
       <div class="song-controls">
         <UiIconButton
           variant="filled"
@@ -133,10 +155,9 @@ function keydown(event: KeyboardEvent) {
         label="整曲定位歌词"
         :model-value="index"
         :options="
-          editor.lines.map((item, i) => ({
+          song.map((entry, i) => ({
             value: i,
-            label: `${i + 1} · ${item.text}`,
-            disabled: item.startMs === null,
+            label: `${i + 1} · ${multiPart ? `${entry.part.name}：` : ''}${entry.line.text}`,
           }))
         "
         @update:model-value="locate"
@@ -157,6 +178,51 @@ function keydown(event: KeyboardEvent) {
   text-align: center;
   padding: 16px;
   line-height: 1.6;
+}
+.song-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 240px;
+  padding: 12px 4px 20px;
+}
+.song-line {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.5;
+  opacity: 0.55;
+  transition: opacity 200ms ease;
+}
+.song-line.current,
+.song-line.active {
+  opacity: 1;
+}
+.song-line.active {
+  color: var(--ink);
+  font-size: 26px;
+  font-weight: 600;
+}
+.multi-part .song-line.left {
+  align-items: flex-start;
+  text-align: left;
+}
+.multi-part .song-line.right {
+  align-items: flex-end;
+  text-align: right;
+}
+.song-part {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--part-color);
+}
+.song-background {
+  font-size: 0.62em;
+  font-weight: 400;
+  color: var(--muted);
 }
 .song-controls {
   display: flex;

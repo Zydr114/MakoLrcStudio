@@ -4,13 +4,15 @@ import { editor } from "../state/editor";
 import UiButton from "../components/UiButton.vue";
 import Icon from "../components/Icon.vue";
 import UiSelect from "../components/UiSelect.vue";
+import UiToggle from "../components/UiToggle.vue";
 import brandWordmark from "../assets/brand/wordmark.png";
 const emit = defineEmits<{ audio: []; backup: [] }>();
 const text = ref(""),
   invalidEncoding = ref(false),
   encoding = ref("utf-8"),
   lyricFile = ref<File | null>(null),
-  dragging = ref(false);
+  dragging = ref(false),
+  asPart = ref(false);
 const input = ref<HTMLInputElement>();
 async function decode() {
   if (!lyricFile.value) return;
@@ -47,7 +49,11 @@ async function drop(event: DragEvent) {
 function next() {
   if (
     text.value.trim() &&
-    !editor.importText(text.value, lyricFile.value?.name)
+    !editor.importText(
+      text.value,
+      lyricFile.value?.name,
+      asPart.value && editor.lineTotal > 0,
+    )
   )
     return;
   if (!editor.lineTotal) {
@@ -137,14 +143,21 @@ function next() {
       </button>
     </div>
     <div class="import-footer">
-      <UiButton variant="text" @click="emit('backup')">恢复编辑进度</UiButton
-      ><UiButton
-        variant="filled"
-        icon="arrow"
-        :disabled="editor.loading || invalidEncoding"
-        @click="next"
-        >下一步，整理歌词</UiButton
-      >
+      <UiButton variant="text" @click="emit('backup')">恢复编辑进度</UiButton>
+      <span class="import-next">
+        <UiToggle
+          v-if="editor.lineTotal"
+          v-model="asPart"
+          switch
+          label="作为新声部加入当前工程"
+        /><UiButton
+          variant="filled"
+          icon="arrow"
+          :disabled="editor.loading || invalidEncoding"
+          @click="next"
+          >下一步，整理歌词</UiButton
+        >
+      </span>
     </div>
   </section>
 </template>
