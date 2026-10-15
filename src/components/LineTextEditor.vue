@@ -4,7 +4,7 @@ import { editor } from "../state/editor";
 import UiButton from "./UiButton.vue";
 import { editLine, splitLine } from "../domain/edit";
 import { newLine } from "../domain/model";
-import { characterGaps, splitTokenAt, unitCuts } from "../domain/segmentation";
+import { characterGaps } from "../domain/segmentation";
 import { tokenize } from "../domain/tokenize";
 const props = defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
@@ -13,6 +13,8 @@ const input = ref<HTMLTextAreaElement>(),
   caret = ref(0),
   issue = ref("");
 const changed = computed(() => text.value !== editor.line?.text);
+// Sentence splits belong to line timing; word timing only edits this line.
+const lineMode = computed(() => editor.project.stage === 2);
 const wordMode = computed(() => editor.project.stage === 3);
 const validGap = computed(() =>
   characterGaps(text.value).includes(caret.value),
@@ -21,9 +23,6 @@ const hadTiming = computed(
   () =>
     editor.line?.units.some((unit) => unit.startMs !== null) ||
     editor.line?.endMs !== null,
-);
-const existingCut = computed(
-  () => !changed.value && unitCuts(editor.line).includes(caret.value),
 );
 watch(
   () => props.open,
@@ -67,14 +66,18 @@ function capture() {
   caret.value = input.value?.selectionStart ?? 0;
   issue.value = "";
 }
-function apply(action: "text" | "line" | "token") {
+function apply(action: "text" | "line") {
   const id = editor.line?.id;
   if (!id) return;
   if (!text.value.trim()) {
     issue.value = "正文不能为空。";
     return;
   }
-  if (action !== "text" && /[\r\n]/.test(text.value)) {
+  if (!lineMode.value && /[\r\n]/.test(text.value)) {
+    issue.value = "逐字打轴中不能换行；拆句请到逐行打轴。";
+    return;
+  }
+  if (action === "line" && /[\r\n]/.test(text.value)) {
     issue.value = "先应用换行，再拆分当前行。";
     return;
   }
@@ -82,11 +85,7 @@ function apply(action: "text" | "line" | "token") {
     oldTiming = hadTiming.value;
   if (
     !editor.command(
-      action === "line"
-        ? "在光标处拆句"
-        : action === "token"
-          ? "在光标处拆字／词"
-          : "修改本行正文",
+      action === "line" ? "在光标处拆句" : "修改本行正文",
       (p) => {
         const lineIndex = p.lines.findIndex((line) => line.id === id);
         const parts = text.value.replace(/\r\n?/g, "\n").split("\n");
@@ -100,20 +99,16 @@ function apply(action: "text" | "line" | "token") {
         if (action === "line") splitLine(p, id, caret.value);
         if (p.stage === 3 && !line.units.length)
           line.units = tokenize(line.text);
-        if (action === "token") line.units = splitTokenAt(line, caret.value);
       },
     )
   ) {
     issue.value = editor.error;
     return;
   }
-  editor.selectedUnit =
-    action === "token"
-      ? editor.cursor
-      : Math.min(
-          editor.selectedUnit,
-          Math.max(0, editor.line.units.length - 1),
-        );
+  editor.selectedUnit = Math.min(
+    editor.selectedUnit,
+    Math.max(0, editor.line.units.length - 1),
+  );
   editor.selectionEnd = editor.selectedUnit;
   if (hadChanges && oldTiming)
     editor.message = "已保留句首；修改行的逐字时间需重打。";
@@ -128,7 +123,9 @@ function key(event: KeyboardEvent) {
     close();
   } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
     event.preventDefault();
-    apply("line");
+    if (lineMode.value) apply("line");
+  } else if (event.key === "Enter" && !lineMode.value) {
+    event.preventDefault(); // A newline would split the sentence.
   }
 }
 </script>
@@ -136,7 +133,7 @@ function key(event: KeyboardEvent) {
   <div
     v-if="open"
     class="line-text-editor"
-    aria-label="本行正文与拆分"
+    :aria-label="lineMode ? '本行正文与拆分' : '本行正文'"
     @keydown="key"
   >
     <label class="sr-only" for="current-line-text">当前行歌词</label>
@@ -153,17 +150,13 @@ function key(event: KeyboardEvent) {
     />
     <div class="line-text-actions">
       <UiButton
+        v-if="lineMode"
         variant="outlined"
         :disabled="!validGap"
         title="Ctrl / Cmd + Enter"
         @click="apply('line')"
-      >在光标处拆句</UiButton>
-      <UiButton
-        v-if="wordMode"
-        variant="outlined"
-        :disabled="!validGap || existingCut"
-        @click="apply('token')"
-      >在光标处拆字／词</UiButton>
+        >在光标处拆句</UiButton
+      >
       <span class="line-text-spacer" />
       <UiButton variant="text" @click="close()">取消文字编辑</UiButton>
       <UiButton variant="filled" :disabled="!changed" @click="apply('text')"
@@ -205,13 +198,6 @@ textarea {
 }
 .line-text-spacer {
   flex: 1;
-}
-.text-apply {
-  border: 0;
-  border-radius: 16px;
-  padding: 6px 12px;
-  background: var(--accent);
-  color: var(--on-accent);
 }
 .field-issue {
   color: var(--danger);

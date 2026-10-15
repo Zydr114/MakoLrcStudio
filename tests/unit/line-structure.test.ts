@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { splitLine, mergeLines } from "../../src/domain/edit";
 import { newProject, validate } from "../../src/domain/model";
 import { importLyrics } from "../../src/domain/lrc";
-import { splitTokenAt } from "../../src/domain/segmentation";
+import { resegmentLine } from "../../src/domain/segmentation";
 const project = (text: string) => ({ ...newProject(), ...importLyrics(text) });
 describe("caret based structural changes", () => {
   it("splits at a measured shared boundary and retains units, ids and the old terminal", () => {
@@ -42,17 +42,16 @@ describe("caret based structural changes", () => {
       [],
     );
   });
-  it("splits a grouped word at a caret and keeps all subsequent timestamps", () => {
+  it("splits a grouped word and keeps all subsequent timestamps", () => {
     const p = project("[00:01]<00:01>今日<00:03>も<00:04>"),
       line = p.lines[0];
-    line.units = splitTokenAt(line, 1);
+    line.units = resegmentLine(line, [1, 2]);
     expect(line.units.map((u) => [u.text, u.startMs])).toEqual([
       ["今", 1000],
       ["日", null],
       ["も", 3000],
     ]);
     expect(line.endMs).toBe(4000);
-    expect(() => splitTokenAt(line, 1)).toThrow("已有分隔线");
   });
   it("keeps Latin word timing when a caret is immediately before a separating space", () => {
     const p = project("[00:01]<00:01>hello <00:02>world<00:03>");

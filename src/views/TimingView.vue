@@ -274,7 +274,7 @@ watch(
             :disabled="editor.editingText"
             @click="textOpen = true"
           >
-            编辑／拆分
+            {{ lineMode ? "编辑／拆分" : "编辑正文" }}
           </UiButton>
           <UiButton
             class="clear-line-action"
