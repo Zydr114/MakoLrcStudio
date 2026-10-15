@@ -273,4 +273,24 @@ test("inline segmentation supports merge, split, dragging and local fill without
   await expect(
     page.getByRole("slider", { name: "日时间边界" }),
   ).toHaveAttribute("aria-valuenow", "2200");
+  // Clicking a divider removes it; Enter on an empty gap applies, never adds.
+  await page.getByRole("button", { name: "调整切分", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "移除分隔线", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("slider", { name: "文字分隔线 1", exact: true }).click();
+  await expect(
+    page.getByRole("slider", { name: "文字分隔线 1", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("3 → 2 · 保留 2 点", { exact: true }),
+  ).toBeVisible();
+  const gap = page.getByRole("button", {
+    name: "在第 1 个字符后切分",
+    exact: true,
+  });
+  await expect(gap).toBeFocused();
+  await gap.press("Enter");
+  await expect(page.locator("[data-editing-text]")).toHaveCount(0);
+  await expect(page.locator(".unit-strip button")).toHaveCount(2);
 });

@@ -14,7 +14,8 @@ import {
 const cuts = ref<number[]>([]),
   original = ref<number[]>([]),
   activeGap = ref<number | null>(null),
-  cutError = ref("");
+  cutError = ref(""),
+  importNotice = ref("");
 const row = ref<HTMLDivElement>();
 const editing = computed(() => editor.editingText);
 const chars = computed(() => graphemes(editor.line?.text ?? ""));
@@ -33,6 +34,9 @@ let drag: {
   right: number;
   origin: number;
   moved: boolean;
+  /** Pointer travel beyond a click, even when the divider could not move. */
+  dragged: boolean;
+  startX: number;
   x: number;
 } | null = null;
 let scrollFrame = 0,
@@ -58,8 +62,10 @@ function begin() {
   activeGap.value = null;
   cutError.value = "";
   editor.editingText = true;
-  if (original.value.length !== editor.line.units.length - 1)
-    cutError.value = "导入的字符内分隔线已移除，应用前请检查。";
+  importNotice.value =
+    original.value.length !== editor.line.units.length - 1
+      ? "导入的字符内分隔线已移除，应用前请检查。"
+      : "";
 }
 function stopDrag() {
   drag = null;
@@ -87,17 +93,27 @@ function update(next: number[]) {
   cuts.value = next;
   return true;
 }
+function focusGap(offset: number) {
+  void nextTick(() =>
+    row.value
+      ?.querySelector<HTMLElement>(`[data-gap-offset="${offset}"]`)
+      ?.focus(),
+  );
+}
+/** A click toggles: add on an empty gap, remove an existing divider. */
 function clickGap(offset: number) {
   if (ignoreClick === offset) {
     ignoreClick = null;
     return;
   }
-  if (!cuts.value.includes(offset)) update([...cuts.value, offset]);
-  activeGap.value = offset;
+  if (cuts.value.includes(offset)) remove(offset);
+  else if (update([...cuts.value, offset])) {
+    activeGap.value = offset;
+    focusGap(offset);
+  }
 }
-function remove() {
-  if (activeGap.value === null) return;
-  update(cuts.value.filter((offset) => offset !== activeGap.value));
+function remove(offset: number) {
+  update(cuts.value.filter((cut) => cut !== offset));
   activeGap.value = null;
 }
 function groupIndex(charIndex: number) {
@@ -114,6 +130,8 @@ function start(event: PointerEvent, offset: number) {
     right: cuts.value[index + 1] ?? editor.line.text.length,
     origin: offset,
     moved: false,
+    dragged: false,
+    startX: event.clientX,
     x: event.clientX,
   };
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -147,6 +165,7 @@ function moveTo(x: number) {
 function move(event: PointerEvent) {
   if (!drag) return;
   drag.x = event.clientX;
+  if (Math.abs(drag.x - drag.startX) > 4) drag.dragged = true;
   moveTo(event.clientX);
 }
 function autoScroll() {
@@ -162,18 +181,13 @@ function autoScroll() {
   scrollFrame = requestAnimationFrame(autoScroll);
 }
 function end() {
-  if (drag?.moved) {
+  if (drag?.dragged) {
     ignoreClick = drag.origin;
     setTimeout(() => (ignoreClick = null), 350);
   }
   const movedOffset = drag?.moved ? drag.offset : null;
   stopDrag();
-  if (movedOffset !== null)
-    void nextTick(() =>
-      row.value
-        ?.querySelector<HTMLElement>(`[data-gap-offset="${movedOffset}"]`)
-        ?.focus(),
-    );
+  if (movedOffset !== null) focusGap(movedOffset);
 }
 function key(event: KeyboardEvent, offset?: number) {
   if (event.isComposing || event.keyCode === 229) return;
@@ -183,9 +197,10 @@ function key(event: KeyboardEvent, offset?: number) {
     cancel();
     return;
   }
+  // Enter on any gap confirms, so it never adds a divider by native click.
   if (
     event.key === "Enter" &&
-    (event.target as HTMLElement).getAttribute("role") === "slider"
+    (event.target as HTMLElement).closest(".text-gap")
   ) {
     event.preventDefault();
     event.stopPropagation();
@@ -196,8 +211,7 @@ function key(event: KeyboardEvent, offset?: number) {
   if (["Delete", "Backspace"].includes(event.key)) {
     event.preventDefault();
     event.stopPropagation();
-    activeGap.value = offset;
-    remove();
+    remove(offset);
     return;
   }
   if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
@@ -214,15 +228,12 @@ function key(event: KeyboardEvent, offset?: number) {
     return;
   if (update(cuts.value.map((cut) => (cut === offset ? next : cut)))) {
     activeGap.value = next;
-    void nextTick(() =>
-      row.value
-        ?.querySelector<HTMLElement>(`[data-gap-offset="${next}"]`)
-        ?.focus(),
-    );
+    focusGap(next);
   }
 }
 function apply() {
-  if (!editor.line || !changed.value) return;
+  if (!editor.line) return;
+  if (!changed.value) return cancel();
   const selectedOffset = editor.line.units
     .slice(0, editor.selectedUnit)
     .reduce((offset, unit) => offset + unit.text.length, 0);
@@ -296,7 +307,8 @@ onBeforeUnmount(() => {
           editor.retime(editor.selectedUnit);
           focusWorkspace();
         "
-      >从选中单位重打</UiButton>
+        >从选中单位重打</UiButton
+      >
     </div>
   </div>
   <div
@@ -315,12 +327,7 @@ onBeforeUnmount(() => {
         ></span
       >
       <div>
-        <UiButton
-          v-if="activeGap !== null"
-          variant="text"
-          @click="remove"
-          >移除分隔线</UiButton
-        ><UiButton variant="text" @click="cancel">取消切分</UiButton
+        <UiButton variant="text" @click="cancel">取消切分</UiButton
         ><UiButton variant="filled" :disabled="!changed" @click="apply"
           >应用切分</UiButton
         >
@@ -361,18 +368,21 @@ onBeforeUnmount(() => {
           "
           :title="
             cuts.includes(gaps[index])
-              ? '拖动或左右键移动；Delete 移除'
-              : '添加分隔线'
+              ? '点击移除；拖动或左右键移动'
+              : '点击添加分隔线'
           "
           @pointerdown="start($event, gaps[index])"
           @click="clickGap(gaps[index])"
           @keydown="key($event, gaps[index])"
         >
-          <span>{{ cuts.includes(gaps[index]) ? "│" : "+" }}</span>
+          <span v-if="!cuts.includes(gaps[index])">+</span>
         </button></template
       >
     </div>
     <p v-if="cutError" class="field-error" role="alert">{{ cutError }}</p>
+    <p v-else-if="importNotice" class="field-error" role="alert">
+      {{ importNotice }}
+    </p>
   </div>
 </template>
 <style scoped>
@@ -403,14 +413,6 @@ onBeforeUnmount(() => {
 .segmentation-heading .small-note {
   font-size: 11px;
 }
-.cut-apply {
-  border: 0;
-  border-radius: 14px;
-  background: var(--accent);
-  color: var(--on-accent);
-  padding: 6px 12px;
-  font-size: 12px;
-}
 .character-strip {
   display: flex;
   align-items: center;
@@ -434,26 +436,44 @@ onBeforeUnmount(() => {
   background: rgba(var(--mdui-color-tertiary), 0.13);
 }
 .text-gap {
-  flex: 0 0 14px;
-  width: 14px;
-  height: 42px;
+  position: relative;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 39px;
   border: 0;
   padding: 0;
-  background: transparent;
+  background: rgba(var(--mdui-color-primary), 0.13);
   touch-action: none;
   color: var(--muted);
+  cursor: pointer;
+}
+.text-gap.alternate {
+  background: rgba(var(--mdui-color-tertiary), 0.13);
 }
 .text-gap > span {
-  visibility: hidden;
+  opacity: 0.35;
 }
 .text-gap:hover > span,
-.text-gap:focus > span,
-.text-gap.divided > span {
-  visibility: visible;
+.text-gap:focus-visible > span {
+  opacity: 1;
+  color: var(--accent);
 }
 .text-gap.divided {
+  height: 42px;
+  background: transparent;
   cursor: ew-resize;
-  color: var(--accent);
+}
+.text-gap.divided::before {
+  content: "";
+  position: absolute;
+  inset: 2px auto 2px 50%;
+  width: 3px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: var(--accent);
+}
+.text-gap.divided:hover::before {
+  width: 5px;
 }
 .text-gap.active {
   background: var(--accent-soft);
@@ -465,15 +485,5 @@ onBeforeUnmount(() => {
   font-size: 12px;
   margin-top: 4px;
   background: transparent;
-}
-</style>
-
-<style scoped>
-.text-gap:not(.divided) {
-  background: rgba(var(--mdui-color-primary), 0.13);
-  height: 39px;
-}
-.text-gap.alternate:not(.divided) {
-  background: rgba(var(--mdui-color-tertiary), 0.13);
 }
 </style>

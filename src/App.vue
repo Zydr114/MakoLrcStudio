@@ -417,7 +417,9 @@ onBeforeUnmount(() => {
         <dt><kbd>Ctrl / Cmd + Z</kbd></dt>
         <dd>撤销；加 Shift 重做</dd>
         <dt><kbd>← → / Delete</kbd></dt>
-        <dd>调整切分时，移动／移除聚焦的文字分隔线</dd>
+        <dd>
+          调整切分时，移动／移除聚焦的文字分隔线；点击分隔线也可移除，Enter 应用
+        </dd>
         <dt><kbd>Esc</kbd></dt>
         <dd>暂停录点；拖动、精确输入或切分过程中取消草稿</dd>
       </dl>
@@ -473,12 +475,9 @@ onBeforeUnmount(() => {
           <dd>AGPL-3.0</dd>
           <dt>源代码</dt>
           <dd>
-            <a
-              :href="sourceUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              >{{ sourceUrl }}</a
-            >
+            <a :href="sourceUrl" target="_blank" rel="noopener noreferrer">{{
+              sourceUrl
+            }}</a>
           </dd>
         </dl>
       </div>
