@@ -1,7 +1,7 @@
 import type { LyricLine, Syllable, TimingUnit } from "./model";
-import { newSyllable } from "./model";
+import { newSyllable, newUnit, unitStart } from "./model";
 import { characterGaps } from "./segmentation";
-import { graphemes } from "./tokenize";
+import { graphemes, tokenizeText } from "./tokenize";
 
 const small = new Set(
   Array.from(
@@ -121,4 +121,16 @@ export function rubyParts(text: string): {
   return match[2]
     ? { before: match[1], base: match[2], after: match[3] }
     : { before: "", base: text, after: "" };
+}
+
+/** Undo a group: one plain unit per character again, the group start kept on the first. */
+export function splitIntoCharacters(line: LyricLine, unitIndex: number): void {
+  const unit = line.units[unitIndex];
+  const texts = tokenizeText(unit.text);
+  if (texts.length < 2) throw new Error("这个单位只有一个字。");
+  const units = texts.map((text, index) =>
+    index ? newUnit(text) : { ...newUnit(text, unitStart(unit)), id: unit.id },
+  );
+  units.at(-1)!.syllables[0].endMs = unit.syllables.at(-1)!.endMs;
+  line.units.splice(unitIndex, 1, ...units);
 }

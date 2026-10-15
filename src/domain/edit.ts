@@ -9,7 +9,7 @@ import {
   type ProjectDraft,
   type TimingUnit,
 } from "./model";
-import { graphemes } from "./tokenize";
+import { graphemes, tokenize } from "./tokenize";
 
 export function editLine(
   project: ProjectDraft,
@@ -18,9 +18,69 @@ export function editLine(
 ): void {
   const line = activeLines(project).find((l) => l.id === id)!;
   if (line.text === text) return;
+  // Readings and word romanization are typed by hand: keep them where the text did not change.
+  const kept = line.units.some((unit) => unit.ruby || unit.roman)
+    ? retainUnits(line.units, line.text, text)
+    : [];
   line.text = text;
-  line.units = [];
+  line.units = kept;
   line.endMs = null;
+}
+
+/**
+ * Units in the unchanged head and tail of the text survive an edit, with every
+ * time cleared; the changed middle is split again from scratch.
+ */
+function retainUnits(
+  units: TimingUnit[],
+  before: string,
+  after: string,
+): TimingUnit[] {
+  let head = 0;
+  while (
+    head < before.length &&
+    head < after.length &&
+    before[head] === after[head]
+  )
+    head++;
+  let tail = 0;
+  while (
+    tail < before.length - head &&
+    tail < after.length - head &&
+    before[before.length - 1 - tail] === after[after.length - 1 - tail]
+  )
+    tail++;
+  const prefix: TimingUnit[] = [],
+    suffix: TimingUnit[] = [];
+  let position = 0,
+    prefixEnd = 0,
+    suffixStart = before.length;
+  for (const unit of units) {
+    const end = position + unit.text.length;
+    if (end <= head) {
+      prefix.push(unit);
+      prefixEnd = end;
+    } else if (position >= before.length - tail) {
+      if (!suffix.length) suffixStart = position;
+      suffix.push(unit);
+    }
+    position = end;
+  }
+  const middle = after.slice(
+    prefixEnd,
+    after.length - (before.length - suffixStart),
+  );
+  const result = [...prefix, ...tokenize(middle), ...suffix].map((unit) => ({
+    ...unit,
+    syllables: unit.syllables.map((syllable) => ({
+      ...syllable,
+      startMs: null,
+      endMs: null,
+    })),
+  }));
+  return result.map((unit) => unit.text).join("") === after
+    ? result
+    : tokenize(after);
 }
 
 export function splitLine(

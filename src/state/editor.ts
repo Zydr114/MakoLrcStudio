@@ -73,6 +73,8 @@ export function createEditor(
   const mode = ref<SessionMode>("idle");
   const recordingArmed = ref(false);
   const editingText = ref(false);
+  /** Which layer of the text view is shown: lyrics, readings, translation or romanization. */
+  const textLayer = ref<"lyrics" | "ruby" | "translation" | "roman">("lyrics");
   const positionMs = ref(0),
     playing = ref(false),
     rate = ref(1),
@@ -943,6 +945,7 @@ export function createEditor(
     mode,
     recordingArmed,
     editingText,
+    textLayer,
     cancelAudition: audition.cancel,
     lastRecorded,
     stopRecording,

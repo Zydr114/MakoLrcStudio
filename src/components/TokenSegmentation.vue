@@ -10,7 +10,6 @@ import {
   type LyricLine,
 } from "../domain/model";
 import UiButton from "./UiButton.vue";
-import UiField from "./UiField.vue";
 import DividerStrip from "./DividerStrip.vue";
 import {
   unitCuts,
@@ -18,13 +17,8 @@ import {
   resegmentLine,
   segmentationSummary,
 } from "../domain/segmentation";
-import {
-  moraCuts,
-  readingCuts,
-  readingOf,
-  setRuby,
-  splitAt,
-} from "../domain/ruby";
+import { readingCuts, readingOf, setRuby } from "../domain/ruby";
+import RubyEditor from "./RubyEditor.vue";
 /** Which editor is open: unit dividers or the reading of one unit. */
 const panel = ref<"units" | "ruby" | null>(null);
 const cuts = ref<number[]>([]),
@@ -99,11 +93,6 @@ function beginRuby() {
   rubyError.value = "";
   openPanel("ruby");
 }
-function typeReading(value: string) {
-  reading.value = value;
-  readingSplit.value = moraCuts(value);
-  rubyError.value = "";
-}
 function cancel() {
   panel.value = null;
   editor.editingText = false;
@@ -113,9 +102,6 @@ function cancel() {
 }
 function checkUnits(next: number[]) {
   partitionText(editor.line.text, next);
-}
-function checkReading(next: number[]) {
-  splitAt(reading.value, next);
 }
 function apply() {
   if (!editor.line) return;
@@ -161,24 +147,11 @@ function seekBefore(index: number) {
     0;
   editor.seek(Math.max(0, prior - 800));
 }
-function applyRuby(remove = false) {
+function applyRuby(pieces: string[] | null) {
   if (!editor.line) return;
-  let pieces: string[] | null = null;
-  if (!remove) {
-    if (!reading.value.trim()) {
-      rubyError.value = "读音不能为空；不需要注音时请点「移除注音」。";
-      return;
-    }
-    try {
-      pieces = splitAt(reading.value, readingSplit.value);
-    } catch (error) {
-      rubyError.value = (error as Error).message;
-      return;
-    }
-  }
   const unitIndex = rubyUnit.value;
   if (
-    !editor.command(remove ? "移除注音" : "编辑读音", (p) =>
+    !editor.command(pieces ? "编辑读音" : "移除注音", (p) =>
       setRuby(activeLines(p)[editor.lineIndex], unitIndex, pieces),
     )
   ) {
@@ -312,48 +285,17 @@ onBeforeUnmount(() => {
       {{ importNotice }}
     </p>
   </div>
-  <div
+  <RubyEditor
     v-else
-    class="segmentation-editor ruby-editor"
-    data-editing-text
-    aria-label="读音编辑"
-    @keydown="editorKey"
-  >
-    <div class="segmentation-heading">
-      <strong>注音「{{ editedUnit?.text.trim() }}」</strong
-      ><span class="small-note"
-        >读音按音拍自动切分，点击字间增删分隔线；每个音节按一次 Enter。</span
-      >
-      <div>
-        <UiButton
-          v-if="editedUnit?.ruby"
-          variant="text"
-          @click="applyRuby(true)"
-          >移除注音</UiButton
-        ><UiButton variant="text" @click="cancel">取消</UiButton
-        ><UiButton variant="filled" @click="applyRuby()">应用读音</UiButton>
-      </div>
-    </div>
-    <div class="ruby-fields">
-      <UiField
-        :model-value="reading"
-        label="读音"
-        placeholder="假名或拼音"
-        @update:model-value="typeReading"
-      />
-      <DividerStrip
-        v-if="reading.trim()"
-        v-model:cuts="readingSplit"
-        :text="reading"
-        :check="checkReading"
-        :large="false"
-        @apply="applyRuby()"
-        @cancel="cancel"
-        @error="rubyError = $event"
-      />
-    </div>
-    <p v-if="rubyError" class="field-error" role="alert">{{ rubyError }}</p>
-  </div>
+    :base="editedUnit?.text.trim() ?? ''"
+    :reading="reading"
+    :cuts="readingSplit"
+    :removable="!!editedUnit?.ruby"
+    :error="rubyError"
+    @apply="applyRuby"
+    @remove="applyRuby(null)"
+    @cancel="cancel"
+  />
 </template>
 <style scoped>
 .segmentation-editor {
@@ -383,15 +325,6 @@ onBeforeUnmount(() => {
 }
 .segmentation-heading .small-note {
   font-size: 11px;
-}
-.ruby-fields {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 0 2px;
-}
-.ruby-fields mdui-text-field {
-  flex: 0 0 220px;
 }
 .field-error {
   position: static;

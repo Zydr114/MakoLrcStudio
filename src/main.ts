@@ -13,6 +13,8 @@ import "mdui/components/tab.js";
 import "mdui/components/tab-panel.js";
 import "mdui/components/dropdown.js";
 import "mdui/components/menu.js";
+import "mdui/components/segmented-button-group.js";
+import "mdui/components/segmented-button.js";
 import "mdui/components/linear-progress.js";
 import { setColorScheme } from "mdui/functions/setColorScheme.js";
 import App from "./App.vue";

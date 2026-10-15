@@ -1,0 +1,146 @@
+<script setup lang="ts">
+import { ref, watch } from "vue";
+import UiButton from "./UiButton.vue";
+import UiField from "./UiField.vue";
+import DividerStrip from "./DividerStrip.vue";
+import { moraCuts, splitAt } from "../domain/ruby";
+/** Reading of one unit: kana or pinyin, divided into the syllables that get timed. */
+const props = defineProps<{
+  base: string;
+  reading: string;
+  cuts: number[];
+  removable: boolean;
+  /** A failure reported by whoever applies the reading. */
+  error?: string;
+}>();
+const emit = defineEmits<{
+  apply: [pieces: string[]];
+  remove: [];
+  cancel: [];
+}>();
+const reading = ref(props.reading),
+  split = ref([...props.cuts]),
+  issue = ref("");
+watch(
+  () => [props.reading, props.cuts] as const,
+  ([value, cuts]) => {
+    reading.value = value;
+    split.value = [...cuts];
+    issue.value = "";
+  },
+);
+watch(
+  () => props.error,
+  (value) => (issue.value = value ?? ""),
+);
+function type(value: string) {
+  reading.value = value;
+  split.value = moraCuts(value);
+  issue.value = "";
+}
+const check = (next: number[]) => void splitAt(reading.value, next);
+function apply() {
+  if (!reading.value.trim()) {
+    issue.value = "读音不能为空；不需要注音时请点「移除注音」。";
+    return;
+  }
+  try {
+    emit("apply", splitAt(reading.value, split.value));
+  } catch (error) {
+    issue.value = (error as Error).message;
+  }
+}
+function key(event: KeyboardEvent) {
+  if (event.isComposing || event.keyCode === 229) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    emit("cancel");
+  }
+}
+</script>
+<template>
+  <div
+    class="segmentation-editor ruby-editor"
+    data-editing-text
+    aria-label="读音编辑"
+    @keydown="key"
+  >
+    <div class="segmentation-heading">
+      <strong>注音「{{ base }}」</strong
+      ><span class="small-note"
+        >读音按音拍自动切分，点击字间增删分隔线；每个音节按一次 Enter。</span
+      >
+      <div>
+        <UiButton v-if="removable" variant="text" @click="emit('remove')"
+          >移除注音</UiButton
+        ><UiButton variant="text" @click="emit('cancel')">取消</UiButton
+        ><UiButton variant="filled" @click="apply">应用读音</UiButton>
+      </div>
+    </div>
+    <div class="ruby-fields">
+      <UiField
+        :model-value="reading"
+        label="读音"
+        placeholder="假名或拼音"
+        @update:model-value="type"
+      />
+      <DividerStrip
+        v-if="reading.trim()"
+        v-model:cuts="split"
+        :text="reading"
+        :check="check"
+        :large="false"
+        @apply="apply"
+        @cancel="emit('cancel')"
+        @error="issue = $event"
+      />
+    </div>
+    <p v-if="issue" class="field-error" role="alert">{{ issue }}</p>
+  </div>
+</template>
+<style scoped>
+.segmentation-editor {
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft);
+}
+.segmentation-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-height: 32px;
+  font-size: 12px;
+}
+.segmentation-heading strong {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.segmentation-heading > div {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.segmentation-heading .small-note {
+  font-size: 11px;
+}
+.ruby-fields {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 6px 0 2px;
+}
+.ruby-fields mdui-text-field {
+  flex: 0 0 220px;
+}
+.field-error {
+  color: var(--danger);
+  font-size: 12px;
+  margin-top: 4px;
+}
+</style>

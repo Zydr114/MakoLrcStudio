@@ -399,6 +399,12 @@ kbd {
 .page-heading.compact {
   margin: 14px 0;
 }
+.text-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+}
 .compact h1 {
   font-size: 28px;
   margin: 0;

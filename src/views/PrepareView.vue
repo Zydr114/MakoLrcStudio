@@ -23,6 +23,10 @@ import Modal from "../components/Modal.vue";
 import UiToggle from "../components/UiToggle.vue";
 import UiIconButton from "../components/UiIconButton.vue";
 import PartPanel from "../components/PartPanel.vue";
+import RubyLine from "../components/RubyLine.vue";
+import AutoRubyPanel from "../components/AutoRubyPanel.vue";
+import type { SegmentedButtonGroup } from "mdui/components/segmented-button-group.js";
+import { clearRubySelection } from "../state/rubySelection";
 import { transferLines } from "../domain/parts";
 const emit = defineEmits<{ audio: [] }>();
 const selected = ref<string[]>([]),
@@ -95,8 +99,26 @@ function remove() {
 }
 watch(
   () => editor.project.activePartId,
-  () => (selected.value = []),
+  () => {
+    selected.value = [];
+    clearRubySelection();
+  },
 );
+const layers = [
+  { value: "lyrics", label: "歌词" },
+  { value: "ruby", label: "注音" },
+] as const;
+function changeLayer(event: Event) {
+  const value = (event.currentTarget as SegmentedButtonGroup).value as string;
+  const layer = layers.find((item) => item.value === value);
+  if (!layer) {
+    // A click on the chosen segment clears it in mdui; keep one layer chosen.
+    (event.currentTarget as SegmentedButtonGroup).value = editor.textLayer;
+    return;
+  }
+  clearRubySelection();
+  editor.textLayer = layer.value;
+}
 const otherParts = computed(() =>
   editor.project.parts.filter((part) => part.id !== editor.part.id),
 );
@@ -128,8 +150,21 @@ function apply() {
 </script>
 <template>
   <section class="prepare-view">
-    <div class="page-heading compact">
+    <div class="page-heading compact text-heading">
       <h1>文本处理</h1>
+      <mdui-segmented-button-group
+        selects="single"
+        :value="editor.textLayer"
+        aria-label="文本图层"
+        @change="changeLayer"
+      >
+        <mdui-segmented-button
+          v-for="layer in layers"
+          :key="layer.value"
+          :value="layer.value"
+          >{{ layer.label }}</mdui-segmented-button
+        >
+      </mdui-segmented-button-group>
     </div>
     <div class="prepare-grid">
       <div class="surface lyric-sheet">
@@ -201,53 +236,57 @@ function apply() {
           <span class="row-number">{{
             String(index + 1).padStart(2, "0")
           }}</span
-          ><textarea
-            :aria-label="`第 ${index + 1} 行歌词`"
-            :value="line.text"
-            rows="1"
-            spellcheck="false"
-            @focus="editor.view({ activeLineId: line.id })"
-            @change="textEdit(line.id, $event)"
-            @click="
-              carets.set(
-                line.id,
-                ($event.target as HTMLTextAreaElement).selectionStart,
-              )
-            "
-            @keyup="
-              carets.set(
-                line.id,
-                ($event.target as HTMLTextAreaElement).selectionStart,
-              )
-            "
-            @blur="
-              carets.set(
-                line.id,
-                ($event.target as HTMLTextAreaElement).selectionStart,
-              )
-            "
-          /><span class="time-badge"
-            >{{ formatTime(line.startMs)
-            }}<small
-              v-if="invalidatedTiming.has(line.id) && !hasTiming(line)"
-              class="text-timing-reset"
-              role="status"
-              title="句首已保留；修改行的逐字时间需重打。"
-              >逐字待重打</small
-            ></span
-          ><UiIconButton
-            icon="split"
-            label="在光标处拆句"
-            @click="split(line.id)"
-          />
-          <UiIconButton
-            icon="merge"
-            label="合并下一句"
-            :disabled="index === editor.lines.length - 1"
-            @click="merge(line.id)"
-          />
+          ><RubyLine
+            v-if="editor.textLayer === 'ruby'"
+            :line="line"
+            :index="index"
+          /><template v-else>
+            <textarea
+              :aria-label="`第 ${index + 1} 行歌词`"
+              :value="line.text"
+              rows="1"
+              spellcheck="false"
+              @focus="editor.view({ activeLineId: line.id })"
+              @change="textEdit(line.id, $event)"
+              @click="
+                carets.set(
+                  line.id,
+                  ($event.target as HTMLTextAreaElement).selectionStart,
+                )
+              "
+              @keyup="
+                carets.set(
+                  line.id,
+                  ($event.target as HTMLTextAreaElement).selectionStart,
+                )
+              "
+              @blur="
+                carets.set(
+                  line.id,
+                  ($event.target as HTMLTextAreaElement).selectionStart,
+                )
+              " /><span class="time-badge"
+              >{{ formatTime(line.startMs)
+              }}<small
+                v-if="invalidatedTiming.has(line.id) && !hasTiming(line)"
+                class="text-timing-reset"
+                role="status"
+                title="句首已保留；修改行的逐字时间需重打。"
+                >逐字待重打</small
+              ></span
+            ><UiIconButton
+              icon="split"
+              label="在光标处拆句"
+              @click="split(line.id)" />
+            <UiIconButton
+              icon="merge"
+              label="合并下一句"
+              :disabled="index === editor.lines.length - 1"
+              @click="merge(line.id)"
+          /></template>
         </div>
         <UiButton
+          v-if="editor.textLayer === 'lyrics'"
           class="add-line"
           variant="text"
           @click="
@@ -261,7 +300,11 @@ function apply() {
       </div>
       <div class="prepare-side">
         <section class="surface part-card"><PartPanel /></section>
-        <aside class="surface cleanup-panel">
+        <AutoRubyPanel
+          v-if="editor.textLayer === 'ruby'"
+          :selected="selected"
+        />
+        <aside v-else class="surface cleanup-panel">
           <h2>文本清理</h2>
           <UiToggle v-model="options.trim" label="去掉行首、行尾空白" />
           <UiToggle v-model="options.blanks" label="删除空行" />
