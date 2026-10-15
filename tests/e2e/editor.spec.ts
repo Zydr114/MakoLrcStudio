@@ -1,4 +1,4 @@
-import { choose, setChecked } from "./controls";
+import { choose, setChecked, exportAs } from "./controls";
 import { test, expect, type Page } from "@playwright/test";
 
 import { audio, wav } from "./fixtures";
@@ -71,7 +71,7 @@ test("complete workflow: clean text, record lines, undo, precise words, independ
   await page.getByLabel("本句收尾").fill("00:08.000");
   await page.getByLabel("本句收尾").press("Enter");
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "导出 LRC" }).click();
+  await exportAs(page, "增强 LRC");
   const file = await download;
   const fs = await import("node:fs/promises");
   const result = await fs.readFile((await file.path())!, "utf8");

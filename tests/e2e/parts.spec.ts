@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { audio } from "./fixtures";
-import { setChecked } from "./controls";
+import { setChecked, exportAs } from "./controls";
 
 test("vocal parts: create, move lines, switch globally, reference band, main-part LRC and duet preview", async ({
   page,
@@ -50,7 +50,7 @@ test("vocal parts: create, move lines, switch globally, reference band, main-par
 
   // LRC is a compatibility export of the main part only.
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "导出 LRC" }).click();
+  await exportAs(page, "增强 LRC");
   const fs = await import("node:fs/promises");
   const lrc = await fs.readFile((await (await download).path())!, "utf8");
   expect(lrc).toContain("今");

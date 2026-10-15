@@ -15,6 +15,7 @@ import { themes } from "./components/controlOptions";
 import type { Tabs } from "mdui/components/tabs.js";
 import Modal from "./components/Modal.vue";
 import PartSwitcher from "./components/PartSwitcher.vue";
+import ExportMenu from "./components/ExportMenu.vue";
 import brandMark from "./assets/brand/mark.png";
 const audioInput = ref<HTMLInputElement>(),
   backupInput = ref<HTMLInputElement>();
@@ -314,13 +315,7 @@ onBeforeUnmount(() => {
           @click="editor.backup"
           :disabled="!editor.lineTotal"
           >备份</UiButton
-        ><UiButton
-          variant="filled"
-          icon="download"
-          :disabled="!editor.lineTotal || editor.editingText"
-          @click="editor.exportLrc"
-          >导出 LRC</UiButton
-        >
+        ><ExportMenu />
       </div>
     </header>
     <div v-if="editor.project.stage > 0" class="editor-tabbar">

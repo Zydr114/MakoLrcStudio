@@ -29,6 +29,11 @@ import {
 import { tokenize } from "../domain/tokenize";
 import { lrcLosses, nextPartName } from "../domain/parts";
 import {
+  exportTtml as ttmlText,
+  importTtml,
+  looksLikeTtml,
+} from "../domain/ttml";
+import {
   createAudition,
   type AuditionScope,
   type AuditionTarget,
@@ -319,6 +324,7 @@ export function createEditor(
       error.value = "请先输入或导入歌词。";
       return false;
     }
+    if (looksLikeTtml(text)) return importTtmlText(text, name, asPart);
     const imported = importLyrics(text);
     if (asPart) {
       const success = command("作为新声部导入", (draft) => {
@@ -355,6 +361,50 @@ export function createEditor(
       draft.unlockedStage = 1;
     });
     message.value = imported.notices.join(" ");
+    return success;
+  }
+  function importTtmlText(text: string, name: string, asPart: boolean) {
+    let imported: ReturnType<typeof importTtml>;
+    try {
+      imported = importTtml(text);
+    } catch (value) {
+      showError(value);
+      return false;
+    }
+    const first = imported.parts[0];
+    const success = command(
+      asPart ? "作为新声部导入 TTML" : "导入 TTML",
+      (draft) => {
+        if (asPart) {
+          for (const part of imported.parts) {
+            let label = part.name;
+            for (let n = 2; draft.parts.some((p) => p.name === label); n++)
+              label = `${part.name} ${n}`;
+            draft.parts.push({ ...part, name: label });
+          }
+        } else {
+          draft.parts = imported.parts;
+          draft.mainPartId = first.id;
+          draft.metadata = imported.metadata;
+          draft.name =
+            imported.name || name.replace(/\.(ttml|xml)$/i, "") || draft.name;
+          draft.stage = 0;
+          draft.unlockedStage = 1;
+        }
+        draft.translationLang ||= imported.translationLang;
+        draft.romanLang ||= imported.romanLang;
+        draft.activePartId = first.id;
+        draft.activeLineId = first.lines[0]?.id ?? null;
+      },
+    );
+    message.value = [
+      success
+        ? `已导入 TTML：${imported.parts.length} 个声部（${imported.parts.map((p) => p.name).join("、")}）。`
+        : "",
+      ...imported.notices,
+    ]
+      .filter(Boolean)
+      .join(" ");
     return success;
   }
   function resetProject() {
@@ -903,6 +953,36 @@ export function createEditor(
       showError(value);
     }
   }
+  /** Every part is exported, so a problem in any part is shown where it is. */
+  function revealIssue() {
+    const duration = project.value.audio?.durationMs ?? Infinity;
+    for (const part of project.value.parts) {
+      const first = validateLines(part.lines, duration)[0];
+      if (!first) continue;
+      switchPart(part.id);
+      selectLine(first.lineId);
+      return;
+    }
+  }
+  function exportTtml(options: { foldRuby: boolean }) {
+    try {
+      const { text, notices } = ttmlText(project.value, options);
+      downloadText(
+        text,
+        `${project.value.name}.ttml`,
+        "application/ttml+xml;charset=utf-8",
+      );
+      const count = project.value.parts.filter((p) => p.lines.length).length;
+      message.value = [`TTML 已导出，包含 ${count} 个声部。`, ...notices].join(
+        " ",
+      );
+      return true;
+    } catch (value) {
+      revealIssue();
+      showError(value);
+      return false;
+    }
+  }
   function backup() {
     const snapshot = copyProject(project.value);
     snapshot.playheadMs = Math.round(positionMs.value);
@@ -994,6 +1074,7 @@ export function createEditor(
     retime,
     clearLineTiming,
     exportLrc,
+    exportTtml,
     backup,
     switchPart,
     partStats,

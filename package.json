@@ -18,6 +18,7 @@
     "format": "prettier --write src tests *.config.ts tsconfig.json package.json"
   },
   "dependencies": {
+    "@applemusic-like-lyrics/ttml": "1.0.1",
     "@patdx/kuromoji": "1.0.4",
     "mdui": "2.1.5",
     "pinyin-pro": "3.29.5",
@@ -29,6 +30,7 @@
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.4",
     "@vitejs/plugin-vue": "^6.0.9",
+    "@xmldom/xmldom": "0.9.12",
     "clrc": "^3.1.4",
     "prettier": "^3.9.9",
     "typescript": "5.9.3",

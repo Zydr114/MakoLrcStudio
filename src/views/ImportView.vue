@@ -40,7 +40,7 @@ async function drop(event: DragEvent) {
   dragging.value = false;
   const files = Array.from(event.dataTransfer?.files ?? []);
   for (const file of files) {
-    if (/\.(lrc|elrc|txt)$/i.test(file.name)) {
+    if (/\.(lrc|elrc|txt|ttml|xml)$/i.test(file.name)) {
       lyricFile.value = file;
       await decode();
     } else await editor.loadAudio(file);
@@ -60,7 +60,10 @@ function next() {
     editor.error = "请导入或粘贴歌词。";
     return;
   }
+  // Import notices (offsets applied, parts found) must survive the view change.
+  const notice = editor.message;
   editor.goStage(1);
+  editor.message = notice;
 }
 </script>
 <template>
@@ -93,7 +96,7 @@ function next() {
           ref="input"
           hidden
           type="file"
-          accept=".lrc,.elrc,.txt,text/plain"
+          accept=".lrc,.elrc,.txt,.ttml,.xml,text/plain"
           @change="load"
         />
         <label class="sr-only" for="lyric-paste">粘贴歌词</label
@@ -112,7 +115,7 @@ function next() {
             lyricFile?.name ||
             (editor.lineTotal
               ? `已导入 ${editor.lineTotal} 行`
-              : "TXT / LRC / 增强 LRC")
+              : "TXT / LRC / 增强 LRC / TTML")
           }}</span
           ><UiSelect
             compact

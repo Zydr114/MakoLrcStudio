@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { audio } from "./fixtures";
-import { setChecked } from "./controls";
+import { setChecked, exportAs } from "./controls";
 
 test("ruby syllables are timed one by one, pauses split a syllable from the next, and LRC keeps the base", async ({
   page,
@@ -47,7 +47,7 @@ test("ruby syllables are timed one by one, pauses split a syllable from the next
   await expect(page.locator(".state-label")).toHaveText("本行完成");
 
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "导出 LRC" }).click();
+  await exportAs(page, "增强 LRC");
   const fs = await import("node:fs/promises");
   const lrc = await fs.readFile((await (await download).path())!, "utf8");
   expect(lrc).toBe("[00:01.000]<00:01.000>詮<00:02.000>な<00:03.000>\n");
