@@ -409,6 +409,11 @@
   min-height: 42px;
   flex-wrap: wrap;
 }
+/* The pause switch must not make the row taller than its time fields. */
+.precision-row > .ui-toggle.is-switch {
+  min-height: 32px;
+  margin: -4px 0;
+}
 .time-input {
   display: flex;
   gap: 6px;

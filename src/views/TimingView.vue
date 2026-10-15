@@ -13,6 +13,8 @@ import {
 import {
   setLineStartBoundary,
   setSyllableStart,
+  setSyllableEnd,
+  syllableEndBounds,
   setLineEnd,
   shiftAll,
 } from "../domain/edit";
@@ -61,10 +63,17 @@ const selectedText = computed(() =>
 const syllableCount = computed(() =>
   editor.line ? syllablesOf(editor.line).length : 0,
 );
+const lastSelected = computed(
+  () => editor.selectedIndex === syllableCount.value - 1,
+);
+/** An explicit end leaves a pause before the next syllable. */
+const paused = computed(() => selected.value?.endMs != null);
 const selectedEnd = computed(() =>
-  editor.selectedUnit === syllableCount.value - 1
+  lastSelected.value
     ? editor.line?.endMs
-    : editor.line && syllablesOf(editor.line)[editor.selectedUnit + 1]?.startMs,
+    : (selected.value?.endMs ??
+      (editor.line &&
+        syllablesOf(editor.line)[editor.selectedIndex + 1]?.startMs)),
 );
 const conflict = computed(() =>
   editor.conflicts.find((issue) => issue.lineId === editor.line?.id),
@@ -132,16 +141,18 @@ function choose(id: string) {
 }
 function applyStart(p: typeof editor.project, ms: number) {
   if (lineMode.value) setLineStartBoundary(p, editor.lineIndex, ms);
-  else setSyllableStart(p, editor.lineIndex, editor.selectedUnit, ms);
+  else setSyllableStart(p, editor.lineIndex, editor.selectedIndex, ms);
 }
 function applyEnd(p: typeof editor.project, ms: number) {
   if (lineMode.value) setLineEnd(p, editor.lineIndex, ms);
   else if (
-    editor.selectedUnit ===
+    editor.selectedIndex ===
     syllablesOf(activeLines(p)[editor.lineIndex]).length - 1
   )
     setLineEnd(p, editor.lineIndex, ms);
-  else setSyllableStart(p, editor.lineIndex, editor.selectedUnit + 1, ms);
+  else if (paused.value)
+    setSyllableEnd(p, editor.lineIndex, editor.selectedIndex, ms);
+  else setSyllableStart(p, editor.lineIndex, editor.selectedIndex + 1, ms);
 }
 function fieldStart(ms: number) {
   if (editor.recordingArmed) editor.pause();
@@ -152,6 +163,20 @@ function fieldEnd(ms: number) {
   if (editor.recordingArmed) editor.pause();
   editor.clearPreview();
   return editor.command("调整终点", (p) => applyEnd(p, ms));
+}
+/** Turning a pause on moves nothing: the end starts at the next boundary. */
+function togglePause(on: boolean) {
+  if (editor.recordingArmed) editor.pause();
+  editor.clearPreview();
+  const index = editor.selectedIndex;
+  editor.command(on ? "设置停顿" : "取消停顿", (p) =>
+    setSyllableEnd(
+      p,
+      editor.lineIndex,
+      index,
+      on ? syllableEndBounds(p, editor.lineIndex, index)[1] : null,
+    ),
+  );
 }
 function previewStart(ms: number) {
   return editor.previewCommand("start-field", (p) => applyStart(p, ms));
@@ -355,7 +380,7 @@ watch(
             :label="
               lineMode
                 ? '本句终点'
-                : editor.selectedUnit === syllableCount - 1
+                : lastSelected
                   ? '本句收尾'
                   : `「${selectedText}」终点`
             "
@@ -366,10 +391,23 @@ watch(
             :title="
               lineMode
                 ? '留空时取下一句起点作为参考终点'
-                : editor.selectedUnit === syllableCount - 1
+                : lastSelected
                   ? '真实收尾'
-                  : '与下一项起点共用边界'
+                  : paused
+                    ? '独立终点：与下一音节之间留出停顿'
+                    : '与下一项起点共用边界'
             "
+          />
+          <UiToggle
+            v-if="
+              !lineMode &&
+              !lastSelected &&
+              (paused || selectedInterval?.kind === 'confirmed')
+            "
+            switch
+            :model-value="paused"
+            label="停顿"
+            @update:model-value="togglePause"
           />
           <span v-if="lineMode && editor.line.endMs === null" class="small-note"
             >参考范围</span

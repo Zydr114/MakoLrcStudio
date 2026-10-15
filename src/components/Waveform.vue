@@ -10,6 +10,8 @@ import {
 } from "../domain/model";
 import {
   syllableBounds,
+  syllableEndBounds,
+  setSyllableEnd,
   lineEndBounds,
   lineStartBounds,
   setSyllableStart,
@@ -59,6 +61,8 @@ interface Point {
   end: boolean;
   wholeLine?: boolean;
   reference?: boolean;
+  /** The explicit end of syllable `index`, where its pause begins. */
+  pause?: boolean;
 }
 const points = computed<Point[]>(() => {
   if (editor.project.stage === 2) {
@@ -102,8 +106,8 @@ const points = computed<Point[]>(() => {
   const line = editor.displayLine;
   if (!line) return [];
   const refs = syllableRefs(line);
-  const result: Point[] = refs.flatMap(({ syllable, unit, index }) =>
-    syllable.startMs === null
+  const result: Point[] = refs.flatMap(({ syllable, unit, index }) => [
+    ...(syllable.startMs === null
       ? []
       : [
           {
@@ -114,8 +118,21 @@ const points = computed<Point[]>(() => {
             label: syllableLabel(unit, syllable),
             end: false,
           },
-        ],
-  );
+        ]),
+    ...(syllable.endMs === null
+      ? []
+      : [
+          {
+            key: `${syllable.id}-pause`,
+            lineIndex: editor.lineIndex,
+            index,
+            time: syllable.endMs,
+            label: `${syllableLabel(unit, syllable)}终点`,
+            end: false,
+            pause: true,
+          },
+        ]),
+  ]);
   if (line.endMs !== null)
     result.push({
       key: `${line.id}-end`,
@@ -154,6 +171,8 @@ const ticks = computed(() => {
 function bounds(point: Point): [number, number] {
   if (point.wholeLine) return lineStartBounds(editor.project, point.lineIndex);
   if (point.end) return lineEndBounds(editor.project, point.lineIndex);
+  if (point.pause)
+    return syllableEndBounds(editor.project, point.lineIndex, point.index);
   // The line timing stage only moves the line start boundary; later units and the end stay.
   if (editor.project.stage === 2)
     return syllableBounds(editor.project, point.lineIndex, 0);
@@ -162,6 +181,7 @@ function bounds(point: Point): [number, number] {
 function applyPoint(p: typeof editor.project, point: Point, ms: number) {
   if (point.wholeLine) setLineStart(p, point.lineIndex, ms);
   else if (point.end) setLineEnd(p, point.lineIndex, ms);
+  else if (point.pause) setSyllableEnd(p, point.lineIndex, point.index, ms);
   else if (p.stage === 2) setLineStartBoundary(p, point.lineIndex, ms);
   else setSyllableStart(p, point.lineIndex, point.index, ms);
 }
@@ -178,11 +198,10 @@ function selectPoint(point: Point) {
   if (editor.project.stage === 2)
     editor.view({ activeLineId: editor.lines[point.lineIndex].id });
   else if (!point.wholeLine) {
-    editor.selectedUnit = Math.min(
+    editor.selectedIndex = Math.min(
       point.index,
       (editor.line ? syllableRefs(editor.line).length : 1) - 1,
     );
-    editor.selectionEnd = editor.selectedUnit;
   }
 }
 function startDrag(event: PointerEvent, point: Point) {
@@ -469,10 +488,11 @@ onBeforeUnmount(() => {
           :class="{
             active:
               !point.end &&
+              !point.pause &&
               point.lineIndex === editor.lineIndex &&
               (editor.project.stage === 2 ||
-                point.index === editor.selectedUnit),
-            ending: point.end,
+                point.index === editor.selectedIndex),
+            ending: point.end || point.pause,
             reference: point.reference === true,
             conflict: pointConflict(point),
           }"

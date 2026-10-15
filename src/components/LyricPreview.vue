@@ -2,6 +2,7 @@
 import { computed, ref, watch, nextTick } from "vue";
 import type { LyricLine } from "../domain/model";
 import { sampleLineTiming } from "../domain/timing";
+import KaraokeLine from "./KaraokeLine.vue";
 const props = defineProps<{
   line: LyricLine;
   lines?: LyricLine[];
@@ -40,9 +41,6 @@ const wholeLineActive = computed(
     props.positionMs >= props.line.startMs &&
     props.positionMs < (props.line.endMs ?? props.limitMs),
 );
-const fillStyle = computed(() => ({
-  backgroundImage: `linear-gradient(to right, var(--accent) ${(sample.value.progress ?? 0) * 100}%, var(--muted) ${(sample.value.progress ?? 0) * 100}%)`,
-}));
 const activeId = computed(() => sample.value.unitId ?? props.provisionalUnitId);
 watch(activeId, async (id) => {
   if (!id) return;
@@ -94,26 +92,14 @@ watch(
               :class="{ playing: wholeLineActive }"
               >{{ line.text }}</span
             >
-            <template v-else>
-              <span
-                v-for="unit in line.units"
-                :key="unit.id"
-                class="preview-token"
-                :class="{
-                  playing: unit.id === activeId,
-                  provisional: unit.id === provisionalUnitId,
-                  filling: fill && unit.id === sample.unitId,
-                }"
-                :data-unit-id="unit.id"
-                :style="
-                  fill && unit.id === sample.unitId ? fillStyle : undefined
-                "
-                :data-progress="
-                  unit.id === sample.unitId ? sample.progress : undefined
-                "
-                >{{ unit.text }}</span
-              >
-            </template>
+            <KaraokeLine
+              v-else
+              :line="line"
+              :position-ms="positionMs"
+              :limit-ms="limitMs"
+              :fill="fill"
+              :provisional-unit-id="provisionalUnitId"
+            />
           </template>
           <span v-else>{{ item.text }}</span>
         </div>
@@ -125,24 +111,14 @@ watch(
         :class="{ playing: wholeLineActive }"
         >{{ line.text }}</span
       >
-      <template v-else>
-        <span
-          v-for="unit in line.units"
-          :key="unit.id"
-          class="preview-token"
-          :class="{
-            playing: unit.id === activeId,
-            provisional: unit.id === provisionalUnitId,
-            filling: fill && unit.id === sample.unitId,
-          }"
-          :data-unit-id="unit.id"
-          :style="fill && unit.id === sample.unitId ? fillStyle : undefined"
-          :data-progress="
-            unit.id === sample.unitId ? sample.progress : undefined
-          "
-          >{{ unit.text }}</span
-        >
-      </template>
+      <KaraokeLine
+        v-else
+        :line="line"
+        :position-ms="positionMs"
+        :limit-ms="limitMs"
+        :fill="fill"
+        :provisional-unit-id="provisionalUnitId"
+      />
     </template>
   </div>
 </template>
@@ -249,22 +225,10 @@ watch(
     font-size: clamp(26px, 3vw, 34px);
   }
 }
-.preview-token {
-  color: inherit;
-  background-clip: text;
-  -webkit-background-clip: text;
-}
 .playing {
   color: var(--accent);
   text-decoration: underline;
   text-decoration-thickness: 3px;
   text-underline-offset: 7px;
-}
-.preview-token.filling {
-  color: transparent;
-  text-decoration-color: var(--accent);
-}
-.provisional {
-  text-decoration-style: dashed;
 }
 </style>

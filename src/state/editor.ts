@@ -77,9 +77,9 @@ export function createEditor(
     playing = ref(false),
     rate = ref(1),
     volume = ref(0.8);
-  const compensation = ref(0),
-    selectedUnit = ref(0),
-    selectionEnd = ref(0);
+  const compensation = ref(0);
+  /** The selected timing point: a position in the current line's syllables. */
+  const selectedIndex = ref(0);
   const history = markRaw(new ProjectHistory());
   const historyVersion = ref(0);
   let saveGeneration = 0;
@@ -114,13 +114,12 @@ export function createEditor(
   );
   /** Whole project, every part: whether there is anything to edit at all. */
   const lineTotal = computed(() => lineCount(project.value));
-  /** The selected timing point; selectedUnit indexes the line's syllables. */
   const selectedSyllable = computed(() =>
-    line.value ? (syllableRefs(line.value)[selectedUnit.value] ?? null) : null,
+    line.value ? (syllableRefs(line.value)[selectedIndex.value] ?? null) : null,
   );
   const displaySyllable = computed(() =>
     displayLine.value
-      ? (syllableRefs(displayLine.value)[selectedUnit.value] ?? null)
+      ? (syllableRefs(displayLine.value)[selectedIndex.value] ?? null)
       : null,
   );
   function clearPreview() {
@@ -383,8 +382,7 @@ export function createEditor(
       project.value = draft;
       history.clear();
       historyVersion.value++;
-      selectedUnit.value = 0;
-      selectionEnd.value = 0;
+      selectedIndex.value = 0;
       message.value = "编辑进度已恢复，请选择原音频。";
       error.value = "";
       sync();
@@ -421,8 +419,7 @@ export function createEditor(
     historyVersion.value++;
     error.value = "";
     message.value = `已撤销：${item.label}`;
-    selectedUnit.value = Math.min(cursor.value, lastSyllable());
-    selectionEnd.value = selectedUnit.value;
+    selectedIndex.value = Math.min(cursor.value, lastSyllable());
   }
   function redo() {
     clearPreview();
@@ -432,7 +429,7 @@ export function createEditor(
     audition.cancel();
     recordingArmed.value = false;
     project.value = restoreView(item.after);
-    selectedUnit.value = Math.min(selectedUnit.value, lastSyllable());
+    selectedIndex.value = Math.min(selectedIndex.value, lastSyllable());
     historyVersion.value++;
     error.value = "";
     message.value = `已重做：${item.label}`;
@@ -455,8 +452,7 @@ export function createEditor(
     mode.value = "paused";
     recordingArmed.value = true;
     retimeOne = project.value.stage === 2 && line.value?.startMs !== null;
-    selectedUnit.value = Math.min(point.index, lastSyllable());
-    selectionEnd.value = selectedUnit.value;
+    selectedIndex.value = Math.min(point.index, lastSyllable());
     message.value = "已退回刚才的单位。Enter 继续播放，再按 Enter 重新记录。";
   }
   /** Index of the last syllable in the current line, for clamping the selection. */
@@ -480,8 +476,7 @@ export function createEditor(
     view({ activeLineId: id });
     mode.value = "idle";
     if (project.value.stage === 3) prepareUnits();
-    selectedUnit.value = Math.min(cursor.value, lastSyllable());
-    selectionEnd.value = selectedUnit.value;
+    selectedIndex.value = Math.min(cursor.value, lastSyllable());
     const index = lineIndex.value;
     const prior =
       lines.value
@@ -507,8 +502,7 @@ export function createEditor(
     mode.value = "idle";
     if (stage === 3) {
       prepareUnits();
-      selectedUnit.value = Math.min(selectedUnit.value, lastSyllable());
-      selectionEnd.value = selectedUnit.value;
+      selectedIndex.value = Math.min(selectedIndex.value, lastSyllable());
     }
   }
   function confirmText() {
@@ -536,8 +530,7 @@ export function createEditor(
     view({ unlockedStage: 3 });
     goStage(3);
     if (line.value && cursor.value < syllablesOf(line.value).length)
-      selectedUnit.value = cursor.value;
-    selectionEnd.value = selectedUnit.value;
+      selectedIndex.value = cursor.value;
   }
   function seek(ms: number) {
     pause();
@@ -637,8 +630,7 @@ export function createEditor(
         pause();
         return;
       }
-      selectedUnit.value = Math.min(cursor.value, syllables.length - 1);
-      selectionEnd.value = selectedUnit.value;
+      selectedIndex.value = Math.min(cursor.value, syllables.length - 1);
       if (
         isComplete.value ||
         (at < syllables.length &&
@@ -743,7 +735,7 @@ export function createEditor(
     message.value = "";
     await audition.start(scope, {
       lineId: line.value.id,
-      syllableId: syllablesOf(line.value)[selectedUnit.value]?.id ?? null,
+      syllableId: syllablesOf(line.value)[selectedIndex.value]?.id ?? null,
     });
   }
   async function togglePlayback() {
@@ -801,8 +793,7 @@ export function createEditor(
       });
       activeLines(draft)[lineIndex.value].endMs = null;
     });
-    selectedUnit.value = index;
-    selectionEnd.value = index;
+    selectedIndex.value = index;
     mode.value = "idle";
     seek(
       (index > 0
@@ -834,8 +825,7 @@ export function createEditor(
       });
     });
     if (success) {
-      selectedUnit.value = 0;
-      selectionEnd.value = 0;
+      selectedIndex.value = 0;
       mode.value = "idle";
       message.value = "已清除本行时标，可用撤销恢复。";
     }
@@ -870,8 +860,7 @@ export function createEditor(
     message.value = "";
     error.value = "";
     if (project.value.stage === 3) prepareUnits();
-    selectedUnit.value = Math.min(cursor.value, lastSyllable());
-    selectionEnd.value = selectedUnit.value;
+    selectedIndex.value = Math.min(cursor.value, lastSyllable());
   }
   /** Progress per part: line starts while timing lines, finished lines otherwise. */
   const partStats = computed(() =>
@@ -963,8 +952,7 @@ export function createEditor(
     rate,
     volume,
     compensation,
-    selectedUnit,
-    selectionEnd,
+    selectedIndex,
     lineIndex,
     line,
     cursor,

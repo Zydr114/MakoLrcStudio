@@ -111,7 +111,7 @@ function act(time = performance.now()) {
     return;
   focus();
   if (lineReady.value && !editor.recordingArmed) editor.confirmLines();
-  else if (broken.value) editor.retime(editor.selectedUnit);
+  else if (broken.value) editor.retime(editor.selectedIndex);
   else if (editor.isComplete && !lineMode.value) void editor.review();
   else {
     if (

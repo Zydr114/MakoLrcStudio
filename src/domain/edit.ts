@@ -157,6 +157,45 @@ export function setSyllableStart(
   if (index === 0) line.startMs = ms;
 }
 
+/** Bounds of an explicit syllable end (a pause before the next syllable). */
+export function syllableEndBounds(
+  project: ProjectDraft,
+  lineIndex: number,
+  index: number,
+): [number, number] {
+  const lines = activeLines(project);
+  const line = lines[lineIndex];
+  const syllables = syllablesOf(line);
+  const own = syllables[index];
+  if (!own || index === syllables.length - 1)
+    throw new Error("最后一个音节的终点就是本句收尾。");
+  if (own.startMs === null) throw new Error("先记录这个音节的起点。");
+  const later = syllables
+    .slice(index + 1)
+    .map((syllable) => syllable.startMs)
+    .find((time) => time !== null);
+  const upper =
+    later ??
+    line.endMs ??
+    Math.min(
+      project.audio?.durationMs ?? Infinity,
+      lines[lineIndex + 1]?.startMs ?? Infinity,
+    );
+  return [own.startMs + 1, upper];
+}
+
+/** A null end joins the syllable to the next one again. */
+export function setSyllableEnd(
+  project: ProjectDraft,
+  lineIndex: number,
+  index: number,
+  ms: number | null,
+): void {
+  const [min, max] = syllableEndBounds(project, lineIndex, index);
+  if (ms !== null) assertRange(ms, min, max);
+  syllablesOf(activeLines(project)[lineIndex])[index].endMs = ms;
+}
+
 export function lineEndBounds(
   project: ProjectDraft,
   index: number,

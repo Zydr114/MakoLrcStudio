@@ -67,7 +67,7 @@ const geometry = (interval: TimingInterval) =>
 function selected(interval: TimingInterval) {
   return lineMode.value
     ? interval.lineIndex === editor.lineIndex
-    : interval.index === editor.selectedUnit;
+    : interval.index === editor.selectedIndex;
 }
 function isPlaying(interval: TimingInterval) {
   return lineMode.value

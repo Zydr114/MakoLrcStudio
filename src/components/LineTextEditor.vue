@@ -105,11 +105,10 @@ function apply(action: "text" | "line") {
     issue.value = editor.error;
     return;
   }
-  editor.selectedUnit = Math.min(
-    editor.selectedUnit,
+  editor.selectedIndex = Math.min(
+    editor.selectedIndex,
     Math.max(0, syllablesOf(editor.line).length - 1),
   );
-  editor.selectionEnd = editor.selectedUnit;
   if (hadChanges && oldTiming)
     editor.message = "已保留句首；修改行的逐字时间需重打。";
   else if (action === "line")

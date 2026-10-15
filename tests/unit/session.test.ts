@@ -197,7 +197,7 @@ describe("audition ranges and isolated partial timing", () => {
   it("keeps one pass fixed and loops the same target using committed boundaries", async () => {
     const { audio, editor } = await session("[00:01]<00:01>今<00:02>日<00:03>");
     editor.confirmLines();
-    editor.selectedUnit = 0;
+    editor.selectedIndex = 0;
     editor.loopAudition = true;
     await editor.review("boundary");
     expect(editor.auditionRange).toEqual([600, 1600]);
@@ -210,7 +210,7 @@ describe("audition ranges and isolated partial timing", () => {
     await Promise.resolve();
     expect(editor.auditionRange).toEqual([600, 1600]);
     editor.commitPreview("调整起点");
-    editor.selectedUnit = 1;
+    editor.selectedIndex = 1;
     audio.end();
     await Promise.resolve();
     expect(editor.auditionRange).toEqual([900, 1900]);
