@@ -51,7 +51,8 @@ test("line reference overlays and boundary cancellation preserve real endpoints"
   const draft = JSON.parse(
     await fs.readFile((await (await backup).path())!, "utf8"),
   );
-  expect(draft.lines[0].endMs).toBeNull();
+  expect(draft.version).toBe(2);
+  expect(draft.parts[0].lines[0].endMs).toBeNull();
 });
 
 test("the line end handle belongs to the current line and stops at the next line start", async ({

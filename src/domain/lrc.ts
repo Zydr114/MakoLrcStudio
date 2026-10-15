@@ -1,12 +1,14 @@
 import {
   formatTime,
+  mainPart,
   newLine,
-  newId,
+  newUnit,
   parseTime,
-  validate,
+  syllablesOf,
+  unitStart,
+  validateLines,
   type LyricLine,
   type ProjectDraft,
-  type TimingUnit,
 } from "./model";
 
 const header = /^\[(\d+:[0-5]\d(?:[.:]\d{1,3})?)\]/;
@@ -40,11 +42,11 @@ export function importLyrics(input: string): ImportResult {
     }
     const tags = Array.from(content.matchAll(wordTags));
     let endMs: number | null = null;
-    const units: TimingUnit[] = [];
+    const units: { text: string; startMs: number | null }[] = [];
     if (tags.length) {
       const prefix = content.slice(0, tags[0].index);
       if (prefix.trim())
-        units.push({ id: newId(), text: prefix, startMs: starts[0] ?? null });
+        units.push({ text: prefix, startMs: starts[0] ?? null });
       for (let i = 0; i < tags.length; i++) {
         const tag = tags[i];
         let text = content.slice(
@@ -56,7 +58,7 @@ export function importLyrics(input: string): ImportResult {
           if (text && units.length) units[units.length - 1].text += text;
         } else {
           if (i === 0 && !prefix.trim()) text = prefix + text;
-          units.push({ id: newId(), text, startMs: tagTime(tag[1]) });
+          units.push({ text, startMs: tagTime(tag[1]) });
         }
       }
       content = units.map((u) => u.text).join("");
@@ -68,11 +70,9 @@ export function importLyrics(input: string): ImportResult {
       result.lines.push({
         ...newLine(content, start),
         endMs: endMs === null ? null : endMs + delta,
-        units: units.map((u) => ({
-          ...u,
-          id: newId(),
-          startMs: u.startMs === null ? null : u.startMs + delta,
-        })),
+        units: units.map((u) =>
+          newUnit(u.text, u.startMs === null ? null : u.startMs + delta),
+        ),
       });
     }
     expanded ||= starts.length > 1;
@@ -97,8 +97,8 @@ export function importLyrics(input: string): ImportResult {
       for (const line of result.lines) {
         if (line.startMs !== null) line.startMs -= value;
         if (line.endMs !== null) line.endMs -= value;
-        for (const unit of line.units)
-          if (unit.startMs !== null) unit.startMs -= value;
+        for (const syllable of syllablesOf(line))
+          if (syllable.startMs !== null) syllable.startMs -= value;
       }
       delete result.metadata.offset;
       result.notices.push(
@@ -112,16 +112,18 @@ export function importLyrics(input: string): ImportResult {
   return result;
 }
 
+/** Compatibility export: the main part only, ruby as its base text, pauses dropped. */
 export function exportLyrics(project: ProjectDraft): string {
-  if (!project.lines.length) throw new Error("请先导入歌词。");
-  const errors = validate(project);
+  const lines = mainPart(project).lines;
+  if (!lines.length) throw new Error("请先导入歌词。");
+  const errors = validateLines(lines, project.audio?.durationMs ?? Infinity);
   if (errors.length) throw new Error(`无法导出：${errors[0].message}`);
   const metadata = Object.entries(project.metadata)
     .filter(([key]) => key !== "offset")
     .map(([key, value]) => `[${key}:${value.replace(/[\r\n]/g, " ")}]`);
-  const lines = project.lines.map(
+  const body = lines.map(
     (line) =>
-      `[${formatTime(line.startMs)}]${line.units.map((u) => `<${formatTime(u.startMs)}>${u.text}`).join("")}<${formatTime(line.endMs)}>`,
+      `[${formatTime(line.startMs)}]${line.units.map((u) => `<${formatTime(unitStart(u))}>${u.text}`).join("")}<${formatTime(line.endMs)}>`,
   );
-  return [...metadata, ...lines].join("\n") + "\n";
+  return [...metadata, ...body].join("\n") + "\n";
 }

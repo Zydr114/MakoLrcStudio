@@ -1,10 +1,18 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from "vue";
 import { editor } from "../state/editor";
-import { completeLine, formatTime } from "../domain/model";
+import {
+  activeLines,
+  completeLine,
+  formatTime,
+  hasTiming,
+  syllableLabel,
+  syllableRefs,
+  syllablesOf,
+} from "../domain/model";
 import {
   setLineStartBoundary,
-  setUnitStart,
+  setSyllableStart,
   setLineEnd,
   shiftAll,
 } from "../domain/edit";
@@ -38,20 +46,25 @@ const lineMode = computed(() => editor.project.stage === 2);
 const hasLineTiming = computed(() => {
   const line = editor.line;
   return (
-    !!line &&
-    (line.startMs !== null ||
-      line.endMs !== null ||
-      line.units.some((unit) => unit.startMs !== null))
+    !!line && (line.startMs !== null || line.endMs !== null || hasTiming(line))
   );
 });
-const selected = computed(() => editor.line?.units[editor.selectedUnit]);
-const displaySelected = computed(
-  () => editor.displayLine?.units[editor.selectedUnit],
+const selected = computed(() => editor.selectedSyllable?.syllable);
+const selectedText = computed(() =>
+  editor.selectedSyllable
+    ? syllableLabel(
+        editor.selectedSyllable.unit,
+        editor.selectedSyllable.syllable,
+      )
+    : "",
+);
+const syllableCount = computed(() =>
+  editor.line ? syllablesOf(editor.line).length : 0,
 );
 const selectedEnd = computed(() =>
-  editor.selectedUnit === (editor.line?.units.length ?? 0) - 1
+  editor.selectedUnit === syllableCount.value - 1
     ? editor.line?.endMs
-    : editor.line?.units[editor.selectedUnit + 1]?.startMs,
+    : editor.line && syllablesOf(editor.line)[editor.selectedUnit + 1]?.startMs,
 );
 const conflict = computed(() =>
   editor.conflicts.find((issue) => issue.lineId === editor.line?.id),
@@ -59,16 +72,16 @@ const conflict = computed(() =>
 const previewLine = computed(() => {
   if (editor.auditionScope === "song" || lineMode.value) {
     const index = playingLineIndex(editor.displayProject, editor.positionMs);
-    if (index >= 0) return editor.displayProject.lines[index];
+    if (index >= 0) return editor.displayLines[index];
     if (editor.recordingArmed && editor.lastRecorded && lineMode.value)
       return (
-        editor.displayProject.lines.find(
+        editor.displayLines.find(
           (line) => line.id === editor.lastRecorded!.lineId,
         ) ?? editor.displayLine
       );
     if (editor.auditionScope === "song")
       return (
-        editor.displayProject.lines
+        editor.displayLines
           .filter(
             (line) =>
               line.startMs !== null && line.startMs <= editor.positionMs,
@@ -79,12 +92,12 @@ const previewLine = computed(() => {
   return editor.displayLine;
 });
 const previewLimit = computed(() => {
-  const index = editor.displayProject.lines.findIndex(
+  const index = editor.displayLines.findIndex(
     (line) => line.id === previewLine.value?.id,
   );
   return Math.min(
     editor.project.audio?.durationMs ?? Infinity,
-    editor.displayProject.lines[index + 1]?.startMs ?? Infinity,
+    editor.displayLines[index + 1]?.startMs ?? Infinity,
   );
 });
 const provisional = computed(() =>
@@ -92,7 +105,8 @@ const provisional = computed(() =>
   editor.lastRecorded?.lineId === editor.line?.id &&
   editor.lastRecorded.index === editor.cursor - 1 &&
   editor.positionMs >= editor.lastRecorded.timeMs
-    ? editor.line?.units[editor.lastRecorded.index]?.id
+    ? editor.line &&
+      syllableRefs(editor.line)[editor.lastRecorded.index]?.unit.id
     : null,
 );
 const selectedInterval = computed(() =>
@@ -101,8 +115,7 @@ const selectedInterval = computed(() =>
         editor.displayLine,
         Math.min(
           editor.project.audio?.durationMs ?? Infinity,
-          editor.displayProject.lines[editor.lineIndex + 1]?.startMs ??
-            Infinity,
+          editor.displayLines[editor.lineIndex + 1]?.startMs ?? Infinity,
         ),
       ).find((interval) => interval.id === selected.value?.id)
     : undefined,
@@ -119,13 +132,16 @@ function choose(id: string) {
 }
 function applyStart(p: typeof editor.project, ms: number) {
   if (lineMode.value) setLineStartBoundary(p, editor.lineIndex, ms);
-  else setUnitStart(p, editor.lineIndex, editor.selectedUnit, ms);
+  else setSyllableStart(p, editor.lineIndex, editor.selectedUnit, ms);
 }
 function applyEnd(p: typeof editor.project, ms: number) {
   if (lineMode.value) setLineEnd(p, editor.lineIndex, ms);
-  else if (editor.selectedUnit === p.lines[editor.lineIndex].units.length - 1)
+  else if (
+    editor.selectedUnit ===
+    syllablesOf(activeLines(p)[editor.lineIndex]).length - 1
+  )
     setLineEnd(p, editor.lineIndex, ms);
-  else setUnitStart(p, editor.lineIndex, editor.selectedUnit + 1, ms);
+  else setSyllableStart(p, editor.lineIndex, editor.selectedUnit + 1, ms);
 }
 function fieldStart(ms: number) {
   if (editor.recordingArmed) editor.pause();
@@ -180,16 +196,15 @@ watch(
         <span
           >{{
             lineMode
-              ? editor.project.lines.filter((line) => line.startMs !== null)
-                  .length
+              ? editor.lines.filter((line) => line.startMs !== null).length
               : editor.finishedCount
           }}
-          / {{ editor.project.lines.length }}</span
+          / {{ editor.lines.length }}</span
         >
       </div>
       <div class="lyric-nav-list">
         <button
-          v-for="(line, index) in editor.project.lines"
+          v-for="(line, index) in editor.lines"
           :key="line.id"
           :class="{
             active: line.id === editor.line?.id,
@@ -226,7 +241,7 @@ watch(
             v-else
             class="progress-dot"
             :class="{
-              partial: line.units.some((unit) => unit.startMs !== null),
+              partial: hasTiming(line),
               invalid: editor.conflicts.some(
                 (issue) => issue.lineId === line.id,
               ),
@@ -287,13 +302,16 @@ watch(
           >
         </div>
         <span class="workspace-counter"
-          >第 {{ editor.lineIndex + 1 }} / {{ editor.project.lines.length }} 行
+          >第 {{ editor.lineIndex + 1 }} / {{ editor.lines.length }} 行
           <template v-if="!lineMode"
             >·
             {{
-              editor.line?.units.filter((unit) => unit.startMs !== null).length
+              editor.line &&
+              syllablesOf(editor.line).filter(
+                (syllable) => syllable.startMs !== null,
+              ).length
             }}
-            / {{ editor.line?.units.length }}</template
+            / {{ syllableCount }}</template
           ></span
         >
       </div>
@@ -311,7 +329,7 @@ watch(
         <LyricPreview
           v-if="previewLine"
           :line="previewLine"
-          :lines="editor.displayProject.lines"
+          :lines="editor.displayLines"
           :active-line-id="previewLine.id"
           :position-ms="editor.positionMs"
           :limit-ms="previewLimit"
@@ -327,9 +345,7 @@ watch(
             :value="
               lineMode ? editor.line.startMs : (selected?.startMs ?? null)
             "
-            :label="
-              lineMode ? '本句起点' : `「${selected?.text.trim() ?? ''}」起点`
-            "
+            :label="lineMode ? '本句起点' : `「${selectedText}」起点`"
             :commit="fieldStart"
             :preview="previewStart"
             :cancel="() => cancelField('start-field')"
@@ -339,9 +355,9 @@ watch(
             :label="
               lineMode
                 ? '本句终点'
-                : editor.selectedUnit === editor.line.units.length - 1
+                : editor.selectedUnit === syllableCount - 1
                   ? '本句收尾'
-                  : `「${selected?.text.trim() ?? ''}」终点`
+                  : `「${selectedText}」终点`
             "
             :commit="fieldEnd"
             :preview="previewEnd"
@@ -350,7 +366,7 @@ watch(
             :title="
               lineMode
                 ? '留空时取下一句起点作为参考终点'
-                : editor.selectedUnit === editor.line.units.length - 1
+                : editor.selectedUnit === syllableCount - 1
                   ? '真实收尾'
                   : '与下一项起点共用边界'
             "
@@ -363,7 +379,7 @@ watch(
             class="duration-label"
             >{{
               (
-                (selectedInterval.endMs! - displaySelected!.startMs!) /
+                (selectedInterval.endMs! - selectedInterval.startMs) /
                 1000
               ).toFixed(3)
             }}s</span
@@ -414,22 +430,18 @@ watch(
           </div>
           <UiButton
             v-if="
-              lineMode &&
-              !editor.project.lines.every((line) => line.startMs !== null)
+              lineMode && !editor.lines.every((line) => line.startMs !== null)
             "
             variant="tonal"
             :disabled="editor.lineIssues.length > 0"
             @click="editor.confirmLines"
             >逐行完成，进入逐字</UiButton
           ><UiButton
-            v-else-if="
-              !lineMode && editor.lineIndex < editor.project.lines.length - 1
-            "
+            v-else-if="!lineMode && editor.lineIndex < editor.lines.length - 1"
             variant="tonal"
             icon="arrow"
             :disabled="
-              !editor.isComplete ||
-              editor.lineIndex === editor.project.lines.length - 1
+              !editor.isComplete || editor.lineIndex === editor.lines.length - 1
             "
             @click="editor.nextLine"
             >下一句</UiButton

@@ -2,15 +2,27 @@ import { computed, markRaw, reactive, ref, shallowRef, watch } from "vue";
 import { AudioTransport, type AudioAsset } from "../audio/transport";
 import {
   newProject,
+  newPart,
   copyProject,
   completeLine,
+  activePart,
+  activeLines,
+  lineCount,
+  syllableRefs,
+  syllablesOf,
+  syllableLabel,
+  hasTiming,
   validate,
   type ProjectDraft,
 } from "../domain/model";
 import { ProjectHistory, type PointChange } from "../domain/history";
 import { importLyrics, exportLyrics } from "../domain/lrc";
 import { readBackup, downloadText } from "../domain/backup";
-import { setLineStartBoundary, setLineEnd, setUnitStart } from "../domain/edit";
+import {
+  setLineStartBoundary,
+  setLineEnd,
+  setSyllableStart,
+} from "../domain/edit";
 import { tokenize } from "../domain/tokenize";
 import {
   createAudition,
@@ -82,15 +94,30 @@ export function createEditor(
       mode.value = "idle";
     },
   );
+  const part = computed(() => activePart(project.value));
+  /** Lines of the part being edited; every view works on one part at a time. */
+  const lines = computed(() => part.value.lines);
+  const displayLines = computed(() => activeLines(displayProject.value));
   const lineIndex = computed(() =>
     Math.max(
       0,
-      project.value.lines.findIndex((l) => l.id === project.value.activeLineId),
+      lines.value.findIndex((l) => l.id === project.value.activeLineId),
     ),
   );
-  const line = computed(() => project.value.lines[lineIndex.value] ?? null);
+  const line = computed(() => lines.value[lineIndex.value] ?? null);
   const displayLine = computed(
-    () => displayProject.value.lines[lineIndex.value] ?? null,
+    () => displayLines.value[lineIndex.value] ?? null,
+  );
+  /** Whole project, every part: whether there is anything to edit at all. */
+  const lineTotal = computed(() => lineCount(project.value));
+  /** The selected timing point; selectedUnit indexes the line's syllables. */
+  const selectedSyllable = computed(() =>
+    line.value ? (syllableRefs(line.value)[selectedUnit.value] ?? null) : null,
+  );
+  const displaySyllable = computed(() =>
+    displayLine.value
+      ? (syllableRefs(displayLine.value)[selectedUnit.value] ?? null)
+      : null,
   );
   function clearPreview() {
     gestureDraft.value = null;
@@ -116,14 +143,16 @@ export function createEditor(
     const draft = gestureDraft.value;
     clearPreview();
     return command(label, (target) => {
-      target.lines = draft.lines;
+      target.parts = draft.parts;
     });
   }
+  /** The next syllable to record; the syllable count means the line end. */
   const cursor = computed(() => {
     const current = line.value;
     if (!current) return 0;
-    const missing = current.units.findIndex((u) => u.startMs === null);
-    return missing < 0 ? current.units.length : missing;
+    const syllables = syllablesOf(current);
+    const missing = syllables.findIndex((s) => s.startMs === null);
+    return missing < 0 ? syllables.length : missing;
   });
   const lineIssues = computed(() => validate(project.value, false));
   const issues = computed(() => validate(project.value));
@@ -137,23 +166,25 @@ export function createEditor(
   );
   const finishedCount = computed(
     () =>
-      project.value.lines.filter(
-        (line) => completeLine(line) && validLine(line.id),
-      ).length,
+      lines.value.filter((line) => completeLine(line) && validLine(line.id))
+        .length,
   );
   const lastRecorded = computed(() => {
     historyVersion.value;
     const entry = [...history.past].reverse().find((entry) => entry.point);
     if (!entry?.point) return null;
-    const sourceLine = entry.after.lines.find(
-      (line) => line.id === entry.point!.lineId,
-    );
+    const sourceLine = entry.after.parts
+      .flatMap((part) => part.lines)
+      .find((line) => line.id === entry.point!.lineId);
+    const ref = sourceLine && syllableRefs(sourceLine)[entry.point.index];
     return {
       ...entry.point,
       text:
         entry.after.stage === 2
           ? sourceLine?.text
-          : (sourceLine?.units[entry.point.index]?.text ?? "收尾"),
+          : ref
+            ? syllableLabel(ref.unit, ref.syllable)
+            : "收尾",
     };
   });
   const canUndo = computed(() => {
@@ -192,7 +223,7 @@ export function createEditor(
       const next = copyProject(project.value);
       apply(next);
       // Retain the v1 backup field; editing views no longer use it as a gate.
-      next.unlockedStage = next.lines.length
+      next.unlockedStage = lineCount(next)
         ? 3
         : Math.max(next.stage, next.unlockedStage);
       if (JSON.stringify(next) === JSON.stringify(project.value)) return true;
@@ -284,7 +315,9 @@ export function createEditor(
     }
     const imported = importLyrics(text);
     const success = command("导入歌词", (draft) => {
-      draft.lines = imported.lines;
+      const main = newPart("主唱", imported.lines);
+      draft.parts = [main];
+      draft.mainPartId = draft.activePartId = main.id;
       draft.metadata = imported.metadata;
       draft.name =
         imported.metadata.ti || name.replace(/\.(lrc|elrc|txt)$/i, "");
@@ -331,6 +364,24 @@ export function createEditor(
       showError(value);
     }
   }
+  /** A snapshot returns in the part where it was edited, so the change is visible. */
+  function restoreView(snapshot: ProjectDraft) {
+    const restored = copyProject(snapshot);
+    restored.stage = project.value.stage;
+    restored.unlockedStage = Math.max(
+      restored.stage,
+      lineCount(restored) ? 3 : 0,
+    );
+    const restoredLines = activeLines(restored);
+    restored.activeLineId = restoredLines.some(
+      (l) => l.id === project.value.activeLineId,
+    )
+      ? project.value.activeLineId
+      : restoredLines.some((l) => l.id === snapshot.activeLineId)
+        ? snapshot.activeLineId
+        : (restoredLines[0]?.id ?? null);
+    return restored;
+  }
   function undo() {
     clearPreview();
     const item = history.undo();
@@ -338,25 +389,11 @@ export function createEditor(
     pause();
     audition.cancel();
     recordingArmed.value = false;
-    const restored = copyProject(item.before);
-    restored.stage = project.value.stage;
-    restored.unlockedStage = Math.max(
-      restored.stage,
-      restored.lines.length ? 3 : 0,
-    );
-    restored.activeLineId = restored.lines.some(
-      (l) => l.id === project.value.activeLineId,
-    )
-      ? project.value.activeLineId
-      : (restored.lines[0]?.id ?? null);
-    project.value = restored;
+    project.value = restoreView(item.before);
     historyVersion.value++;
     error.value = "";
     message.value = `已撤销：${item.label}`;
-    selectedUnit.value = Math.min(
-      cursor.value,
-      Math.max(0, (line.value?.units.length ?? 1) - 1),
-    );
+    selectedUnit.value = Math.min(cursor.value, lastSyllable());
     selectionEnd.value = selectedUnit.value;
   }
   function redo() {
@@ -366,22 +403,8 @@ export function createEditor(
     pause();
     audition.cancel();
     recordingArmed.value = false;
-    const restored = copyProject(item.after);
-    restored.stage = project.value.stage;
-    restored.unlockedStage = Math.max(
-      restored.stage,
-      restored.lines.length ? 3 : 0,
-    );
-    restored.activeLineId = restored.lines.some(
-      (line) => line.id === project.value.activeLineId,
-    )
-      ? project.value.activeLineId
-      : (restored.lines[0]?.id ?? null);
-    project.value = restored;
-    selectedUnit.value = Math.min(
-      selectedUnit.value,
-      Math.max(0, (line.value?.units.length ?? 1) - 1),
-    );
+    project.value = restoreView(item.after);
+    selectedUnit.value = Math.min(selectedUnit.value, lastSyllable());
     historyVersion.value++;
     error.value = "";
     message.value = `已重做：${item.label}`;
@@ -403,19 +426,19 @@ export function createEditor(
     mode.value = "paused";
     recordingArmed.value = true;
     retimeOne = project.value.stage === 2 && line.value?.startMs !== null;
-    selectedUnit.value = Math.min(
-      point.index,
-      Math.max(0, (line.value?.units.length ?? 1) - 1),
-    );
+    selectedUnit.value = Math.min(point.index, lastSyllable());
     selectionEnd.value = selectedUnit.value;
     message.value = "已退回刚才的单位。Enter 继续播放，再按 Enter 重新记录。";
+  }
+  /** Index of the last syllable in the current line, for clamping the selection. */
+  function lastSyllable() {
+    return Math.max(0, (line.value ? syllablesOf(line.value).length : 1) - 1);
   }
   function prepareUnits() {
     if (line.value && !line.value.units.length && line.value.text.trim())
       command("切分当前句", (draft) => {
-        draft.lines[lineIndex.value].units = tokenize(
-          draft.lines[lineIndex.value].text,
-        );
+        const target = activeLines(draft)[lineIndex.value];
+        target.units = tokenize(target.text);
       });
   }
   function selectLine(id: string) {
@@ -428,14 +451,11 @@ export function createEditor(
     view({ activeLineId: id });
     mode.value = "idle";
     if (project.value.stage === 3) prepareUnits();
-    selectedUnit.value = Math.min(
-      cursor.value,
-      Math.max(0, (line.value?.units.length ?? 1) - 1),
-    );
+    selectedUnit.value = Math.min(cursor.value, lastSyllable());
     selectionEnd.value = selectedUnit.value;
     const index = lineIndex.value;
     const prior =
-      project.value.lines
+      lines.value
         .slice(0, index)
         .reverse()
         .find((l) => l.startMs !== null)?.startMs ?? 0;
@@ -444,7 +464,7 @@ export function createEditor(
   function goStage(stage: number) {
     if (
       ![0, 1, 2, 3].includes(stage) ||
-      (stage > 0 && !project.value.lines.length)
+      (stage > 0 && !lineCount(project.value))
     )
       return;
     pause();
@@ -454,22 +474,16 @@ export function createEditor(
     editingText.value = false;
     retimeOne = false;
     message.value = "";
-    view({ stage, unlockedStage: project.value.lines.length ? 3 : 0 });
+    view({ stage, unlockedStage: lineCount(project.value) ? 3 : 0 });
     mode.value = "idle";
     if (stage === 3) {
       prepareUnits();
-      selectedUnit.value = Math.min(
-        selectedUnit.value,
-        Math.max(0, (line.value?.units.length ?? 1) - 1),
-      );
+      selectedUnit.value = Math.min(selectedUnit.value, lastSyllable());
       selectionEnd.value = selectedUnit.value;
     }
   }
   function confirmText() {
-    if (
-      !project.value.lines.length ||
-      project.value.lines.some((l) => !l.text.trim())
-    ) {
+    if (!lines.value.length || lines.value.some((l) => !l.text.trim())) {
       error.value = "请删除空行并保留至少一句歌词。";
       return;
     }
@@ -492,7 +506,7 @@ export function createEditor(
     }
     view({ unlockedStage: 3 });
     goStage(3);
-    if (cursor.value < (line.value?.units.length ?? 0))
+    if (line.value && cursor.value < syllablesOf(line.value).length)
       selectedUnit.value = cursor.value;
     selectionEnd.value = selectedUnit.value;
   }
@@ -504,7 +518,7 @@ export function createEditor(
   }
   function clipEnd() {
     return Math.min(
-      project.value.lines[lineIndex.value + 1]?.startMs ?? Infinity,
+      lines.value[lineIndex.value + 1]?.startMs ?? Infinity,
       asset.value?.info.durationMs ?? 0,
     );
   }
@@ -568,8 +582,8 @@ export function createEditor(
       )
         return;
       const next =
-        project.value.lines.slice(index + 1).find((l) => l.startMs === null) ??
-        project.value.lines.find((l) => l.startMs === null);
+        lines.value.slice(index + 1).find((l) => l.startMs === null) ??
+        lines.value.find((l) => l.startMs === null);
       if (!retimeOne && next) view({ activeLineId: next.id });
       else {
         pause();
@@ -579,28 +593,28 @@ export function createEditor(
         message.value = "";
       }
     } else {
-      const unit = cursor.value;
+      const at = cursor.value;
+      const syllables = syllablesOf(current);
       if (
         !command(
-          unit < current.units.length ? "记录单位起点" : "记录收尾",
+          at < syllables.length ? "记录单位起点" : "记录收尾",
           (draft) => {
-            if (unit < current.units.length)
-              setUnitStart(draft, index, unit, ms);
+            if (at < syllables.length) setSyllableStart(draft, index, at, ms);
             else setLineEnd(draft, index, ms);
           },
-          { lineId: current.id, index: unit, timeMs: ms },
+          { lineId: current.id, index: at, timeMs: ms },
         )
       ) {
         pause();
         return;
       }
-      selectedUnit.value = Math.min(cursor.value, current.units.length - 1);
+      selectedUnit.value = Math.min(cursor.value, syllables.length - 1);
       selectionEnd.value = selectedUnit.value;
       if (
         isComplete.value ||
-        (unit < current.units.length &&
-          current.units[unit + 1]?.startMs !== null &&
-          current.units[unit + 1]?.startMs !== undefined)
+        (at < syllables.length &&
+          syllables[at + 1]?.startMs !== null &&
+          syllables[at + 1]?.startMs !== undefined)
       ) {
         pause();
         mode.value = "idle";
@@ -642,9 +656,11 @@ export function createEditor(
     mode.value = "idle";
   }
   function recordingEnd() {
-    const nextKnown = line.value?.units
-      .slice(cursor.value + 1)
-      .find((unit) => unit.startMs !== null)?.startMs;
+    const nextKnown =
+      line.value &&
+      syllablesOf(line.value)
+        .slice(cursor.value + 1)
+        .find((syllable) => syllable.startMs !== null)?.startMs;
     return Math.min(
       clipEnd(),
       nextKnown ?? Infinity,
@@ -658,33 +674,28 @@ export function createEditor(
   ): [number, number] {
     const duration = asset.value?.info.durationMs ?? 0;
     if (scope === "song") return [0, duration];
-    const index = project.value.lines.findIndex(
-      (line) => line.id === target.lineId,
-    );
-    const data = committed ? project.value : displayProject.value;
-    const current = data.lines[index];
+    const index = lines.value.findIndex((line) => line.id === target.lineId);
+    const data = activeLines(committed ? project.value : displayProject.value);
+    const current = data[index];
     if (!current) throw new Error("请选择歌词行。");
-    const limit = Math.min(
-      data.lines[index + 1]?.startMs ?? duration,
-      duration,
-    );
+    const limit = Math.min(data[index + 1]?.startMs ?? duration, duration);
     if (scope === "line")
       return [
         Math.max(0, (current.startMs ?? positionMs.value) - 800),
         Math.min(duration, (current.endMs ?? limit) + 300),
       ];
-    const unitIndex = current.units.findIndex(
-        (unit) => unit.id === target.unitId,
-      ),
-      unit = current.units[unitIndex];
-    if (!unit || unit.startMs === null) throw new Error("先记录选中项起点。");
+    const syllable = syllablesOf(current).find(
+      (syllable) => syllable.id === target.syllableId,
+    );
+    if (!syllable || syllable.startMs === null)
+      throw new Error("先记录选中项起点。");
     if (scope === "boundary")
       return [
-        Math.max(0, unit.startMs - 400),
-        Math.min(duration, unit.startMs + 600),
+        Math.max(0, syllable.startMs - 400),
+        Math.min(duration, syllable.startMs + 600),
       ];
     const interval = tokenIntervals(current, limit).find(
-      (interval) => interval.id === unit.id,
+      (interval) => interval.id === syllable.id,
     );
     if (interval?.kind !== "confirmed" || interval.endMs === null)
       throw new Error("选中范围未确认，请试听边界。");
@@ -703,7 +714,7 @@ export function createEditor(
     message.value = "";
     await audition.start(scope, {
       lineId: line.value.id,
-      unitId: line.value.units[selectedUnit.value]?.id ?? null,
+      syllableId: syllablesOf(line.value)[selectedUnit.value]?.id ?? null,
     });
   }
   async function togglePlayback() {
@@ -719,7 +730,7 @@ export function createEditor(
       else
         await audition.start(
           project.value.stage === 3 && line.value ? "line" : "song",
-          { lineId: line.value?.id ?? "", unitId: null },
+          { lineId: line.value?.id ?? "", syllableId: null },
           positionMs.value,
         );
     }
@@ -739,7 +750,7 @@ export function createEditor(
       message.value = "先记录本句剩余起点和收尾；也可以在列表选择另一句。";
       return;
     }
-    const next = project.value.lines[lineIndex.value + 1];
+    const next = lines.value[lineIndex.value + 1];
     if (next) selectLine(next.id);
     else {
       pause();
@@ -752,16 +763,21 @@ export function createEditor(
     recordingArmed.value = false;
     audition.cancel();
     command("从选中单位重打", (draft) => {
-      const target = draft.lines[lineIndex.value];
-      target.units.slice(index).forEach((u) => (u.startMs = null));
-      target.endMs = null;
+      const syllables = syllablesOf(activeLines(draft)[lineIndex.value]);
+      // The pause before the retimed syllable is re-recorded with it.
+      if (index > 0) syllables[index - 1].endMs = null;
+      syllables.slice(index).forEach((s) => {
+        s.startMs = null;
+        s.endMs = null;
+      });
+      activeLines(draft)[lineIndex.value].endMs = null;
     });
     selectedUnit.value = index;
     selectionEnd.value = index;
     mode.value = "idle";
     seek(
       (index > 0
-        ? line.value.units[index - 1].startMs
+        ? syllablesOf(line.value)[index - 1].startMs
         : (line.value.startMs ?? 0))! - 1000,
     );
   }
@@ -769,20 +785,24 @@ export function createEditor(
     const current = line.value;
     if (!current) return false;
     const index = lineIndex.value;
-    const hasTiming =
-      current.startMs !== null ||
-      current.endMs !== null ||
-      current.units.some((unit) => unit.startMs !== null);
-    if (!hasTiming) return true;
+    if (
+      current.startMs === null &&
+      current.endMs === null &&
+      !hasTiming(current)
+    )
+      return true;
     pause();
     audition.cancel();
     recordingArmed.value = false;
     retimeOne = false;
     const success = command("清除本行时标", (draft) => {
-      const target = draft.lines[index];
+      const target = activeLines(draft)[index];
       target.startMs = null;
       target.endMs = null;
-      target.units.forEach((unit) => (unit.startMs = null));
+      syllablesOf(target).forEach((syllable) => {
+        syllable.startMs = null;
+        syllable.endMs = null;
+      });
     });
     if (success) {
       selectedUnit.value = 0;
@@ -821,7 +841,13 @@ export function createEditor(
     project,
     asset,
     displayProject,
+    part,
+    lines,
+    lineTotal,
+    displayLines,
     displayLine,
+    selectedSyllable,
+    displaySyllable,
     auditionScope: audition.scope,
     auditionRange: audition.range,
     auditionTarget: audition.target,

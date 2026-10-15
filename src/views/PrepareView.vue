@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, onMounted } from "vue";
 import { editor } from "../state/editor";
-import { copyProject, formatTime, newLine } from "../domain/model";
+import {
+  activeLines,
+  activePart,
+  copyProject,
+  formatTime,
+  hasTiming,
+  newLine,
+} from "../domain/model";
 import {
   editLine,
   splitLine,
@@ -30,9 +37,10 @@ const preview = computed(() => {
   cleanProject(p, options.value);
   return p;
 });
+const previewLines = computed(() => activeLines(preview.value));
 const changed = computed(() =>
-  editor.project.lines.filter(
-    (l) => preview.value.lines.find((n) => n.id === l.id)?.text !== l.text,
+  editor.lines.filter(
+    (l) => previewLines.value.find((n) => n.id === l.id)?.text !== l.text,
   ),
 );
 const carets = new Map<string, number>();
@@ -46,18 +54,14 @@ onMounted(
 );
 function textEdit(id: string, event: Event) {
   const target = event.target as HTMLTextAreaElement;
-  const hadTiming = editor.project.lines
-    .find((line) => line.id === id)
-    ?.units.some((unit) => unit.startMs !== null);
+  const old = editor.lines.find((line) => line.id === id);
+  const hadTiming = !!old && hasTiming(old);
   const committed = editor.command("修改歌词", (p) => {
     const parts = target.value.replace(/\r\n?/g, "\n").split("\n");
-    const index = p.lines.findIndex((line) => line.id === id);
+    const lines = activeLines(p);
+    const index = lines.findIndex((line) => line.id === id);
     editLine(p, id, parts[0]);
-    p.lines.splice(
-      index + 1,
-      0,
-      ...parts.slice(1).map((text) => newLine(text)),
-    );
+    lines.splice(index + 1, 0, ...parts.slice(1).map((text) => newLine(text)));
     p.activeLineId = id;
   });
   if (committed && hadTiming) invalidatedTiming.value.add(id);
@@ -79,17 +83,19 @@ function toggle(id: string) {
 }
 function remove() {
   editor.command("删除选中行", (p) => {
-    p.lines = p.lines.filter((l) => !selected.value.includes(l.id));
-    if (!p.lines.some((line) => line.id === p.activeLineId))
-      p.activeLineId = p.lines[0]?.id ?? null;
+    const part = activePart(p);
+    part.lines = part.lines.filter((l) => !selected.value.includes(l.id));
+    if (!part.lines.some((line) => line.id === p.activeLineId))
+      p.activeLineId = part.lines[0]?.id ?? null;
   });
   selected.value = [];
 }
 function apply() {
   editor.command("批量整理歌词", (p) => {
     cleanProject(p, options.value);
-    if (!p.lines.some((line) => line.id === p.activeLineId))
-      p.activeLineId = p.lines[0]?.id ?? null;
+    const lines = activeLines(p);
+    if (!lines.some((line) => line.id === p.activeLineId))
+      p.activeLineId = lines[0]?.id ?? null;
   });
   previewOpen.value = false;
 }
@@ -104,12 +110,11 @@ function apply() {
         <div class="sheet-toolbar">
           <UiToggle
             :model-value="
-              selected.length === editor.project.lines.length &&
-              !!selected.length
+              selected.length === editor.lines.length && !!selected.length
             "
-            :label="`${editor.project.lines.length} 行歌词`"
+            :label="`${editor.lines.length} 行歌词`"
             @update:model-value="
-              selected = $event ? editor.project.lines.map((l) => l.id) : []
+              selected = $event ? editor.lines.map((l) => l.id) : []
             "
           />
           <UiButton
@@ -120,11 +125,11 @@ function apply() {
             >删除 {{ selected.length || "" }}</UiButton
           >
         </div>
-        <div v-if="!editor.project.lines.length" class="empty-note">
+        <div v-if="!editor.lines.length" class="empty-note">
           没有歌词行。添加一行，或返回导入歌词。
         </div>
         <div
-          v-for="(line, index) in editor.project.lines"
+          v-for="(line, index) in editor.lines"
           :key="line.id"
           class="text-row"
           :class="{
@@ -169,10 +174,7 @@ function apply() {
           /><span class="time-badge"
             >{{ formatTime(line.startMs)
             }}<small
-              v-if="
-                invalidatedTiming.has(line.id) &&
-                !line.units.some((unit) => unit.startMs !== null)
-              "
+              v-if="invalidatedTiming.has(line.id) && !hasTiming(line)"
               class="text-timing-reset"
               role="status"
               title="句首已保留；修改行的逐字时间需重打。"
@@ -186,7 +188,7 @@ function apply() {
           <UiIconButton
             icon="merge"
             label="合并下一句"
-            :disabled="index === editor.project.lines.length - 1"
+            :disabled="index === editor.lines.length - 1"
             @click="merge(line.id)"
           />
         </div>
@@ -195,7 +197,7 @@ function apply() {
           variant="text"
           @click="
             editor.command('添加歌词行', (p) => {
-              p.lines.push(newLine(''));
+              activeLines(p).push(newLine(''));
             })
           "
         >
@@ -226,14 +228,14 @@ function apply() {
     <Modal :open="previewOpen" title="检查整理结果" @close="previewOpen = false"
       ><p class="small-note">
         将修改 {{ changed.length }} 行，保留
-        {{ preview.lines.length }} 行。未勾选的内容会保留。
+        {{ previewLines.length }} 行。未勾选的内容会保留。
       </p>
       <div class="clean-preview">
         <div v-for="line in changed" :key="line.id">
           <del>{{ line.text || "（空行）" }}</del
           ><span>→</span
           ><strong>{{
-            preview.lines.find((n) => n.id === line.id)?.text ?? "删除此行"
+            previewLines.find((n) => n.id === line.id)?.text ?? "删除此行"
           }}</strong>
         </div>
         <p v-if="!changed.length">没有需要修改的内容。</p>

@@ -50,7 +50,7 @@ function next() {
     !editor.importText(text.value, lyricFile.value?.name)
   )
     return;
-  if (!editor.project.lines.length) {
+  if (!editor.lineTotal) {
     editor.error = "请导入或粘贴歌词。";
     return;
   }
@@ -104,8 +104,8 @@ function next() {
         <div class="import-meta">
           <span>{{
             lyricFile?.name ||
-            (editor.project.lines.length
-              ? `已导入 ${editor.project.lines.length} 行`
+            (editor.lineTotal
+              ? `已导入 ${editor.lineTotal} 行`
               : "TXT / LRC / 增强 LRC")
           }}</span
           ><UiSelect

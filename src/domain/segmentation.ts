@@ -1,4 +1,4 @@
-import { newId, type LyricLine, type TimingUnit } from "./model";
+import { newUnit, unitStart, type LyricLine, type TimingUnit } from "./model";
 import { graphemes } from "./tokenize";
 export function characterGaps(text: string): number[] {
   let offset = 0;
@@ -58,11 +58,10 @@ export function resegmentLine(
   const origins = anchors(line);
   return partitionText(line.text, cuts).map((group) => {
     const old = origins.get(group.start);
-    return {
-      id: old?.id ?? newId(),
-      text: group.text,
-      startMs: old?.startMs ?? null,
-    };
+    // An untouched unit keeps its reading and every syllable time.
+    if (old?.text === group.text) return old;
+    const unit = newUnit(group.text, old ? unitStart(old) : null);
+    return old ? { ...unit, id: old.id } : unit;
   });
 }
 export function segmentationSummary(line: LyricLine, cuts: readonly number[]) {
@@ -70,9 +69,10 @@ export function segmentationSummary(line: LyricLine, cuts: readonly number[]) {
     groups = partitionText(line.text, cuts);
   return {
     count: groups.length,
-    retained: groups.filter(
-      (group) => origins.get(group.start)?.startMs != null,
-    ).length,
+    retained: groups.filter((group) => {
+      const old = origins.get(group.start);
+      return !!old && unitStart(old) !== null;
+    }).length,
     addedMissing: groups.filter((group) => !origins.has(group.start)).length,
   };
 }

@@ -1,4 +1,14 @@
-import { newLine, newId, type ProjectDraft, type TimingUnit } from "./model";
+import {
+  activeLines,
+  activePart,
+  newLine,
+  newUnit,
+  retextUnit,
+  syllablesOf,
+  unitStart,
+  type ProjectDraft,
+  type TimingUnit,
+} from "./model";
 import { graphemes } from "./tokenize";
 
 export function editLine(
@@ -6,7 +16,7 @@ export function editLine(
   id: string,
   text: string,
 ): void {
-  const line = project.lines.find((l) => l.id === id)!;
+  const line = activeLines(project).find((l) => l.id === id)!;
   if (line.text === text) return;
   line.text = text;
   line.units = [];
@@ -18,8 +28,9 @@ export function splitLine(
   id: string,
   offset: number,
 ): void {
-  const index = project.lines.findIndex((l) => l.id === id);
-  const line = project.lines[index];
+  const lines = activeLines(project);
+  const index = lines.findIndex((l) => l.id === id);
+  const line = lines[index];
   if (offset <= 0 || offset >= line.text.length)
     throw new Error("把光标放在句子中间再拆分。");
   let boundary = 0;
@@ -43,47 +54,55 @@ export function splitLine(
       right: TimingUnit[] = [];
     for (const unit of line.units) {
       const end = position + unit.text.length;
-      if (end <= offset) left.push({ ...unit });
+      if (end <= offset) left.push(unit);
       else if (position >= offset) {
-        right.push({ ...unit, text: prefix + unit.text });
+        right.push(prefix ? retextUnit(unit, prefix + unit.text) : unit);
         prefix = "";
       } else {
+        // A cut inside a unit cannot divide its reading: both halves become plain.
         const before = unit.text.slice(0, offset - position),
           after = unit.text.slice(offset - position);
-        if (before.trim()) left.push({ ...unit, text: before });
-        else left[left.length - 1].text += before;
+        if (before.trim())
+          left.push({ ...newUnit(before, unitStart(unit)), id: unit.id });
+        else {
+          const previous = left.pop()!;
+          left.push(retextUnit(previous, previous.text + before));
+        }
         if (after.trim())
-          right.push({
-            id: before.trim() ? newId() : unit.id,
-            text: after,
-            startMs: before.trim() ? null : unit.startMs,
-          });
+          right.push(before.trim() ? newUnit(after) : retextUnit(unit, after));
         else prefix = after; // Leading whitespace belongs to the next measured word.
       }
       position = end;
     }
     second.units = right;
-    second.startMs = boundaryMs = right[0]?.startMs ?? null;
+    second.startMs = boundaryMs = right[0] ? unitStart(right[0]) : null;
+    // A pause before the cut is where the first half really ends.
+    const last = left.at(-1)?.syllables.at(-1);
+    if (last?.endMs != null) {
+      boundaryMs = last.endMs;
+      last.endMs = null;
+    }
     line.units = left;
   }
   line.text = firstText;
   line.endMs = boundaryMs;
-  project.lines.splice(index + 1, 0, second);
+  lines.splice(index + 1, 0, second);
 }
 
 export function mergeLines(project: ProjectDraft, id: string): void {
-  const index = project.lines.findIndex((l) => l.id === id);
-  if (index < 0 || index >= project.lines.length - 1)
+  const lines = activeLines(project);
+  const index = lines.findIndex((l) => l.id === id);
+  if (index < 0 || index >= lines.length - 1)
     throw new Error("这已经是最后一行。");
-  const first = project.lines[index];
-  const second = project.lines[index + 1];
+  const first = lines[index];
+  const second = lines[index + 1];
   const separator =
     /[\p{Script=Latin}\p{Number}]$/u.test(first.text) &&
     /^[\p{Script=Latin}\p{Number}]/u.test(second.text)
       ? " "
       : "";
   editLine(project, id, first.text + separator + second.text);
-  project.lines.splice(index + 1, 1);
+  lines.splice(index + 1, 1);
   if (project.activeLineId === second.id) project.activeLineId = first.id;
 }
 
@@ -92,43 +111,69 @@ function assertRange(value: number, min: number, max: number): void {
     throw new Error(`时间需在 ${min}–${max}ms 之间，请检查相邻边界。`);
 }
 
-export function unitBounds(
+/** Bounds of one syllable start; index runs over the whole line's syllables. */
+export function syllableBounds(
   project: ProjectDraft,
   lineIndex: number,
-  unitIndex: number,
+  index: number,
 ): [number, number] {
-  const line = project.lines[lineIndex];
-  const previousLine = project.lines[lineIndex - 1];
+  const lines = activeLines(project);
+  const line = lines[lineIndex];
+  const syllables = syllablesOf(line);
+  const previousLine = lines[lineIndex - 1];
   let lower =
-    unitIndex === 0
+    index === 0
       ? Math.max(0, previousLine?.endMs ?? (previousLine?.startMs ?? -1) + 1)
       : (line.startMs ?? 0);
-  for (let i = 0; i < unitIndex; i++)
-    if (line.units[i].startMs !== null)
-      lower = Math.max(lower, line.units[i].startMs! + 1);
+  for (let i = 0; i < index; i++) {
+    const { startMs, endMs } = syllables[i];
+    if (startMs !== null) lower = Math.max(lower, startMs + 1);
+    if (endMs !== null) lower = Math.max(lower, endMs);
+  }
   let upper =
     Math.min(
       project.audio?.durationMs ?? Infinity,
-      project.lines[lineIndex + 1]?.startMs ?? Infinity,
+      lines[lineIndex + 1]?.startMs ?? Infinity,
     ) - 1;
   if (line.endMs !== null) upper = Math.min(upper, line.endMs - 1);
-  for (let i = unitIndex + 1; i < line.units.length; i++)
-    if (line.units[i].startMs !== null)
-      upper = Math.min(upper, line.units[i].startMs! - 1);
+  for (let i = index; i < syllables.length; i++) {
+    const { startMs, endMs } = syllables[i];
+    if (i > index && startMs !== null) upper = Math.min(upper, startMs - 1);
+    if (endMs !== null) upper = Math.min(upper, endMs - 1);
+  }
   return [lower, upper];
 }
 
-export function setUnitStart(
+export function setSyllableStart(
   project: ProjectDraft,
   lineIndex: number,
-  unitIndex: number,
+  index: number,
   ms: number,
 ): void {
-  const [min, max] = unitBounds(project, lineIndex, unitIndex);
+  const [min, max] = syllableBounds(project, lineIndex, index);
   assertRange(ms, min, max);
-  const line = project.lines[lineIndex];
-  line.units[unitIndex].startMs = ms;
-  if (unitIndex === 0) line.startMs = ms;
+  const line = activeLines(project)[lineIndex];
+  syllablesOf(line)[index].startMs = ms;
+  if (index === 0) line.startMs = ms;
+}
+
+export function lineEndBounds(
+  project: ProjectDraft,
+  index: number,
+): [number, number] {
+  const lines = activeLines(project);
+  const line = lines[index];
+  const times = syllablesOf(line).flatMap(({ startMs, endMs }) => [
+    startMs ?? -1,
+    (endMs ?? 0) - 1,
+  ]);
+  return [
+    Math.max(line.startMs ?? 0, ...times) + 1,
+    Math.min(
+      project.audio?.durationMs ?? Infinity,
+      lines[index + 1]?.startMs ?? Infinity,
+    ),
+  ];
 }
 
 export function setLineEnd(
@@ -136,31 +181,26 @@ export function setLineEnd(
   index: number,
   ms: number,
 ): void {
-  const line = project.lines[index];
-  const lower =
-    Math.max(line.startMs ?? 0, ...line.units.map((u) => u.startMs ?? -1)) + 1;
-  const upper = Math.min(
-    project.audio?.durationMs ?? Infinity,
-    project.lines[index + 1]?.startMs ?? Infinity,
-  );
+  const [lower, upper] = lineEndBounds(project, index);
   assertRange(ms, lower, upper);
-  line.endMs = ms;
+  activeLines(project)[index].endMs = ms;
 }
 
 export function lineStartBounds(
   project: ProjectDraft,
   index: number,
 ): [number, number] {
-  const line = project.lines[index];
-  const previous = project.lines[index - 1];
+  const lines = activeLines(project);
+  const line = lines[index];
+  const previous = lines[index - 1];
   const min = Math.max(0, previous?.endMs ?? (previous?.startMs ?? -1) + 1);
   const limit = Math.min(
     project.audio?.durationMs ?? Infinity,
-    project.lines[index + 1]?.startMs ?? Infinity,
+    lines[index + 1]?.startMs ?? Infinity,
   );
   let max = limit - 1;
-  const known = line.units
-    .map((unit) => unit.startMs)
+  const known = syllablesOf(line)
+    .flatMap((syllable) => [syllable.startMs, syllable.endMs])
     .filter((time): time is number => time !== null);
   if (line.startMs !== null) {
     if (line.endMs !== null)
@@ -176,30 +216,32 @@ export function setLineStart(
   index: number,
   ms: number,
 ): void {
-  const line = project.lines[index];
+  const line = activeLines(project)[index];
   const [min, max] = lineStartBounds(project, index);
   const delta = ms - (line.startMs ?? ms);
   assertRange(ms, min, max);
   line.startMs = ms;
-  for (const unit of line.units)
-    if (unit.startMs !== null) unit.startMs += delta;
+  for (const syllable of syllablesOf(line)) {
+    if (syllable.startMs !== null) syllable.startMs += delta;
+    if (syllable.endMs !== null) syllable.endMs += delta;
+  }
   if (line.endMs !== null) line.endMs += delta;
 }
 
 /**
- * Move only the line start, keeping later units and the end where they are.
- * The first unit shares this boundary, so it follows when it already has a time.
+ * Move only the line start, keeping later syllables and the end where they are.
+ * The first syllable shares this boundary, so it follows when it already has a time.
  */
 export function setLineStartBoundary(
   project: ProjectDraft,
   index: number,
   ms: number,
 ): void {
-  const line = project.lines[index];
-  const [min, max] = unitBounds(project, index, 0);
+  const line = activeLines(project)[index];
+  const [min, max] = syllableBounds(project, index, 0);
   assertRange(ms, min, max);
   line.startMs = ms;
-  const first = line.units[0];
+  const first = syllablesOf(line)[0];
   if (first && first.startMs !== null) first.startMs = ms;
 }
 
@@ -214,7 +256,8 @@ export function cleanProject(
   project: ProjectDraft,
   options: CleanOptions,
 ): void {
-  for (const line of [...project.lines]) {
+  const part = activePart(project);
+  for (const line of [...part.lines]) {
     let text = line.text;
     if (options.find) text = text.split(options.find).join(options.replacement);
     if (options.brackets) {
@@ -229,14 +272,20 @@ export function cleanProject(
     }
     if (options.trim) text = text.trim();
     if (options.blanks && !text.trim())
-      project.lines = project.lines.filter((l) => l.id !== line.id);
+      part.lines = part.lines.filter((l) => l.id !== line.id);
     else editLine(project, line.id, text);
   }
 }
 
+/** The whole song moves against the audio, so every part moves together. */
 export function shiftAll(project: ProjectDraft, delta: number): void {
-  const values = project.lines
-    .flatMap((l) => [l.startMs, l.endMs, ...l.units.map((u) => u.startMs)])
+  const lines = project.parts.flatMap((part) => part.lines);
+  const values = lines
+    .flatMap((l) => [
+      l.startMs,
+      l.endMs,
+      ...syllablesOf(l).flatMap((s) => [s.startMs, s.endMs]),
+    ])
     .filter((v): v is number => v !== null);
   if (
     values.some(
@@ -245,10 +294,12 @@ export function shiftAll(project: ProjectDraft, delta: number): void {
     )
   )
     throw new Error("整体平移会超出音频范围。");
-  for (const line of project.lines) {
+  for (const line of lines) {
     if (line.startMs !== null) line.startMs += delta;
     if (line.endMs !== null) line.endMs += delta;
-    for (const unit of line.units)
-      if (unit.startMs !== null) unit.startMs += delta;
+    for (const syllable of syllablesOf(line)) {
+      if (syllable.startMs !== null) syllable.startMs += delta;
+      if (syllable.endMs !== null) syllable.endMs += delta;
+    }
   }
 }

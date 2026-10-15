@@ -266,13 +266,13 @@ onBeforeUnmount(() => {
       >
       <div class="project-info">
         <span>{{
-          editor.project.lines.length ? editor.project.name : "增强 LRC 编辑器"
+          editor.lineTotal ? editor.project.name : "增强 LRC 编辑器"
         }}</span
         ><small class="save-status">{{ editor.saveState }}</small>
       </div>
       <div class="header-actions">
         <UiButton
-          v-if="editor.project.lines.length"
+          v-if="editor.lineTotal"
           variant="text"
           @click="editor.goStage(0)"
           >导入</UiButton
@@ -311,12 +311,12 @@ onBeforeUnmount(() => {
           class="backup-header"
           variant="text"
           @click="editor.backup"
-          :disabled="!editor.project.lines.length"
+          :disabled="!editor.lineTotal"
           >备份</UiButton
         ><UiButton
           variant="filled"
           icon="download"
-          :disabled="!editor.project.lines.length || editor.editingText"
+          :disabled="!editor.lineTotal || editor.editingText"
           @click="editor.exportLrc"
           >导出 LRC</UiButton
         >
@@ -340,7 +340,7 @@ onBeforeUnmount(() => {
         :aria-selected="editor.project.stage === index + 1"
         aria-controls="editor-panel"
         :tabindex="editor.project.stage === index + 1 ? 0 : -1"
-        :aria-disabled="!editor.project.lines.length"
+        :aria-disabled="!editor.lineTotal"
         :value="String(index + 1)"
         @keydown="tabKey($event, index)"
       >
@@ -458,9 +458,7 @@ onBeforeUnmount(() => {
             backupInput?.click();
           "
           >恢复编辑进度</UiButton
-        ><UiButton
-          @click="editor.backup"
-          :disabled="!editor.project.lines.length"
+        ><UiButton @click="editor.backup" :disabled="!editor.lineTotal"
           >下载编辑进度备份</UiButton
         ><UiButton
           variant="text"
@@ -488,9 +486,7 @@ onBeforeUnmount(() => {
     <Modal :open="newOpen" title="新建项目" @close="newOpen = false"
       ><p>新项目会替换本机当前草稿。需要保留当前进度时，请先下载备份。</p>
       <footer>
-        <UiButton
-          @click="editor.backup"
-          :disabled="!editor.project.lines.length"
+        <UiButton @click="editor.backup" :disabled="!editor.lineTotal"
           >下载当前备份</UiButton
         ><UiButton
           variant="filled"

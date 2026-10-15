@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { importLyrics } from "../../src/domain/lrc";
+import { unitStart } from "../../src/domain/model";
 import {
   characterGaps,
   unitCuts,
@@ -12,13 +13,17 @@ describe("text-position segmentation", () => {
       .lines[0];
     const ids = line.units.map((unit) => unit.id);
     line.units = resegmentLine(line, [2]);
-    expect(line.units.map((unit) => [unit.text, unit.startMs])).toEqual([
+    expect(line.units.map((unit) => [unit.text, unitStart(unit)])).toEqual([
       ["今日", 1000],
       ["も", 3000],
     ]);
     expect(line.units.map((unit) => unit.id)).toEqual([ids[0], ids[2]]);
     line.units = resegmentLine(line, [1, 2]);
-    expect(line.units.map((unit) => unit.startMs)).toEqual([1000, null, 3000]);
+    expect(line.units.map((unit) => unitStart(unit))).toEqual([
+      1000,
+      null,
+      3000,
+    ]);
     expect(line.endMs).toBe(4000);
     expect(segmentationSummary(line, [2])).toEqual({
       count: 2,
@@ -36,7 +41,7 @@ describe("text-position segmentation", () => {
       addedMissing: 1,
     });
     expect(
-      resegmentLine(line, [2, 3]).map((unit) => [unit.text, unit.startMs]),
+      resegmentLine(line, [2, 3]).map((unit) => [unit.text, unitStart(unit)]),
     ).toEqual([
       ["今日", 1000],
       ["も", null],
@@ -46,7 +51,7 @@ describe("text-position segmentation", () => {
   it("does not confuse repeated characters and respects grapheme, emoji and whitespace boundaries", () => {
     const line = importLyrics("[00:01]<00:01>ら<00:02>ら<00:03>ら<00:04>")
       .lines[0];
-    expect(resegmentLine(line, [2]).map((unit) => unit.startMs)).toEqual([
+    expect(resegmentLine(line, [2]).map((unit) => unitStart(unit))).toEqual([
       1000, 3000,
     ]);
     expect(characterGaps("か\u3099ｶﾞ👩‍👩‍👧‍👦a")).toEqual([2, 4, 15]);

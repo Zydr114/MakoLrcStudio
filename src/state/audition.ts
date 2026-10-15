@@ -3,7 +3,7 @@ import type { AudioTransport } from "../audio/transport";
 export type AuditionScope = "line" | "token" | "boundary" | "song";
 export interface AuditionTarget {
   lineId: string;
-  unitId: string | null;
+  syllableId: string | null;
 }
 type Port = Pick<AudioTransport, "play" | "playing">;
 /** A range is frozen during a pass. Its same target is resolved anew at the next loop. */

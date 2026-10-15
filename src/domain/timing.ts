@@ -1,43 +1,54 @@
-import { validate, type LyricLine, type ProjectDraft } from "./model";
+import {
+  activeLines,
+  syllableRefs,
+  validate,
+  type LyricLine,
+  type ProjectDraft,
+} from "./model";
 
 export type IntervalKind = "confirmed" | "reference" | "unknown" | "conflict";
 export interface TimingInterval {
+  /** Syllable id for word timing, line id for line timing. */
   id: string;
   lineIndex: number;
   unitIndex: number | null;
+  /** Position in the line's syllable sequence. */
+  index: number | null;
   text: string;
   startMs: number;
   endMs: number | null;
   kind: IntervalKind;
 }
 
-/** Only an immediate successor can close an interval. Null is never an estimate. */
+/** Only an immediate successor or an explicit end closes an interval. Null is never an estimate. */
 export function tokenIntervals(
   line: LyricLine,
   limitMs = Infinity,
 ): TimingInterval[] {
   let previous = -1;
-  return line.units.flatMap((unit, index) => {
-    if (unit.startMs === null) return [];
-    const start = unit.startMs;
-    const end =
-      index === line.units.length - 1
-        ? line.endMs
-        : line.units[index + 1].startMs;
+  const refs = syllableRefs(line);
+  return refs.flatMap(({ syllable, unit, unitIndex, index }) => {
+    if (syllable.startMs === null) return [];
+    const start = syllable.startMs;
+    const last = index === refs.length - 1;
+    const next = last ? line.endMs : refs[index + 1].syllable.startMs;
+    const end = syllable.endMs ?? next;
     const conflict =
       (index === 0 && line.startMs !== null && start !== line.startMs) ||
       start < (line.startMs ?? 0) ||
       start <= previous ||
       start >= limitMs ||
       (line.endMs !== null && start >= line.endMs) ||
-      (end !== null && (end <= start || end > limitMs));
-    previous = start;
+      (end !== null && (end <= start || end > limitMs)) ||
+      (syllable.endMs !== null && (last || (next !== null && end! > next)));
+    previous = Math.max(start, (syllable.endMs ?? 0) - 1);
     return [
       {
-        id: unit.id,
+        id: syllable.id,
         lineIndex: 0,
-        unitIndex: index,
-        text: unit.text,
+        unitIndex,
+        index,
+        text: unit.ruby ? syllable.text : unit.text,
         startMs: start,
         endMs: end,
         kind: conflict ? "conflict" : end === null ? "unknown" : "confirmed",
@@ -48,23 +59,23 @@ export function tokenIntervals(
 
 export function lineIntervals(project: ProjectDraft): TimingInterval[] {
   const duration = project.audio?.durationMs ?? Infinity;
+  const lines = activeLines(project);
   const conflicts = new Set(
     validate(project, false)
       .filter((issue) => issue.kind === "conflict")
       .map((issue) => issue.lineId),
   );
-  return project.lines.flatMap((line, index) => {
+  return lines.flatMap((line, index) => {
     if (line.startMs === null) return [];
     const reference =
-      index === project.lines.length - 1
-        ? duration
-        : project.lines[index + 1].startMs;
+      index === lines.length - 1 ? duration : lines[index + 1].startMs;
     const end = line.endMs ?? reference;
     return [
       {
         id: line.id,
         lineIndex: index,
         unitIndex: null,
+        index: null,
         text: line.text,
         startMs: line.startMs,
         endMs: end !== null && Number.isFinite(end) ? end : null,
@@ -81,6 +92,9 @@ export function lineIntervals(project: ProjectDraft): TimingInterval[] {
 }
 
 export interface TimingSample {
+  syllableId: string | null;
+  /** Position in the line's syllable sequence. */
+  index: number | null;
   unitId: string | null;
   unitIndex: number | null;
   progress: number | null;
@@ -93,6 +107,8 @@ export function sampleLineTiming(
   limitMs = Infinity,
 ): TimingSample {
   const empty = (status: TimingSample["status"]): TimingSample => ({
+    syllableId: null,
+    index: null,
     unitId: null,
     unitIndex: null,
     progress: null,
@@ -111,9 +127,23 @@ export function sampleLineTiming(
       sourceMs >= interval.startMs &&
       sourceMs < interval.endMs!,
   );
-  if (!active) return empty("unknown");
+  if (!active) {
+    // Inside the line but after an explicit syllable end: a real pause.
+    const paused = intervals.some(
+      (interval) =>
+        interval.kind === "confirmed" &&
+        interval.endMs! <= sourceMs &&
+        intervals.some(
+          (next) =>
+            next.index === interval.index! + 1 && next.startMs > sourceMs,
+        ),
+    );
+    return empty(paused ? "gap" : "unknown");
+  }
   return {
-    unitId: active.id,
+    syllableId: active.id,
+    index: active.index,
+    unitId: line.units[active.unitIndex!].id,
     unitIndex: active.unitIndex,
     progress: (sourceMs - active.startMs) / (active.endMs! - active.startMs),
     status: "active",

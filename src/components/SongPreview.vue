@@ -16,16 +16,16 @@ const index = computed(() => {
   if (active >= 0) return active;
   return Math.max(
     0,
-    editor.displayProject.lines.findLastIndex(
+    editor.displayLines.findLastIndex(
       (line) => line.startMs !== null && line.startMs <= editor.positionMs,
     ),
   );
 });
-const line = computed(() => editor.displayProject.lines[index.value]);
+const line = computed(() => editor.displayLines[index.value]);
 const limit = computed(() =>
   Math.min(
     editor.project.audio?.durationMs ?? Infinity,
-    editor.displayProject.lines[index.value + 1]?.startMs ?? Infinity,
+    editor.displayLines[index.value + 1]?.startMs ?? Infinity,
   ),
 );
 let previousLoop = false;
@@ -50,7 +50,7 @@ function focusWorkspace() {
     ?.focus({ preventScroll: true });
 }
 function locate(value: number) {
-  const ms = editor.project.lines[value]?.startMs;
+  const ms = editor.lines[value]?.startMs;
   if (ms !== null && ms !== undefined) editor.seek(ms);
 }
 function keydown(event: KeyboardEvent) {
@@ -92,7 +92,7 @@ function keydown(event: KeyboardEvent) {
   >
     <div v-if="open" class="song-review" tabindex="0" @keydown="keydown">
       <p class="song-neighbor">
-        {{ editor.displayProject.lines[index - 1]?.text || "\u00a0" }}
+        {{ editor.displayLines[index - 1]?.text || "\u00a0" }}
       </p>
       <LyricPreview
         v-if="line"
@@ -102,7 +102,7 @@ function keydown(event: KeyboardEvent) {
         :fill="fill"
       />
       <p class="song-neighbor">
-        {{ editor.displayProject.lines[index + 1]?.text || "\u00a0" }}
+        {{ editor.displayLines[index + 1]?.text || "\u00a0" }}
       </p>
       <div class="song-controls">
         <UiIconButton
@@ -133,7 +133,7 @@ function keydown(event: KeyboardEvent) {
         label="整曲定位歌词"
         :model-value="index"
         :options="
-          editor.project.lines.map((item, i) => ({
+          editor.lines.map((item, i) => ({
             value: i,
             label: `${i + 1} · ${item.text}`,
             disabled: item.startMs === null,

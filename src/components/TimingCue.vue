@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { editor } from "../state/editor";
-import { completeLine, formatTime } from "../domain/model";
+import {
+  completeLine,
+  formatTime,
+  syllableLabel,
+  syllableRefs,
+} from "../domain/model";
 import UiButton from "./UiButton.vue";
 const lineMode = computed(() => editor.project.stage === 2);
 const lineReady = computed(
-  () =>
-    lineMode.value &&
-    editor.project.lines.every((line) => line.startMs !== null),
+  () => lineMode.value && editor.lines.every((line) => line.startMs !== null),
 );
 const broken = computed(
   () =>
@@ -16,15 +19,23 @@ const broken = computed(
     completeLine(editor.line) &&
     !editor.isComplete,
 );
-const pending = computed(() => editor.line?.units[editor.cursor]);
+const pending = computed(() =>
+  editor.line ? syllableRefs(editor.line)[editor.cursor] : undefined,
+);
 const target = computed(() =>
   lineMode.value
     ? editor.line?.text
     : broken.value
       ? "待调整"
       : editor.isComplete
-        ? editor.line?.units[editor.selectedUnit]?.text
-        : (pending.value?.text ?? "收尾"),
+        ? editor.selectedSyllable &&
+          syllableLabel(
+            editor.selectedSyllable.unit,
+            editor.selectedSyllable.syllable,
+          )
+        : pending.value
+          ? syllableLabel(pending.value.unit, pending.value.syllable)
+          : "收尾",
 );
 const status = computed(() =>
   editor.mode === "starting"

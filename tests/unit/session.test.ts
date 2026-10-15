@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createEditor, type TransportPort } from "../../src/state/editor";
 import type { AudioAsset } from "../../src/audio/transport";
+import { activeLines, unitStart } from "../../src/domain/model";
 
 class FakeTransport implements TransportPort {
   asset = {
@@ -86,7 +87,7 @@ describe("recording session transitions", () => {
     await editor.enter();
     audio.position = 7000;
     await editor.enter();
-    expect(editor.project.lines.map((l) => l.startMs)).toEqual([1300, 7000]);
+    expect(editor.lines.map((l) => l.startMs)).toEqual([1300, 7000]);
     expect(editor.playing).toBe(false);
     editor.confirmLines();
     expect(editor.project.stage).toBe(3);
@@ -156,13 +157,13 @@ describe("recording session transitions", () => {
     editor.confirmText();
     editor.confirmLines();
     editor.retime(1);
-    expect(editor.line?.units.map((u) => u.startMs)).toEqual([1000, null]);
+    expect(editor.line?.units.map((u) => unitStart(u))).toEqual([1000, null]);
     expect(editor.line?.endMs).toBeNull();
     editor.undo();
-    expect(editor.line?.units.map((u) => u.startMs)).toEqual([1000, 2000]);
+    expect(editor.line?.units.map((u) => unitStart(u))).toEqual([1000, 2000]);
     expect(editor.line?.endMs).toBe(3000);
     editor.redo();
-    expect(editor.line?.units.map((u) => u.startMs)).toEqual([1000, null]);
+    expect(editor.line?.units.map((u) => unitStart(u))).toEqual([1000, null]);
   });
   it("clears the current line timing as one undoable edit", async () => {
     const { editor } = await session(
@@ -170,14 +171,14 @@ describe("recording session transitions", () => {
     );
     editor.confirmLines();
     expect(editor.line?.startMs).toBe(1000);
-    expect(editor.line?.units.map((unit) => unit.startMs)).toEqual([
+    expect(editor.line?.units.map((unit) => unitStart(unit))).toEqual([
       1000, 2000, 3000,
     ]);
     expect(editor.line?.endMs).toBe(4000);
 
     editor.clearLineTiming();
     expect(editor.line?.startMs).toBeNull();
-    expect(editor.line?.units.map((unit) => unit.startMs)).toEqual([
+    expect(editor.line?.units.map((unit) => unitStart(unit))).toEqual([
       null,
       null,
       null,
@@ -187,7 +188,7 @@ describe("recording session transitions", () => {
 
     editor.undo();
     expect(editor.line?.startMs).toBe(1000);
-    expect(editor.line?.units.map((unit) => unit.startMs)).toEqual([
+    expect(editor.line?.units.map((unit) => unitStart(unit))).toEqual([
       1000, 2000, 3000,
     ]);
     expect(editor.line?.endMs).toBe(4000);
@@ -203,11 +204,11 @@ describe("explicit playback and recording modes", () => {
     expect(editor.recordingArmed).toBe(false);
     audio.position = 1500;
     await editor.enter();
-    expect(editor.line?.units[0].startMs).toBeNull();
+    expect(editor.line?.units[0].syllables[0].startMs).toBeNull();
     expect(editor.mode).toBe("recording");
     audio.position = 1600;
     await editor.enter();
-    expect(editor.line?.units[0].startMs).toBe(1600);
+    expect(editor.line?.units[0].syllables[0].startMs).toBe(1600);
   });
   it("protects imported line onsets until explicitly armed for retiming", async () => {
     const { audio, editor } = await session("[00:01]今日");
@@ -229,7 +230,7 @@ describe("explicit playback and recording modes", () => {
     audio.position = 1500;
     await editor.enter();
     expect(editor.line?.startMs).toBe(1500);
-    expect(editor.line?.units.map((u) => u.startMs)).toEqual([1500, 2000]);
+    expect(editor.line?.units.map((u) => unitStart(u))).toEqual([1500, 2000]);
     expect(editor.line?.endMs).toBe(3000);
   });
   it("allows text preparation without an audio prerequisite but gates timing", async () => {
@@ -253,8 +254,8 @@ describe("audition ranges and isolated partial timing", () => {
     await editor.review("boundary");
     expect(editor.auditionRange).toEqual([600, 1600]);
     editor.previewCommand("field", (p) => {
-      p.lines[0].startMs = 1300;
-      p.lines[0].units[0].startMs = 1300;
+      activeLines(p)[0].startMs = 1300;
+      activeLines(p)[0].units[0].syllables[0].startMs = 1300;
     });
     expect(editor.auditionRange).toEqual([600, 1600]);
     audio.end();
@@ -275,13 +276,13 @@ describe("audition ranges and isolated partial timing", () => {
     );
     editor.confirmLines();
     editor.command("缺失边界", (p) => {
-      p.lines[0].units[1].startMs = null;
+      activeLines(p)[0].units[1].syllables[0].startMs = null;
     });
     await editor.enter();
     expect(audio.until).toBe(3000);
     audio.position = 2200;
     await editor.enter();
-    expect(editor.line?.units.map((unit) => unit.startMs)).toEqual([
+    expect(editor.line?.units.map((unit) => unitStart(unit))).toEqual([
       1000, 2200, 3000,
     ]);
     expect(editor.line?.endMs).toBe(4000);
@@ -296,15 +297,15 @@ describe("shared editing views", () => {
       "[00:01]<00:01>今<00:02>日<00:03>\n[00:06]<00:06>次<00:07>",
     );
     editor.confirmLines();
-    editor.selectLine(editor.project.lines[1].id);
+    editor.selectLine(editor.lines[1].id);
     editor.seek(6300);
     editor.goStage(1);
     expect(editor.lineIndex).toBe(1);
     expect(editor.positionMs).toBe(6300);
     editor.command("修改第二行", (p) => {
-      p.lines[1].text = "次の歌";
-      p.lines[1].units = [];
-      p.lines[1].endMs = null;
+      activeLines(p)[1].text = "次の歌";
+      activeLines(p)[1].units = [];
+      activeLines(p)[1].endMs = null;
       p.unlockedStage = 1; // Existing callers / v1 snapshots cannot lock a view.
     });
     editor.goStage(2);
@@ -313,7 +314,7 @@ describe("shared editing views", () => {
     editor.undo();
     expect(editor.project.stage).toBe(2);
     expect(editor.line?.text).toBe("次");
-    expect(editor.project.lines[0].endMs).toBe(3000);
+    expect(editor.lines[0].endMs).toBe(3000);
     editor.redo();
     expect(editor.project.stage).toBe(2);
     expect(editor.line?.text).toBe("次の歌");
@@ -330,7 +331,7 @@ describe("shared editing views", () => {
     await editor.enter();
     editor.goStage(2);
     editor.backspace();
-    expect(editor.project.lines[0].units[0].startMs).toBe(1200);
+    expect(editor.lines[0].units[0].syllables[0].startMs).toBe(1200);
     expect(editor.project.stage).toBe(2);
     expect(editor.recordingArmed).toBe(false);
   });

@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount, nextTick } from "vue";
 import { editor } from "../state/editor";
-import { formatTime } from "../domain/model";
+import {
+  activeLines,
+  formatTime,
+  syllableRefs,
+  syllablesOf,
+  unitStart,
+  type LyricLine,
+} from "../domain/model";
 import UiButton from "./UiButton.vue";
 import { graphemes } from "../domain/tokenize";
 import {
@@ -46,9 +53,19 @@ function focusWorkspace() {
     .querySelector<HTMLElement>("[data-workspace]")
     ?.focus({ preventScroll: true });
 }
+/** The first syllable of a unit, where the selection lands when a unit is clicked. */
+function firstSyllable(line: LyricLine, unitIndex: number) {
+  return Math.max(
+    0,
+    syllableRefs(line).findIndex((ref) => ref.unitIndex === unitIndex),
+  );
+}
+const cursorUnit = computed(() =>
+  editor.line ? syllableRefs(editor.line)[editor.cursor]?.unitIndex : undefined,
+);
 function select(index: number) {
   if (editor.recordingArmed) editor.pause();
-  editor.selectedUnit = index;
+  editor.selectedUnit = firstSyllable(editor.line, index);
   editor.selectionEnd = index;
   focusWorkspace();
 }
@@ -235,36 +252,40 @@ function apply() {
   if (!editor.line) return;
   if (!changed.value) return cancel();
   const selectedOffset = editor.line.units
-    .slice(0, editor.selectedUnit)
+    .slice(0, editor.selectedSyllable?.unitIndex ?? 0)
     .reduce((offset, unit) => offset + unit.text.length, 0);
   if (
     !editor.command("调整文字切分", (p) => {
-      const line = p.lines[editor.lineIndex];
+      const line = activeLines(p)[editor.lineIndex];
       line.units = resegmentLine(line, cuts.value);
     })
   )
     return;
   editor.editingText = false;
   stopDrag();
-  const missing = editor.line.units.findIndex((unit) => unit.startMs === null),
+  const syllables = syllablesOf(editor.line),
+    missing = syllables.findIndex((syllable) => syllable.startMs === null),
     groups = partitionText(editor.line.text, cuts.value);
   editor.selectedUnit =
     missing >= 0
       ? missing
-      : Math.max(
-          0,
-          groups.findIndex(
-            (group) =>
-              selectedOffset >= group.start && selectedOffset < group.end,
+      : firstSyllable(
+          editor.line,
+          Math.max(
+            0,
+            groups.findIndex(
+              (group) =>
+                selectedOffset >= group.start && selectedOffset < group.end,
+            ),
           ),
         );
   editor.selectionEnd = editor.selectedUnit;
   if (missing >= 0) {
     const prior =
-      editor.line.units
+      syllables
         .slice(0, missing)
         .reverse()
-        .find((unit) => unit.startMs !== null)?.startMs ??
+        .find((syllable) => syllable.startMs !== null)?.startMs ??
       editor.line.startMs ??
       0;
     editor.seek(Math.max(0, prior - 800));
@@ -287,12 +308,14 @@ onBeforeUnmount(() => {
         v-for="(unit, index) in editor.line.units"
         :key="unit.id"
         :class="{
-          recorded: unit.startMs !== null,
-          pending: index === editor.cursor && !editor.isComplete,
-          selected: index === editor.selectedUnit,
+          recorded: unitStart(unit) !== null,
+          pending: index === cursorUnit && !editor.isComplete,
+          selected: index === editor.selectedSyllable?.unitIndex,
         }"
         :aria-label="`选择单位 ${index + 1}：${unit.text.trim()}`"
-        :title="unit.startMs === null ? '待打轴' : formatTime(unit.startMs)"
+        :title="
+          unitStart(unit) === null ? '待打轴' : formatTime(unitStart(unit))
+        "
         @click="select(index)"
       >
         <span>{{ unit.text.trim() }}</span>

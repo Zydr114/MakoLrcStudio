@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { newProject, validate } from "../../src/domain/model";
-import { importLyrics } from "../../src/domain/lrc";
+import { activeLines, validate } from "../../src/domain/model";
+import { fromLyrics } from "./helpers";
 import {
   lineIntervals,
   tokenIntervals,
@@ -12,15 +12,13 @@ import {
   intervalGeometry,
 } from "../../src/domain/viewport";
 import { createEditor } from "../../src/state/editor";
-import { setUnitStart } from "../../src/domain/edit";
+import { setSyllableStart } from "../../src/domain/edit";
 
-const fixture = () => ({
-  ...newProject(),
-  ...importLyrics("[00:01]<00:01>今<00:02>日<00:03>も<00:04>\n[00:06]次"),
-});
+const fixture = () =>
+  fromLyrics("[00:01]<00:01>今<00:02>日<00:03>も<00:04>\n[00:06]次");
 describe("timeline projection and shared sampling", () => {
   it("uses half-open intervals and removes highlighting at the real terminal", () => {
-    const line = fixture().lines[0];
+    const line = activeLines(fixture())[0];
     expect(sampleLineTiming(line, 999).status).toBe("before");
     expect(sampleLineTiming(line, 1000)).toMatchObject({
       unitIndex: 0,
@@ -34,8 +32,8 @@ describe("timeline projection and shared sampling", () => {
     });
   });
   it("does not bridge a missing successor or fabricate progress in its unknown tail", () => {
-    const line = fixture().lines[0];
-    line.units[1].startMs = null;
+    const line = activeLines(fixture())[0];
+    line.units[1].syllables[0].startMs = null;
     expect(tokenIntervals(line)[0]).toMatchObject({
       endMs: null,
       kind: "unknown",
@@ -63,8 +61,8 @@ describe("timeline projection and shared sampling", () => {
       endMs: 10000,
       kind: "reference",
     });
-    project.lines[0].endMs = null;
-    project.lines[1].startMs = null;
+    activeLines(project)[0].endMs = null;
+    activeLines(project)[1].startMs = null;
     expect(lineIntervals(project)[0]).toMatchObject({
       endMs: null,
       kind: "unknown",
@@ -72,8 +70,8 @@ describe("timeline projection and shared sampling", () => {
     expect(lineIntervals(project)).toHaveLength(1);
   });
   it("keeps conflicting import geometry diagnosable and avoids claiming an active syllable", () => {
-    const line = fixture().lines[0];
-    line.units[1].startMs = 500;
+    const line = activeLines(fixture())[0];
+    line.units[1].syllables[0].startMs = 500;
     expect(
       tokenIntervals(line).some((interval) => interval.kind === "conflict"),
     ).toBe(true);
@@ -81,15 +79,17 @@ describe("timeline projection and shared sampling", () => {
   });
   it("preserves a mismatched imported first onset and diagnoses it until explicitly synchronized", () => {
     const project = fixture();
-    project.lines[0].units[0].startMs = 1200;
+    activeLines(project)[0].units[0].syllables[0].startMs = 1200;
     expect(
       validate(project).some((issue) => issue.message.includes("句首一致")),
     ).toBe(true);
-    expect(sampleLineTiming(project.lines[0], 1300).status).toBe("conflict");
-    expect(project.lines[0].startMs).toBe(1000);
-    setUnitStart(project, 0, 0, 1200);
-    expect(project.lines[0].startMs).toBe(1200);
-    expect(sampleLineTiming(project.lines[0], 1300).unitIndex).toBe(0);
+    expect(sampleLineTiming(activeLines(project)[0], 1300).status).toBe(
+      "conflict",
+    );
+    expect(activeLines(project)[0].startMs).toBe(1000);
+    setSyllableStart(project, 0, 0, 1200);
+    expect(activeLines(project)[0].startMs).toBe(1200);
+    expect(sampleLineTiming(activeLines(project)[0], 1300).unitIndex).toBe(0);
   });
   it("uses the same reversible transform for boundaries, cursor and clipped fills", () => {
     const view = { startMs: 1200, endMs: 4200 };
@@ -103,21 +103,21 @@ describe("timeline projection and shared sampling", () => {
   it("previews a shared boundary without persistence or an undo entry, commits once and cancels cleanly", () => {
     const editor = createEditor(undefined, false);
     editor.importText("[00:01]<00:01>今<00:02>日<00:03>");
-    editor.previewCommand("boundary", (p) => setUnitStart(p, 0, 1, 2300));
-    expect(editor.line?.units[1].startMs).toBe(2000);
-    expect(editor.displayLine?.units[1].startMs).toBe(2300);
+    editor.previewCommand("boundary", (p) => setSyllableStart(p, 0, 1, 2300));
+    expect(editor.line?.units[1].syllables[0].startMs).toBe(2000);
+    expect(editor.displayLine?.units[1].syllables[0].startMs).toBe(2300);
     editor.clearPreview();
-    expect(editor.displayLine?.units[1].startMs).toBe(2000);
-    editor.previewCommand("boundary", (p) => setUnitStart(p, 0, 1, 2400));
+    expect(editor.displayLine?.units[1].syllables[0].startMs).toBe(2000);
+    editor.previewCommand("boundary", (p) => setSyllableStart(p, 0, 1, 2400));
     editor.commitPreview("调整边界");
-    expect(editor.line?.units[1].startMs).toBe(2400);
-    editor.previewCommand("boundary", (p) => setUnitStart(p, 0, 1, 2500));
+    expect(editor.line?.units[1].syllables[0].startMs).toBe(2400);
+    editor.previewCommand("boundary", (p) => setSyllableStart(p, 0, 1, 2500));
     editor.undo();
-    expect(editor.line?.units[1].startMs).toBe(2000);
-    expect(editor.displayLine?.units[1].startMs).toBe(2000);
+    expect(editor.line?.units[1].syllables[0].startMs).toBe(2000);
+    expect(editor.displayLine?.units[1].syllables[0].startMs).toBe(2000);
     expect(editor.previewOwner).toBeNull();
     editor.redo();
-    expect(editor.line?.units[1].startMs).toBe(2400);
-    expect(editor.displayLine?.units[1].startMs).toBe(2400);
+    expect(editor.line?.units[1].syllables[0].startMs).toBe(2400);
+    expect(editor.displayLine?.units[1].syllables[0].startMs).toBe(2400);
   });
 });

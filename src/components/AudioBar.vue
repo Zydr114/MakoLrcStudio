@@ -11,7 +11,7 @@ const props = defineProps<{ embedded?: boolean }>();
 defineEmits<{ audio: [] }>();
 const selectedStart = computed(() =>
   editor.project.stage === 3
-    ? editor.line?.units[editor.selectedUnit]?.startMs
+    ? editor.selectedSyllable?.syllable.startMs
     : editor.line?.startMs,
 );
 function focusWorkspace() {

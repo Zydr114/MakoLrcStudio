@@ -35,9 +35,9 @@ export function useWaveformViewport(
       line?.endMs !== null && line?.endMs !== undefined
         ? line.endMs / 1000 + 0.5
         : Math.min(
-            editor.project.lines[editor.lineIndex + 1]?.startMs !== null &&
-              editor.project.lines[editor.lineIndex + 1]?.startMs !== undefined
-              ? editor.project.lines[editor.lineIndex + 1].startMs! / 1000 + 0.3
+            editor.lines[editor.lineIndex + 1]?.startMs !== null &&
+              editor.lines[editor.lineIndex + 1]?.startMs !== undefined
+              ? editor.lines[editor.lineIndex + 1].startMs! / 1000 + 0.3
               : start + 12,
             start + 18,
           ),

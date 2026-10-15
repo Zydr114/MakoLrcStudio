@@ -1,4 +1,4 @@
-import { newId, type TimingUnit } from "./model";
+import { newUnit, unitStart, type TimingUnit } from "./model";
 
 const segmenter = () => {
   if (!Intl.Segmenter)
@@ -10,9 +10,10 @@ export const graphemes = (text: string): string[] =>
 const latin = (s: string) => /^[\p{Script=Latin}\p{Number}]/u.test(s);
 const opening = new Set(Array.from("([{（［｛「『【《〈“‘"));
 
-export function tokenize(text: string): TimingUnit[] {
+/** Default unit texts: a full visible character, a Latin word, punctuation attached. */
+export function tokenizeText(text: string): string[] {
   const chars = graphemes(text);
-  const units: TimingUnit[] = [];
+  const units: string[] = [];
   let prefix = "";
   let quoted = false;
   for (let i = 0; i < chars.length; i++) {
@@ -25,7 +26,7 @@ export function tokenize(text: string): TimingUnit[] {
     }
     if (/^[\s\p{P}]+$/u.test(char)) {
       if (prefix || !units.length) prefix += char;
-      else units[units.length - 1].text += char;
+      else units[units.length - 1] += char;
       continue;
     }
     let content = char;
@@ -42,15 +43,18 @@ export function tokenize(text: string): TimingUnit[] {
         break;
       }
     }
-    units.push({ id: newId(), text: prefix + content, startMs: null });
+    units.push(prefix + content);
     prefix = "";
   }
   if (prefix) {
-    if (units.length) units[units.length - 1].text += prefix;
-    else units.push({ id: newId(), text: prefix, startMs: null });
+    if (units.length) units[units.length - 1] += prefix;
+    else units.push(prefix);
   }
   return units;
 }
+
+export const tokenize = (text: string): TimingUnit[] =>
+  tokenizeText(text).map((part) => newUnit(part));
 
 export function splitUnit(
   units: TimingUnit[],
@@ -63,10 +67,13 @@ export function splitUnit(
   );
   if (!boundaries.has(offset) || offset <= 0 || offset >= unit.text.length)
     throw new Error("请选择完整字符之间的拆分位置。");
+  const first = newUnit(unit.text.slice(0, offset), unitStart(unit));
+  const second = newUnit(unit.text.slice(offset));
+  second.syllables[0].endMs = unit.syllables.at(-1)!.endMs;
   return [
     ...units.slice(0, index),
-    { ...unit, text: unit.text.slice(0, offset) },
-    { id: newId(), text: unit.text.slice(offset), startMs: null },
+    { ...first, id: unit.id },
+    second,
     ...units.slice(index + 1),
   ];
 }
@@ -78,15 +85,15 @@ export function mergeUnits(
 ): TimingUnit[] {
   if (from < 0 || to <= from || to >= units.length)
     throw new Error("请选中至少两个相邻单位。");
-  return [
-    ...units.slice(0, from),
-    {
-      ...units[from],
-      text: units
-        .slice(from, to + 1)
-        .map((u) => u.text)
-        .join(""),
-    },
-    ...units.slice(to + 1),
-  ];
+  const text = units
+    .slice(from, to + 1)
+    .map((u) => u.text)
+    .join("");
+  // Ruby does not survive a merge; a pause after the last merged unit does.
+  const merged = {
+    ...newUnit(text, unitStart(units[from])),
+    id: units[from].id,
+  };
+  merged.syllables[0].endMs = units[to].syllables.at(-1)!.endMs;
+  return [...units.slice(0, from), merged, ...units.slice(to + 1)];
 }

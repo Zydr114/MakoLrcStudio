@@ -2,11 +2,17 @@
 import { ref, computed, onBeforeUnmount } from "vue";
 import { useWaveformViewport } from "./useWaveformViewport";
 import { editor } from "../state/editor";
-import { formatTime, completeLine } from "../domain/model";
 import {
-  unitBounds,
+  formatTime,
+  completeLine,
+  syllableLabel,
+  syllableRefs,
+} from "../domain/model";
+import {
+  syllableBounds,
+  lineEndBounds,
   lineStartBounds,
-  setUnitStart,
+  setSyllableStart,
   setLineStart,
   setLineStartBoundary,
   setLineEnd,
@@ -45,7 +51,8 @@ const viewport = computed(() => ({
 interface Point {
   key: string;
   lineIndex: number;
-  unitIndex: number;
+  /** Position in the line's syllables; the syllable count is the line end. */
+  index: number;
   time: number;
   label: string;
   end: boolean;
@@ -54,7 +61,7 @@ interface Point {
 }
 const points = computed<Point[]>(() => {
   if (editor.project.stage === 2) {
-    const lines = editor.displayProject.lines;
+    const lines = editor.displayLines;
     const result: Point[] = lines.flatMap((l, i) =>
       l.startMs === null
         ? []
@@ -62,7 +69,7 @@ const points = computed<Point[]>(() => {
             {
               key: l.id,
               lineIndex: i,
-              unitIndex: 0,
+              index: 0,
               time: l.startMs,
               label: `${i + 1}`,
               end: false,
@@ -82,7 +89,7 @@ const points = computed<Point[]>(() => {
         result.push({
           key: `${line.id}-end`,
           lineIndex: index,
-          unitIndex: line.units.length,
+          index: syllableRefs(line).length,
           time: reference,
           label: line.endMs === null ? "参考收尾" : "收尾",
           end: true,
@@ -93,16 +100,17 @@ const points = computed<Point[]>(() => {
   }
   const line = editor.displayLine;
   if (!line) return [];
-  const result: Point[] = line.units.flatMap((u, i) =>
-    u.startMs === null
+  const refs = syllableRefs(line);
+  const result: Point[] = refs.flatMap(({ syllable, unit, index }) =>
+    syllable.startMs === null
       ? []
       : [
           {
-            key: u.id,
+            key: syllable.id,
             lineIndex: editor.lineIndex,
-            unitIndex: i,
-            time: u.startMs,
-            label: u.text.trim(),
+            index,
+            time: syllable.startMs,
+            label: syllableLabel(unit, syllable),
             end: false,
           },
         ],
@@ -111,7 +119,7 @@ const points = computed<Point[]>(() => {
     result.push({
       key: `${line.id}-end`,
       lineIndex: editor.lineIndex,
-      unitIndex: line.units.length,
+      index: refs.length,
       time: line.endMs,
       label: "收尾",
       end: true,
@@ -143,28 +151,18 @@ const ticks = computed(() => {
   return values;
 });
 function bounds(point: Point): [number, number] {
-  const lines = editor.project.lines,
-    line = lines[point.lineIndex];
   if (point.wholeLine) return lineStartBounds(editor.project, point.lineIndex);
-  if (point.end)
-    return [
-      Math.max(line.startMs ?? 0, ...line.units.map((u) => u.startMs ?? -1)) +
-        1,
-      Math.min(
-        editor.project.audio?.durationMs ?? Infinity,
-        lines[point.lineIndex + 1]?.startMs ?? Infinity,
-      ),
-    ];
+  if (point.end) return lineEndBounds(editor.project, point.lineIndex);
   // The line timing stage only moves the line start boundary; later units and the end stay.
   if (editor.project.stage === 2)
-    return unitBounds(editor.project, point.lineIndex, 0);
-  return unitBounds(editor.project, point.lineIndex, point.unitIndex);
+    return syllableBounds(editor.project, point.lineIndex, 0);
+  return syllableBounds(editor.project, point.lineIndex, point.index);
 }
 function applyPoint(p: typeof editor.project, point: Point, ms: number) {
   if (point.wholeLine) setLineStart(p, point.lineIndex, ms);
   else if (point.end) setLineEnd(p, point.lineIndex, ms);
   else if (p.stage === 2) setLineStartBoundary(p, point.lineIndex, ms);
-  else setUnitStart(p, point.lineIndex, point.unitIndex, ms);
+  else setSyllableStart(p, point.lineIndex, point.index, ms);
 }
 function pointConflict(point: Point) {
   const [min, max] = bounds(point);
@@ -177,11 +175,11 @@ function selectPoint(point: Point) {
   if (editor.editingText) return;
   if (editor.recordingArmed) editor.pause();
   if (editor.project.stage === 2)
-    editor.view({ activeLineId: editor.project.lines[point.lineIndex].id });
+    editor.view({ activeLineId: editor.lines[point.lineIndex].id });
   else if (!point.wholeLine) {
     editor.selectedUnit = Math.min(
-      point.unitIndex,
-      (editor.line?.units.length ?? 1) - 1,
+      point.index,
+      (editor.line ? syllableRefs(editor.line).length : 1) - 1,
     );
     editor.selectionEnd = editor.selectedUnit;
   }
@@ -275,14 +273,14 @@ const canMoveSentence = computed(
     completeLine(editor.line) &&
     !editor.conflicts.some((issue) => issue.lineId === editor.line.id),
 );
-function auditionRegion(unitIndex: number | null) {
-  void editor.review(unitIndex === null ? "line" : "token");
+function auditionRegion(index: number | null) {
+  void editor.review(index === null ? "line" : "token");
 }
 const contextGeometry = computed(() =>
   intervalGeometry(
     editor.displayLine?.startMs ?? 0,
     editor.displayLine?.endMs ??
-      editor.displayProject.lines[editor.lineIndex + 1]?.startMs ??
+      editor.displayLines[editor.lineIndex + 1]?.startMs ??
       editor.project.audio?.durationMs ??
       0,
     viewport.value,
@@ -293,7 +291,7 @@ function moveSentence(event: PointerEvent) {
   startDrag(event, {
     key: editor.line.id + "-move",
     lineIndex: editor.lineIndex,
-    unitIndex: 0,
+    index: 0,
     time: editor.line.startMs!,
     label: "整句",
     end: false,
@@ -311,12 +309,12 @@ function lineDrag(
   if (action === "cancel") return cancelDrag();
   if (editor.project.stage !== 2 || event.button !== 0 || editor.editingText)
     return;
-  const line = editor.project.lines[lineIndex];
+  const line = editor.lines[lineIndex];
   if (!line || line.startMs === null) return;
   startDrag(event, {
     key: `${line.id}-move`,
     lineIndex,
-    unitIndex: 0,
+    index: 0,
     time: line.startMs,
     label: "整句",
     end: false,
@@ -448,7 +446,7 @@ onBeforeUnmount(() => {
             selectPoint({
               key: '',
               lineIndex: li,
-              unitIndex: ui ?? 0,
+              index: ui ?? 0,
               time: 0,
               label: '',
               end: false,
@@ -467,7 +465,7 @@ onBeforeUnmount(() => {
               !point.end &&
               point.lineIndex === editor.lineIndex &&
               (editor.project.stage === 2 ||
-                point.unitIndex === editor.selectedUnit),
+                point.index === editor.selectedUnit),
             ending: point.end,
             reference: point.reference === true,
             conflict: pointConflict(point),

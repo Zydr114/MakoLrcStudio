@@ -23,7 +23,7 @@ const lineMode = computed(() => editor.project.stage === 2);
 const limit = computed(() =>
   Math.min(
     editor.project.audio?.durationMs ?? Infinity,
-    editor.displayProject.lines[editor.lineIndex + 1]?.startMs ?? Infinity,
+    editor.displayLines[editor.lineIndex + 1]?.startMs ?? Infinity,
   ),
 );
 const intervals = computed(() =>
@@ -36,7 +36,7 @@ const intervals = computed(() =>
 const playing = computed(() =>
   editor.displayLine
     ? sampleLineTiming(editor.displayLine, editor.positionMs, limit.value)
-        .unitId
+        .syllableId
     : null,
 );
 function extent(interval: TimingInterval) {
@@ -46,10 +46,10 @@ function extent(interval: TimingInterval) {
     interval.kind === "unknown" &&
     editor.recordingArmed &&
     editor.lastRecorded?.lineId ===
-      editor.displayProject.lines[
+      editor.displayLines[
         lineMode.value ? interval.lineIndex : editor.lineIndex
       ]?.id &&
-    (lineMode.value || editor.lastRecorded.index === interval.unitIndex)
+    (lineMode.value || editor.lastRecorded!.index === interval.index)
   )
     return Math.min(limit.value, Math.max(interval.startMs, editor.positionMs));
   return interval.startMs;
@@ -67,7 +67,7 @@ const geometry = (interval: TimingInterval) =>
 function selected(interval: TimingInterval) {
   return lineMode.value
     ? interval.lineIndex === editor.lineIndex
-    : interval.unitIndex === editor.selectedUnit;
+    : interval.index === editor.selectedUnit;
 }
 function isPlaying(interval: TimingInterval) {
   return lineMode.value
@@ -94,12 +94,12 @@ function title(interval: TimingInterval) {
       :class="[
         interval.kind,
         {
-          alternate: (interval.unitIndex ?? interval.lineIndex) % 2 === 1,
+          alternate: (interval.index ?? interval.lineIndex) % 2 === 1,
           selected: selected(interval),
           playing: isPlaying(interval),
         },
       ]"
-      :data-unit-id="interval.unitIndex === null ? undefined : interval.id"
+      :data-syllable-id="interval.index === null ? undefined : interval.id"
       :data-start="interval.startMs"
       :data-end="interval.endMs"
       :data-kind="interval.kind"
@@ -108,15 +108,15 @@ function title(interval: TimingInterval) {
         width: geometry(interval).width + '%',
       }"
       :title="title(interval)"
-      :aria-label="`选择${lineMode ? '句子' : '单位'} ${lineMode ? interval.lineIndex + 1 : interval.unitIndex! + 1}：${label(interval)}`"
+      :aria-label="`选择${lineMode ? '句子' : '单位'} ${lineMode ? interval.lineIndex + 1 : interval.index! + 1}：${label(interval)}`"
       @click.stop="
         emit(
           'select',
           lineMode ? interval.lineIndex : editor.lineIndex,
-          interval.unitIndex,
+          interval.index,
         )
       "
-      @dblclick.stop="emit('audition', interval.unitIndex)"
+      @dblclick.stop="emit('audition', interval.index)"
       @pointerdown="emit('lineDrag', 'start', interval.lineIndex, $event)"
       @pointermove="emit('lineDrag', 'move', interval.lineIndex, $event)"
       @pointerup="emit('lineDrag', 'end', interval.lineIndex, $event)"

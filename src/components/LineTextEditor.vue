@@ -3,7 +3,7 @@ import { computed, ref, watch, nextTick, onBeforeUnmount } from "vue";
 import { editor } from "../state/editor";
 import UiButton from "./UiButton.vue";
 import { editLine, splitLine } from "../domain/edit";
-import { newLine } from "../domain/model";
+import { activeLines, hasTiming, newLine, syllablesOf } from "../domain/model";
 import { characterGaps } from "../domain/segmentation";
 import { tokenize } from "../domain/tokenize";
 const props = defineProps<{ open: boolean }>();
@@ -21,8 +21,7 @@ const validGap = computed(() =>
 );
 const hadTiming = computed(
   () =>
-    editor.line?.units.some((unit) => unit.startMs !== null) ||
-    editor.line?.endMs !== null,
+    (!!editor.line && hasTiming(editor.line)) || editor.line?.endMs !== null,
 );
 watch(
   () => props.open,
@@ -36,7 +35,7 @@ watch(
     issue.value = "";
     caret.value = wordMode.value
       ? editor.line.units
-          .slice(0, editor.selectedUnit)
+          .slice(0, editor.selectedSyllable?.unitIndex ?? 0)
           .reduce((offset, unit) => offset + unit.text.length, 0)
       : 0;
     await nextTick();
@@ -87,15 +86,16 @@ function apply(action: "text" | "line") {
     !editor.command(
       action === "line" ? "在光标处拆句" : "修改本行正文",
       (p) => {
-        const lineIndex = p.lines.findIndex((line) => line.id === id);
+        const lines = activeLines(p);
+        const lineIndex = lines.findIndex((line) => line.id === id);
         const parts = text.value.replace(/\r\n?/g, "\n").split("\n");
         editLine(p, id, parts[0]);
-        p.lines.splice(
+        lines.splice(
           lineIndex + 1,
           0,
           ...parts.slice(1).map((part) => newLine(part)),
         );
-        const line = p.lines[lineIndex];
+        const line = lines[lineIndex];
         if (action === "line") splitLine(p, id, caret.value);
         if (p.stage === 3 && !line.units.length)
           line.units = tokenize(line.text);
@@ -107,7 +107,7 @@ function apply(action: "text" | "line") {
   }
   editor.selectedUnit = Math.min(
     editor.selectedUnit,
-    Math.max(0, editor.line.units.length - 1),
+    Math.max(0, syllablesOf(editor.line).length - 1),
   );
   editor.selectionEnd = editor.selectedUnit;
   if (hadChanges && oldTiming)

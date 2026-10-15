@@ -1,9 +1,23 @@
 import type { AudioInfo } from "../audio/transport";
 
-export interface TimingUnit {
+/** The timing atom. A null end continues to the next syllable start, or to the line end. */
+export interface Syllable {
   id: string;
   text: string;
   startMs: number | null;
+  endMs: number | null;
+}
+/** A display unit: a character, a word or one ruby group. */
+export interface TimingUnit {
+  id: string;
+  /** Base text, including attached punctuation and spaces. */
+  text: string;
+  /** With ruby the syllable texts joined are the reading; without it one syllable repeats the text. */
+  ruby: boolean;
+  /** Automatic ruby that nobody has confirmed yet. */
+  autoRuby?: boolean;
+  roman?: string;
+  syllables: Syllable[];
 }
 export interface LyricLine {
   id: string;
@@ -11,45 +25,156 @@ export interface LyricLine {
   startMs: number | null;
   endMs: number | null;
   units: TimingUnit[];
+  translation: string;
+  roman: string;
+  songPart?: string;
+}
+export type PartKind = "person" | "group" | "other";
+/** A vocal part has its own timeline; parts may overlap each other but not themselves. */
+export interface VocalPart {
+  id: string;
+  name: string;
+  kind: PartKind;
+  background: boolean;
+  color: string;
+  lines: LyricLine[];
 }
 export interface ProjectDraft {
-  version: 1;
+  version: 2;
   name: string;
   metadata: Record<string, string>;
   audio: AudioInfo | null;
-  lines: LyricLine[];
+  parts: VocalPart[];
+  /** The part exported to LRC. */
+  mainPartId: string;
+  /** View state like activeLineId: switching parts is not an edit. */
+  activePartId: string;
   stage: number;
   unlockedStage: number;
   activeLineId: string | null;
   playheadMs: number;
+  translationLang: string;
+  romanLang: string;
 }
 export interface Issue {
   kind: "missing" | "conflict";
   lineId: string;
-  unitId?: string;
+  syllableId?: string;
   message: string;
 }
+export const partKinds: PartKind[] = ["person", "group", "other"];
+export const partColors = [
+  "#0b84d8",
+  "#d6457f",
+  "#2f9c5a",
+  "#c98400",
+  "#7a5ad8",
+  "#00999b",
+];
 export const newId = (): string => crypto.randomUUID();
+export const newSyllable = (
+  text: string,
+  startMs: number | null = null,
+): Syllable => ({ id: newId(), text, startMs, endMs: null });
+export const newUnit = (
+  text: string,
+  startMs: number | null = null,
+): TimingUnit => ({
+  id: newId(),
+  text,
+  ruby: false,
+  syllables: [newSyllable(text, startMs)],
+});
 export const newLine = (
   text: string,
   startMs: number | null = null,
-): LyricLine => ({ id: newId(), text, startMs, endMs: null, units: [] });
-export const newProject = (): ProjectDraft => ({
-  version: 1,
-  name: "未命名歌词",
-  metadata: {},
-  audio: null,
-  lines: [],
-  stage: 0,
-  unlockedStage: 0,
-  activeLineId: null,
-  playheadMs: 0,
+): LyricLine => ({
+  id: newId(),
+  text,
+  startMs,
+  endMs: null,
+  units: [],
+  translation: "",
+  roman: "",
 });
+export const newPart = (
+  name: string,
+  lines: LyricLine[] = [],
+  color = partColors[0],
+): VocalPart => ({
+  id: newId(),
+  name,
+  kind: "person",
+  background: false,
+  color,
+  lines,
+});
+export function newProject(lines: LyricLine[] = []): ProjectDraft {
+  const main = newPart("主唱", lines);
+  return {
+    version: 2,
+    name: "未命名歌词",
+    metadata: {},
+    audio: null,
+    parts: [main],
+    mainPartId: main.id,
+    activePartId: main.id,
+    stage: 0,
+    unlockedStage: 0,
+    activeLineId: null,
+    playheadMs: 0,
+    translationLang: "",
+    romanLang: "",
+  };
+}
 export const copyProject = (project: ProjectDraft): ProjectDraft =>
   JSON.parse(JSON.stringify(project)) as ProjectDraft;
+export const activePart = (project: ProjectDraft): VocalPart =>
+  project.parts.find((part) => part.id === project.activePartId) ??
+  project.parts[0];
+export const activeLines = (project: ProjectDraft): LyricLine[] =>
+  activePart(project).lines;
+export const mainPart = (project: ProjectDraft): VocalPart =>
+  project.parts.find((part) => part.id === project.mainPartId) ??
+  project.parts[0];
+export const lineCount = (project: ProjectDraft): number =>
+  project.parts.reduce((count, part) => count + part.lines.length, 0);
+
+export interface SyllableRef {
+  syllable: Syllable;
+  unit: TimingUnit;
+  unitIndex: number;
+  /** Position in the line's whole syllable sequence, the order of Enter. */
+  index: number;
+}
+export function syllableRefs(line: LyricLine): SyllableRef[] {
+  const refs: SyllableRef[] = [];
+  line.units.forEach((unit, unitIndex) =>
+    unit.syllables.forEach((syllable) =>
+      refs.push({ syllable, unit, unitIndex, index: refs.length }),
+    ),
+  );
+  return refs;
+}
+export const syllablesOf = (line: LyricLine): Syllable[] =>
+  line.units.flatMap((unit) => unit.syllables);
+export const unitStart = (unit: TimingUnit): number | null =>
+  unit.syllables[0]?.startMs ?? null;
+/** How a syllable is named in messages: a ruby reading keeps its base, as in 詮・せ. */
+export const syllableLabel = (unit: TimingUnit, syllable: Syllable): string =>
+  unit.ruby ? `${unit.text.trim()}・${syllable.text}` : unit.text.trim();
+export const hasTiming = (line: LyricLine): boolean =>
+  syllablesOf(line).some(
+    (syllable) => syllable.startMs !== null || syllable.endMs !== null,
+  );
+/** A plain unit's only syllable repeats its text; ruby keeps the reading. */
+export function retextUnit(unit: TimingUnit, text: string): TimingUnit {
+  if (unit.ruby) return { ...unit, text };
+  return { ...unit, text, syllables: [{ ...unit.syllables[0], text }] };
+}
 export const completeLine = (line: LyricLine): boolean =>
   line.units.length > 0 &&
-  line.units.every((u) => u.startMs !== null) &&
+  syllablesOf(line).every((syllable) => syllable.startMs !== null) &&
   line.endMs !== null;
 
 export function formatTime(ms: number | null): string {
@@ -68,17 +193,21 @@ export function parseTime(input: string): number | null {
   return Number.isSafeInteger(value) ? value : null;
 }
 
-export function validate(project: ProjectDraft, full = true): Issue[] {
+/** Rules inside one part. Different parts never constrain each other. */
+export function validateLines(
+  lines: LyricLine[],
+  duration = Infinity,
+  full = true,
+): Issue[] {
   const issues: Issue[] = [];
-  const duration = project.audio?.durationMs ?? Infinity;
   let previousStart = -1;
-  for (let i = 0; i < project.lines.length; i++) {
-    const line = project.lines[i];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const add = (
       message: string,
-      unitId?: string,
+      syllableId?: string,
       kind: Issue["kind"] = "conflict",
-    ) => issues.push({ lineId: line.id, unitId, message, kind });
+    ) => issues.push({ lineId: line.id, syllableId, message, kind });
     if (!line.text.trim()) add("空行需要删除或填写歌词");
     if (/[\r\n]/.test(line.text))
       add("行内有换行，请先在整理阶段拆成独立歌词行");
@@ -89,7 +218,7 @@ export function validate(project: ProjectDraft, full = true): Issue[] {
         add("句首需要晚于上一句；请检查同时间的翻译行或重复行");
       previousStart = line.startMs;
     }
-    const nextStart = project.lines[i + 1]?.startMs ?? duration;
+    const nextStart = lines[i + 1]?.startMs ?? duration;
     if (
       line.endMs !== null &&
       (line.endMs > nextStart ||
@@ -99,7 +228,8 @@ export function validate(project: ProjectDraft, full = true): Issue[] {
       add("收尾需要晚于句首，且不超过下一句起点");
     if (!full) continue;
     if (!line.units.length) add("尚未切分和制作逐字时间", undefined, "missing");
-    const first = line.units[0];
+    const refs = syllableRefs(line);
+    const first = refs[0]?.syllable;
     if (
       first?.startMs != null &&
       line.startMs !== null &&
@@ -107,18 +237,29 @@ export function validate(project: ProjectDraft, full = true): Issue[] {
     )
       add("首个单位起点需与句首一致", first.id);
     let previous = (line.startMs ?? 0) - 1;
-    for (const unit of line.units) {
-      if (unit.startMs === null)
-        add(`「${unit.text.trim()}」尚未记录起点`, unit.id, "missing");
+    for (const { syllable, unit, index } of refs) {
+      const label = syllableLabel(unit, syllable);
+      if (syllable.startMs === null)
+        add(`「${label}」尚未记录起点`, syllable.id, "missing");
       else {
         if (
-          unit.startMs <= previous ||
-          unit.startMs < (line.startMs ?? 0) ||
-          unit.startMs >= nextStart ||
-          unit.startMs >= duration
+          syllable.startMs <= previous ||
+          syllable.startMs < (line.startMs ?? 0) ||
+          syllable.startMs >= nextStart ||
+          syllable.startMs >= duration
         )
-          add(`「${unit.text.trim()}」起点与相邻边界冲突`, unit.id);
-        previous = unit.startMs;
+          add(`「${label}」起点与相邻边界冲突`, syllable.id);
+        previous = syllable.startMs;
+      }
+      if (syllable.endMs !== null) {
+        const next = refs[index + 1]?.syllable.startMs;
+        if (
+          index === refs.length - 1 ||
+          syllable.endMs <= (syllable.startMs ?? Infinity) ||
+          (next != null && syllable.endMs > next)
+        )
+          add(`「${label}」终点与相邻边界冲突`, syllable.id);
+        else previous = Math.max(previous, syllable.endMs - 1);
       }
     }
     if (line.endMs === null) add("尚未记录收尾", undefined, "missing");
@@ -131,3 +272,11 @@ export function validate(project: ProjectDraft, full = true): Issue[] {
   }
   return issues;
 }
+
+/** Validates the part being edited. */
+export const validate = (project: ProjectDraft, full = true): Issue[] =>
+  validateLines(
+    activeLines(project),
+    project.audio?.durationMs ?? Infinity,
+    full,
+  );
