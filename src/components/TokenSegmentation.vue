@@ -19,8 +19,10 @@ import {
 } from "../domain/segmentation";
 import { readingCuts, readingOf, setRuby } from "../domain/ruby";
 import RubyEditor from "./RubyEditor.vue";
+import UiField from "./UiField.vue";
 /** Which editor is open: unit dividers or the reading of one unit. */
-const panel = ref<"units" | "ruby" | null>(null);
+const panel = ref<"units" | "ruby" | "roman" | null>(null);
+const roman = ref("");
 const cuts = ref<number[]>([]),
   original = ref<number[]>([]),
   cutError = ref(""),
@@ -65,7 +67,7 @@ function selectSyllable(index: number) {
   editor.selectedIndex = index;
   focusWorkspace();
 }
-function openPanel(kind: "units" | "ruby") {
+function openPanel(kind: "units" | "ruby" | "roman") {
   editor.stopRecording();
   editor.cancelAudition();
   editor.clearPreview();
@@ -82,6 +84,37 @@ function begin() {
     original.value.length !== editor.line.units.length - 1
       ? "导入的字符内分隔线已移除，应用前请检查。"
       : "";
+}
+function beginRoman() {
+  const unitIndex = editor.selectedSyllable?.unitIndex;
+  if (!editor.line || unitIndex === undefined) return;
+  rubyUnit.value = unitIndex;
+  roman.value = editor.line.units[unitIndex].roman ?? "";
+  openPanel("roman");
+}
+/** Word romanization of one unit, timed with it in TTML. */
+function applyRoman(value: string) {
+  const unitIndex = rubyUnit.value,
+    text = value.trim();
+  if (
+    editor.command(text ? "修改逐字罗马音" : "清除逐字罗马音", (p) => {
+      const line = activeLines(p)[editor.lineIndex];
+      if (text) line.units[unitIndex].roman = text;
+      else delete line.units[unitIndex].roman;
+    })
+  )
+    cancel();
+}
+function romanKey(event: KeyboardEvent) {
+  if (event.isComposing || event.keyCode === 229) return;
+  if (event.key === "Enter") {
+    event.preventDefault();
+    applyRoman(roman.value);
+  } else if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    cancel();
+  }
 }
 function beginRuby() {
   const unitIndex = editor.selectedSyllable?.unitIndex;
@@ -224,7 +257,8 @@ onBeforeUnmount(() => {
             >{{ ref.syllable.text }}</span
           ></span
         >
-        <span>{{ unit.text.trim() }}</span>
+        <span>{{ unit.text.trim() }}</span
+        ><small v-if="unit.roman" class="strip-roman">{{ unit.roman }}</small>
       </button>
     </div>
     <div class="unit-tools">
@@ -237,6 +271,13 @@ onBeforeUnmount(() => {
           title="为选中单位填写读音，每个音节单独打轴"
           @click="beginRuby"
           >注音</UiButton
+        ><UiButton
+          variant="text"
+          class="text-link"
+          :disabled="!editor.selectedSyllable"
+          title="选中单位的罗马音，TTML 中与它同步"
+          @click="beginRoman"
+          >罗马音</UiButton
         >
       </div>
       <UiButton
@@ -285,6 +326,27 @@ onBeforeUnmount(() => {
       {{ importNotice }}
     </p>
   </div>
+  <div
+    v-else-if="open === 'roman'"
+    class="segmentation-editor roman-editor"
+    data-editing-text
+    aria-label="逐字罗马音"
+    @keydown="romanKey"
+  >
+    <div class="segmentation-heading">
+      <strong>罗马音「{{ editedUnit?.text.trim() }}」</strong>
+      <UiField v-model="roman" label="逐字罗马音" placeholder="例如 kimi" />
+      <div>
+        <UiButton
+          v-if="editedUnit?.roman"
+          variant="text"
+          @click="applyRoman('')"
+          >清除</UiButton
+        ><UiButton variant="text" @click="cancel">取消</UiButton
+        ><UiButton variant="filled" @click="applyRoman(roman)">应用</UiButton>
+      </div>
+    </div>
+  </div>
   <RubyEditor
     v-else
     :base="editedUnit?.text.trim() ?? ''"
@@ -331,6 +393,15 @@ onBeforeUnmount(() => {
   font-size: 12px;
   margin-top: 4px;
   background: transparent;
+}
+.unit-strip .strip-roman {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.2;
+}
+.roman-editor mdui-text-field {
+  flex: 0 1 240px;
 }
 .unit-strip button.ruby {
   display: inline-flex;

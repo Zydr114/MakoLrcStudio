@@ -25,6 +25,8 @@ import UiIconButton from "../components/UiIconButton.vue";
 import PartPanel from "../components/PartPanel.vue";
 import RubyLine from "../components/RubyLine.vue";
 import AutoRubyPanel from "../components/AutoRubyPanel.vue";
+import LayerLine from "../components/LayerLine.vue";
+import LayerPanel from "../components/LayerPanel.vue";
 import type { SegmentedButtonGroup } from "mdui/components/segmented-button-group.js";
 import { clearRubySelection } from "../state/rubySelection";
 import { transferLines } from "../domain/parts";
@@ -107,6 +109,8 @@ watch(
 const layers = [
   { value: "lyrics", label: "歌词" },
   { value: "ruby", label: "注音" },
+  { value: "translation", label: "翻译" },
+  { value: "roman", label: "罗马音" },
 ] as const;
 function changeLayer(event: Event) {
   const value = (event.currentTarget as SegmentedButtonGroup).value as string;
@@ -240,6 +244,13 @@ function apply() {
             v-if="editor.textLayer === 'ruby'"
             :line="line"
             :index="index"
+          /><LayerLine
+            v-else-if="
+              editor.textLayer === 'translation' || editor.textLayer === 'roman'
+            "
+            :line="line"
+            :index="index"
+            :field="editor.textLayer"
           /><template v-else>
             <textarea
               :aria-label="`第 ${index + 1} 行歌词`"
@@ -302,6 +313,14 @@ function apply() {
         <section class="surface part-card"><PartPanel /></section>
         <AutoRubyPanel
           v-if="editor.textLayer === 'ruby'"
+          :selected="selected"
+        />
+        <LayerPanel
+          v-else-if="
+            editor.textLayer === 'translation' || editor.textLayer === 'roman'
+          "
+          :key="editor.textLayer"
+          :field="editor.textLayer"
           :selected="selected"
         />
         <aside v-else class="surface cleanup-panel">

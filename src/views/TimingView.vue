@@ -24,7 +24,7 @@ import UiIconButton from "../components/UiIconButton.vue";
 import UiField from "../components/UiField.vue";
 import UiSelect from "../components/UiSelect.vue";
 import UiToggle from "../components/UiToggle.vue";
-import { previewModes } from "../components/controlOptions";
+import { extraModes, previewModes } from "../components/controlOptions";
 import Icon from "../components/Icon.vue";
 import TimeInput from "../components/TimeInput.vue";
 import Waveform from "../components/Waveform.vue";
@@ -40,7 +40,20 @@ const listOpen = ref(false),
   songOpen = ref(false),
   textOpen = ref(false),
   shiftMs = ref("0"),
-  fillPreview = ref(false);
+  fillPreview = ref(false),
+  extraMode = ref<(typeof extraModes)[number]["value"]>("translation");
+const hasExtras = computed(() =>
+  editor.lines.some((line) => line.translation || line.roman),
+);
+const extras = computed(() =>
+  !hasExtras.value
+    ? []
+    : extraMode.value === "both"
+      ? (["translation", "roman"] as const).slice()
+      : extraMode.value === "none"
+        ? []
+        : [extraMode.value],
+);
 const playingLine = computed(() =>
   playingLineIndex(editor.displayProject, editor.positionMs),
 );
@@ -361,6 +374,7 @@ watch(
           :fill="fillPreview"
           :line-mode="lineMode"
           :provisional-unit-id="provisional"
+          :extras="extras"
           scrolling
         />
         <LineTextEditor :open="textOpen" @close="textOpen = false" />
@@ -458,6 +472,12 @@ watch(
               label="预览方式"
               compact
               :options="previewModes"
+            /><UiSelect
+              v-if="hasExtras"
+              v-model="extraMode"
+              label="附加显示"
+              compact
+              :options="extraModes"
             /><span
               v-if="
                 editor.auditionScope === 'line' && editor.line.endMs === null

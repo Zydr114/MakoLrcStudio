@@ -1,5 +1,5 @@
 import { TokenizerBuilder } from "@patdx/kuromoji";
-import { lineSpans, type ReadingSpan } from "./align";
+import { lineSpans, lineWords, type ReadingSpan, type Word } from "./align";
 
 // The IPADIC dictionary ships with the app; it is fetched only on first use.
 const files = import.meta.glob<string>(
@@ -27,7 +27,7 @@ async function load(name: string): Promise<ArrayBuffer> {
 
 type Tokenizer = Awaited<ReturnType<TokenizerBuilder["build"]>>;
 let tokenizer: Promise<Tokenizer> | null = null;
-export function japaneseReader(): Promise<(text: string) => ReadingSpan[]> {
+function ready(): Promise<Tokenizer> {
   tokenizer ??= new TokenizerBuilder({
     loader: { loadArrayBuffer: load },
   })
@@ -36,7 +36,16 @@ export function japaneseReader(): Promise<(text: string) => ReadingSpan[]> {
       tokenizer = null;
       throw error;
     });
-  return tokenizer.then(
-    (ready) => (text: string) => lineSpans(ready.tokenize(text)),
-  );
+  return tokenizer;
+}
+export async function japaneseReader(): Promise<
+  (text: string) => ReadingSpan[]
+> {
+  const analyzer = await ready();
+  return (text) => lineSpans(analyzer.tokenize(text));
+}
+/** Word boundaries for romaji spacing, with the particles read as wa, o and e. */
+export async function japaneseWords(): Promise<(text: string) => Word[]> {
+  const analyzer = await ready();
+  return (text) => lineWords(analyzer.tokenize(text));
 }

@@ -115,6 +115,12 @@ function keydown(event: KeyboardEvent) {
             :limit-ms="entry.limitMs"
             :fill="fill"
           />
+          <small v-if="entry.line.roman" class="song-extra">{{
+            entry.line.roman
+          }}</small>
+          <small v-if="entry.line.translation" class="song-extra">{{
+            entry.line.translation
+          }}</small>
           <KaraokeLine
             v-for="voice in entry.backgrounds"
             :key="voice.line.id"
@@ -218,6 +224,11 @@ function keydown(event: KeyboardEvent) {
   font-size: 11px;
   font-weight: 400;
   color: var(--part-color);
+}
+.song-extra {
+  font-size: 0.55em;
+  font-weight: 400;
+  color: var(--muted);
 }
 .song-background {
   font-size: 0.62em;

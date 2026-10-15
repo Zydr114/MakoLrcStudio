@@ -27,6 +27,8 @@ export interface LyricLine {
   units: TimingUnit[];
   translation: string;
   roman: string;
+  /** Generated romanization (line and units) that nobody has confirmed yet. */
+  romanAuto?: boolean;
   songPart?: string;
 }
 export type PartKind = "person" | "group" | "other";

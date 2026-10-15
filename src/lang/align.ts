@@ -8,6 +8,13 @@ export interface ReadingSpan {
 export interface ReadingToken {
   surface_form: string;
   reading?: string;
+  pos?: string;
+}
+export interface Word {
+  start: number;
+  end: number;
+  /** は, を and へ as particles are written wa, o and e in romaji. */
+  particle?: string;
 }
 
 const kanji = /[\p{Script=Han}々〆ヶ]/u;
@@ -69,4 +76,25 @@ export function lineSpans(tokens: ReadingToken[]): ReadingSpan[] {
     offset += token.surface_form.length;
     return spans;
   });
+}
+
+const particles: Record<string, string> = { は: "wa", を: "o", へ: "e" };
+export function lineWords(tokens: ReadingToken[]): Word[] {
+  let offset = 0;
+  const words: Word[] = [];
+  for (const token of tokens) {
+    const start = offset;
+    offset += token.surface_form.length;
+    // Auxiliary verbs belong to the word before them: 行った is itta.
+    if (token.pos === "助動詞" && words.length) {
+      words[words.length - 1].end = offset;
+      continue;
+    }
+    const particle =
+      token.pos === "助詞" ? particles[token.surface_form] : undefined;
+    words.push(
+      particle ? { start, end: offset, particle } : { start, end: offset },
+    );
+  }
+  return words;
 }

@@ -13,6 +13,8 @@ const props = defineProps<{
   lineMode?: boolean;
   provisionalUnitId?: string | null;
   scrolling?: boolean;
+  /** Translation and romanization shown under the current line. */
+  extras?: ("translation" | "roman")[];
 }>();
 const preview = ref<HTMLElement>();
 const scrollViewport = ref<HTMLElement>();
@@ -100,6 +102,11 @@ watch(
               :fill="fill"
               :provisional-unit-id="provisionalUnitId"
             />
+            <template v-for="extra in extras ?? []" :key="extra"
+              ><span v-if="line[extra]" class="line-extra" :class="extra">{{
+                line[extra]
+              }}</span></template
+            >
           </template>
           <span v-else>{{ item.text }}</span>
         </div>
@@ -171,6 +178,13 @@ watch(
   justify-content: flex-start;
   gap: 8px;
   padding: 56px 0;
+}
+.line-extra {
+  flex-basis: 100%;
+  font-size: 0.48em;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--muted);
 }
 .scroll-line {
   flex: 0 0 auto;

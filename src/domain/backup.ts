@@ -88,6 +88,7 @@ function checkLine(line: LyricLine, unique: (id: unknown) => void) {
     !Array.isArray(line.units) ||
     !isText(line.translation) ||
     !isText(line.roman) ||
+    (line.romanAuto !== undefined && typeof line.romanAuto !== "boolean") ||
     (line.songPart !== undefined && !isText(line.songPart))
   )
     fail();
