@@ -28,22 +28,29 @@ async function decode() {
       "文本编码无法识别，请切换 UTF-8、GB18030 或 Shift-JIS 后检查预览。";
   }
 }
+/** A project file is restored as it is; anything else is lyric text to preview. */
+async function openFile(file: File) {
+  if (/\.json$/i.test(file.name)) {
+    if (file.size > 10 * 1024 * 1024)
+      editor.error = "工程文件过大，请选择本工具导出的编辑进度文件。";
+    else editor.restoreBackup(await file.text());
+    return;
+  }
+  lyricFile.value = file;
+  await decode();
+}
 async function load(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0];
-  if (file) {
-    lyricFile.value = file;
-    await decode();
-  }
+  if (file) await openFile(file);
   (event.target as HTMLInputElement).value = "";
 }
 async function drop(event: DragEvent) {
   dragging.value = false;
   const files = Array.from(event.dataTransfer?.files ?? []);
   for (const file of files) {
-    if (/\.(lrc|elrc|txt|ttml|xml|ass|ssa)$/i.test(file.name)) {
-      lyricFile.value = file;
-      await decode();
-    } else await editor.loadAudio(file);
+    if (/\.(lrc|elrc|txt|ttml|xml|ass|ssa|json)$/i.test(file.name))
+      await openFile(file);
+    else await editor.loadAudio(file);
   }
 }
 function next() {
@@ -96,7 +103,7 @@ function next() {
           ref="input"
           hidden
           type="file"
-          accept=".lrc,.elrc,.txt,.ttml,.xml,.ass,.ssa,text/plain"
+          accept=".lrc,.elrc,.txt,.ttml,.xml,.ass,.ssa,.json,text/plain"
           @change="load"
         />
         <label class="sr-only" for="lyric-paste">粘贴歌词</label
@@ -115,7 +122,7 @@ function next() {
             lyricFile?.name ||
             (editor.lineTotal
               ? `已导入 ${editor.lineTotal} 行`
-              : "TXT / LRC / 增强 LRC / TTML / ASS")
+              : "TXT / LRC / 增强 LRC / TTML / ASS / 工程文件")
           }}</span
           ><UiSelect
             compact

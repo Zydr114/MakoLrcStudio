@@ -144,3 +144,16 @@ test("an unfinished part blocks TTML export and shows where", async ({
     page.getByRole("button", { name: /^当前声部：B/ }),
   ).toBeVisible();
 });
+
+test("a project file picked as lyrics restores the whole project", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.locator('input[type=file][accept^=".lrc"]').setInputFiles({
+    name: "duet.mako.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project())),
+  });
+  await expect(page.locator(".prepare-view")).toBeVisible();
+  await expect(page.locator(".part-list li")).toHaveCount(3);
+});

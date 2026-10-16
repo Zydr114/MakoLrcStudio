@@ -268,7 +268,7 @@ onBeforeUnmount(() => {
       >
       <div class="project-info">
         <span>{{
-          editor.lineTotal ? editor.project.name : "增强 LRC 编辑器"
+          editor.lineTotal ? editor.project.name : "歌词打轴编辑器"
         }}</span
         ><small class="save-status">{{ editor.saveState }}</small>
       </div>
@@ -469,6 +469,15 @@ onBeforeUnmount(() => {
         <dl class="about-list">
           <dt>许可证</dt>
           <dd>AGPL-3.0</dd>
+          <dt>词典许可</dt>
+          <dd>
+            <a
+              href="licenses/IPADIC-COPYING.txt"
+              target="_blank"
+              rel="noopener noreferrer"
+              >IPADIC（日语自动注音）</a
+            >
+          </dd>
           <dt>源代码</dt>
           <dd>
             <a :href="sourceUrl" target="_blank" rel="noopener noreferrer">{{
