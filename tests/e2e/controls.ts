@@ -17,7 +17,10 @@ export async function setChecked(page: Page, label: string, checked = true) {
   await expect(input).toBeChecked({ checked });
 }
 /** The header export menu: pick a format from the real mdui menu. */
-export async function exportAs(page: Page, format: "TTML" | "增强 LRC") {
+export async function exportAs(
+  page: Page,
+  format: "TTML" | "ASS" | "增强 LRC",
+) {
   await page.getByRole("button", { name: "导出", exact: true }).click();
   await page
     .locator("mdui-menu-item", { hasText: format })

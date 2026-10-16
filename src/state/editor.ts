@@ -34,6 +34,13 @@ import {
   looksLikeTtml,
 } from "../domain/ttml";
 import {
+  exportAss as assText,
+  importAss,
+  looksLikeAss,
+  type AssOptions,
+} from "../domain/ass";
+import { fontMetrics } from "./assFont";
+import {
   createAudition,
   type AuditionScope,
   type AuditionTarget,
@@ -324,7 +331,13 @@ export function createEditor(
       error.value = "请先输入或导入歌词。";
       return false;
     }
-    if (looksLikeTtml(text)) return importTtmlText(text, name, asPart);
+    if (looksLikeTtml(text))
+      return importParts(name, asPart, "TTML", () => ({
+        ...importTtml(text),
+        mainIndex: 0,
+      }));
+    if (looksLikeAss(text))
+      return importParts(name, asPart, "ASS", () => importAss(text));
     const imported = importLyrics(text);
     if (asPart) {
       const success = command("作为新声部导入", (draft) => {
@@ -363,17 +376,23 @@ export function createEditor(
     message.value = imported.notices.join(" ");
     return success;
   }
-  function importTtmlText(text: string, name: string, asPart: boolean) {
-    let imported: ReturnType<typeof importTtml>;
+  /** TTML and ASS bring whole parts: they replace the project or join it. */
+  function importParts(
+    name: string,
+    asPart: boolean,
+    format: string,
+    read: () => ReturnType<typeof importAss>,
+  ) {
+    let imported: ReturnType<typeof importAss>;
     try {
-      imported = importTtml(text);
+      imported = read();
     } catch (value) {
       showError(value);
       return false;
     }
-    const first = imported.parts[0];
+    const first = imported.parts[imported.mainIndex];
     const success = command(
-      asPart ? "作为新声部导入 TTML" : "导入 TTML",
+      asPart ? `作为新声部导入 ${format}` : `导入 ${format}`,
       (draft) => {
         if (asPart) {
           for (const part of imported.parts) {
@@ -387,7 +406,9 @@ export function createEditor(
           draft.mainPartId = first.id;
           draft.metadata = imported.metadata;
           draft.name =
-            imported.name || name.replace(/\.(ttml|xml)$/i, "") || draft.name;
+            imported.name ||
+            name.replace(/\.(ttml|xml|ass|ssa)$/i, "") ||
+            draft.name;
           draft.stage = 0;
           draft.unlockedStage = 1;
         }
@@ -399,7 +420,7 @@ export function createEditor(
     );
     message.value = [
       success
-        ? `已导入 TTML：${imported.parts.length} 个声部（${imported.parts.map((p) => p.name).join("、")}）。`
+        ? `已导入 ${format}：${imported.parts.length} 个声部（${imported.parts.map((p) => p.name).join("、")}）。`
         : "",
       ...imported.notices,
     ]
@@ -983,6 +1004,41 @@ export function createEditor(
       return false;
     }
   }
+  async function exportAss(
+    options: Pick<
+      AssOptions,
+      "font" | "width" | "height" | "fill" | "leadInMs"
+    >,
+  ) {
+    try {
+      const metrics = await fontMetrics(options.font);
+      const { text, notices } = assText(project.value, {
+        ...options,
+        measure: metrics.measure,
+        emRatio: metrics.emRatio,
+      });
+      // A byte order mark keeps players from guessing the encoding.
+      downloadText(
+        "\ufeff" + text,
+        `${project.value.name}.ass`,
+        "text/x-ssa;charset=utf-8",
+      );
+      message.value = [
+        "ASS 已导出：成品字幕与卡拉 OK 源在同一个文件。",
+        metrics.available
+          ? ""
+          : `本机没有字体「${options.font}」，注音位置按替代字体计算，可能错位。`,
+        ...notices,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return true;
+    } catch (value) {
+      revealIssue();
+      showError(value);
+      return false;
+    }
+  }
   function backup() {
     const snapshot = copyProject(project.value);
     snapshot.playheadMs = Math.round(positionMs.value);
@@ -1075,6 +1131,7 @@ export function createEditor(
     clearLineTiming,
     exportLrc,
     exportTtml,
+    exportAss,
     backup,
     switchPart,
     partStats,

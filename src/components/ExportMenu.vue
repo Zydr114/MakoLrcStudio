@@ -5,9 +5,46 @@ import { editor } from "../state/editor";
 import { partKindLabels } from "../domain/parts";
 import UiButton from "./UiButton.vue";
 import UiToggle from "./UiToggle.vue";
+import UiField from "./UiField.vue";
+import UiSelect from "./UiSelect.vue";
 import Modal from "./Modal.vue";
 const ttmlOpen = ref(false),
-  foldRuby = ref(false);
+  foldRuby = ref(false),
+  assOpen = ref(false),
+  assBusy = ref(false);
+const ass = ref({
+  font: "Noto Sans CJK JP",
+  resolution: "1920x1080",
+  fill: "kf" as "kf" | "k",
+  leadIn: "800",
+});
+const resolutions = [
+  { value: "1920x1080", label: "1920 × 1080" },
+  { value: "1280x720", label: "1280 × 720" },
+  { value: "3840x2160", label: "3840 × 2160" },
+];
+const fills = [
+  { value: "kf" as const, label: "逐渐填色（\\kf）" },
+  { value: "k" as const, label: "整字跳变（\\k）" },
+];
+async function exportAss() {
+  const leadInMs = Number(ass.value.leadIn);
+  if (!Number.isSafeInteger(leadInMs) || leadInMs < 0 || leadInMs > 10000) {
+    editor.error = "提前显示时间需在 0–10000ms 之间。";
+    return;
+  }
+  const [width, height] = ass.value.resolution.split("x").map(Number);
+  assBusy.value = true;
+  await editor.exportAss({
+    font: ass.value.font.trim() || "Noto Sans CJK JP",
+    width,
+    height,
+    fill: ass.value.fill,
+    leadInMs,
+  });
+  assBusy.value = false;
+  assOpen.value = false;
+}
 const parts = computed(() =>
   editor.project.parts.filter((part) => part.lines.length),
 );
@@ -22,6 +59,7 @@ function choose(event: Event) {
   menu.value = "";
   editor.pause();
   if (value === "ttml") ttmlOpen.value = true;
+  else if (value === "ass") assOpen.value = true;
   else if (value === "lrc") editor.exportLrc();
 }
 function exportTtml() {
@@ -46,6 +84,11 @@ function exportTtml() {
       <mdui-menu-item value="ttml"
         >TTML<small class="export-hint"
           >全部声部、注音、翻译、罗马音</small
+        ></mdui-menu-item
+      >
+      <mdui-menu-item value="ass"
+        >ASS<small class="export-hint"
+          >成品字幕＋卡拉 OK 源</small
         ></mdui-menu-item
       >
       <mdui-menu-item value="lrc"
@@ -84,6 +127,37 @@ function exportTtml() {
       >
     </footer>
   </Modal>
+  <Modal :open="assOpen" title="导出 ASS" @close="assOpen = false">
+    <p class="small-note">
+      同一个文件里有两部分：排好版的成品（Effect 为
+      fx，播放器或压制视频直接显示），以及 Aegisub 卡拉 OK 源（Comment
+      行，Effect 为 karaoke，可再导回本工具）。
+    </p>
+    <div class="ass-options">
+      <UiField v-model="ass.font" label="字体" />
+      <UiSelect
+        v-model="ass.resolution"
+        label="分辨率"
+        :options="resolutions"
+      />
+      <UiSelect v-model="ass.fill" label="填色方式" :options="fills" />
+      <UiField v-model="ass.leadIn" label="提前显示（ms）" type="number" />
+    </div>
+    <p class="small-note">
+      注音位置按本机浏览器中该字体的字宽计算。播放端要装有同一字体，否则注音会错位。
+    </p>
+    <footer>
+      <UiButton @click="assOpen = false">取消</UiButton
+      ><UiButton
+        variant="filled"
+        icon="download"
+        :loading="assBusy"
+        :disabled="assBusy"
+        @click="exportAss"
+        >导出 ASS</UiButton
+      >
+    </footer>
+  </Modal>
 </template>
 <style scoped>
 .export-hint {
@@ -96,6 +170,12 @@ mdui-menu-item::part(container) {
   height: auto;
   min-height: 48px;
   padding-block: 6px;
+}
+.ass-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 12px;
 }
 .export-parts {
   list-style: none;
