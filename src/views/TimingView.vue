@@ -445,12 +445,21 @@ watch(
         <div v-if="!editor.editingText" class="workspace-actions">
           <div class="audition-actions">
             <UiButton
+              class="playback-action"
+              variant="tonal"
+              :disabled="!editor.asset || editor.editingText"
+              title="从当前播放头播放整曲；Space"
+              @click="editor.togglePlayback"
+              >{{ editor.playing ? "暂停整曲" : "播放整曲" }}</UiButton
+            >
+            <UiButton
               class="audition-action"
               :variant="auditionVariant('line')"
               :aria-pressed="editor.auditionScope === 'line'"
               :disabled="!editor.asset"
               @click="audition('line')"
               >试听本行</UiButton
+            ><span v-if="!lineMode" class="small-note fine-label">精听</span
             ><UiButton
               v-if="!lineMode"
               class="audition-action"
@@ -493,15 +502,7 @@ watch(
             >
           </div>
           <UiButton
-            v-if="
-              lineMode && !editor.lines.every((line) => line.startMs !== null)
-            "
-            variant="tonal"
-            :disabled="editor.lineIssues.length > 0"
-            @click="editor.confirmLines"
-            >逐行完成，进入逐字</UiButton
-          ><UiButton
-            v-else-if="!lineMode && editor.lineIndex < editor.lines.length - 1"
+            v-if="!lineMode && editor.lineIndex < editor.lines.length - 1"
             variant="tonal"
             icon="arrow"
             :disabled="

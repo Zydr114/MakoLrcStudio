@@ -403,9 +403,11 @@ onBeforeUnmount(() => {
       ><p>点击打轴工作区后使用快捷键。输入框和输入法确认遵循正常编辑行为。</p>
       <dl class="help-list">
         <dt><kbd>Enter</kbd></dt>
-        <dd>首次 / 暂停后：开始播放。录制中：记起点。最后一次：记收尾。</dd>
+        <dd>
+          开始／继续本句打轴；录制中记起点，最后一次记收尾。完成后只提示，不隐式清空。
+        </dd>
         <dt><kbd>Space</kbd></dt>
-        <dd>播放 / 暂停</dd>
+        <dd>整曲播放／暂停，从当前播放头继续，不记录</dd>
         <dt><kbd>Backspace</kbd></dt>
         <dd>退回刚才记录，提前一秒并暂停</dd>
         <dt><kbd>R</kbd></dt>

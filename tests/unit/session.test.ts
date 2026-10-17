@@ -115,7 +115,7 @@ describe("recording session transitions", () => {
     expect(editor.line?.endInferred).toBe(true);
     expect(editor.isComplete).toBe(false);
   });
-  it("requires valid lines, ignores input before timing stages, preserves prefix on local retime", async () => {
+  it("requires valid lines, ignores input before timing stages and restarts the whole line", async () => {
     const { audio, editor } = await session("今日");
     editor.confirmLines();
     expect(editor.project.stage).toBe(2);
@@ -126,14 +126,18 @@ describe("recording session transitions", () => {
     editor.goStage(1);
     editor.confirmText();
     editor.confirmLines();
-    editor.retime(1);
-    expect(editor.line?.units.map((u) => unitStart(u))).toEqual([1000, null]);
+    expect(editor.line?.startMs).toBe(1000);
+    await editor.restartWordTiming();
+    expect(editor.line?.units.map((u) => unitStart(u))).toEqual([null, null]);
     expect(editor.line?.endMs).toBeNull();
+    expect(editor.line?.startMs).toBe(1000);
     editor.undo();
     expect(editor.line?.units.map((u) => unitStart(u))).toEqual([1000, 2000]);
     expect(editor.line?.endMs).toBe(3000);
+    expect(editor.line?.startMs).toBe(1000);
     editor.redo();
-    expect(editor.line?.units.map((u) => unitStart(u))).toEqual([1000, null]);
+    expect(editor.line?.units.map((u) => unitStart(u))).toEqual([null, null]);
+    expect(editor.line?.endMs).toBeNull();
   });
   it("clears the current line timing as one undoable edit", async () => {
     const { editor } = await session(
@@ -179,6 +183,74 @@ describe("explicit playback and recording modes", () => {
     audio.position = 1600;
     await editor.enter();
     expect(editor.line?.units[0].syllables[0].startMs).toBe(1600);
+  });
+  it("prompts instead of clearing a complete line on Enter", async () => {
+    const { editor } = await session("[00:01]<00:01>今<00:02>日<00:03>");
+    editor.confirmLines();
+    expect(editor.isComplete).toBe(true);
+    await editor.enter();
+    expect(editor.line?.units.map((unit) => unitStart(unit))).toEqual([
+      1000, 2000,
+    ]);
+    expect(editor.line?.endMs).toBe(3000);
+    expect(editor.playing).toBe(false);
+    expect(editor.message).toContain("已完成");
+  });
+  it("continues a partial line from the paused playhead without clearing points", async () => {
+    const { audio, editor } = await session("[00:01]今日\n[00:06]次");
+    editor.confirmLines();
+    await editor.enter();
+    audio.position = 1200;
+    await editor.enter();
+    audio.position = 1800;
+    await editor.enter();
+    expect(editor.line?.units.map((unit) => unitStart(unit))).toEqual([
+      1200, 1800,
+    ]);
+    audio.position = 2500;
+    editor.pause();
+    editor.seek(2200);
+    await editor.enter();
+    expect(editor.mode).toBe("recording");
+    expect(editor.recordingArmed).toBe(true);
+    expect(audio.position).toBe(2200);
+    expect(audio.until).toBe(6000);
+    expect(editor.line?.units.map((unit) => unitStart(unit))).toEqual([
+      1200, 1800,
+    ]);
+  });
+  it("plays the whole song from the playhead without recording and never loops it", async () => {
+    const { audio, editor } = await session(
+      "[00:01]<00:01>今<00:02>日<00:03>\n[00:06]<00:06>次<00:07>",
+    );
+    editor.confirmLines();
+    editor.loopAudition = true;
+    editor.seek(5000);
+    const starts = editor.lines.map((line) =>
+      line.units.map((unit) => unitStart(unit)),
+    );
+    await editor.togglePlayback();
+    expect(editor.mode).toBe("review");
+    expect(editor.auditionScope).toBe("song");
+    expect(audio.position).toBe(5000);
+    expect(audio.until).toBe(20000);
+    expect(editor.playing).toBe(true);
+    audio.end();
+    expect(editor.mode).toBe("idle");
+    expect(editor.playing).toBe(false);
+    expect(
+      editor.lines.map((line) => line.units.map((unit) => unitStart(unit))),
+    ).toEqual(starts);
+  });
+  it("keeps recorded points while auditioning a finished line", async () => {
+    const { editor } = await session("[00:01]<00:01>今<00:02>日<00:03>");
+    editor.confirmLines();
+    await editor.review("line");
+    expect(editor.mode).toBe("review");
+    expect(editor.line?.units.map((unit) => unitStart(unit))).toEqual([
+      1000, 2000,
+    ]);
+    expect(editor.line?.endMs).toBe(3000);
   });
   it("protects imported line onsets until explicitly armed for retiming", async () => {
     const { audio, editor } = await session("[00:01]今日");

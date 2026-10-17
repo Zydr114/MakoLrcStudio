@@ -22,19 +22,23 @@ const broken = computed(
 const pending = computed(() =>
   editor.line ? syllableRefs(editor.line)[editor.cursor] : undefined,
 );
-const target = computed(() =>
+const target = computed(() => {
+  if (lineMode.value) return editor.line?.text;
+  if (broken.value) return "待调整";
+  if (editor.isComplete) return "整句";
+  if (pending.value)
+    return syllableLabel(pending.value.unit, pending.value.syllable);
+  return "收尾";
+});
+const targetCaption = computed(() =>
   lineMode.value
-    ? editor.line?.text
+    ? "句首"
     : broken.value
-      ? "待调整"
+      ? "冲突"
       : editor.isComplete
-        ? editor.selectedSyllable &&
-          syllableLabel(
-            editor.selectedSyllable.unit,
-            editor.selectedSyllable.syllable,
-          )
+        ? "整句"
         : pending.value
-          ? syllableLabel(pending.value.unit, pending.value.syllable)
+          ? "待录"
           : "收尾",
 );
 const status = computed(() =>
@@ -54,53 +58,37 @@ const status = computed(() =>
                 ? "本行完成"
                 : "准备",
 );
-const action = computed(() =>
-  editor.mode === "recording"
-    ? lineMode.value
-      ? "记句首"
-      : pending.value
-        ? "记起点"
-        : "记收尾"
-    : editor.mode === "starting"
-      ? "启动中"
-      : editor.mode === "ended"
-        ? "定位后补打"
-        : lineReady.value && !editor.recordingArmed
-          ? "进入逐字"
-          : broken.value
-            ? "从选中单位重打"
-            : editor.isComplete && !lineMode.value
-              ? "重播本句"
-              : editor.recordingArmed
-                ? "继续打轴"
-                : lineMode.value && editor.line?.startMs !== null
-                  ? "重打本句"
-                  : editor.mode === "review"
-                    ? "进入打轴"
-                    : "开始打轴",
-);
-const hint = computed(() =>
-  editor.mode === "recording" && !pending.value && !lineMode.value
-    ? "唱完后收尾"
-    : !editor.isComplete &&
-        ["idle", "paused", "review"].includes(editor.mode) &&
-        !lineReady.value &&
-        !broken.value
-      ? "本次只播放"
-      : "",
-);
-const showEnter = computed(
-  () =>
-    !lineReady.value &&
-    !broken.value &&
-    !(editor.isComplete && !lineMode.value) &&
-    !(
-      lineMode.value &&
-      editor.line?.startMs !== null &&
-      !editor.recordingArmed
-    ) &&
-    !["starting", "ended"].includes(editor.mode),
-);
+const action = computed(() => {
+  if (editor.mode === "recording")
+    return lineMode.value ? "记句首" : pending.value ? "记起点" : "记收尾";
+  if (editor.mode === "starting") return "启动中";
+  if (editor.mode === "ended") return "定位后补打";
+  if (lineMode.value) {
+    if (lineReady.value && !editor.recordingArmed) return "进入逐字";
+    if (editor.recordingArmed) return "继续打轴";
+    return editor.line?.startMs !== null ? "重打本句" : "开始打轴";
+  }
+  if (broken.value) return "待调整";
+  if (editor.isComplete) return "重打本句";
+  return editor.wordTimingAction === "continue" ? "继续打轴" : "开始打轴";
+});
+const hint = computed(() => {
+  if (lineMode.value) return "";
+  if (editor.isComplete) return "清空逐字时间，保留句首";
+  if (editor.mode === "recording" && !pending.value) return "唱完后收尾";
+  if (editor.wordTimingAction === "continue") return "保留已记点，从播放头继续";
+  if (editor.wordTimingAction === "start") return "播放本句，Enter 记起点";
+  return "";
+});
+const showEnter = computed(() => {
+  if (broken.value || ["starting", "ended"].includes(editor.mode)) return false;
+  if (lineMode.value)
+    return (
+      !lineReady.value &&
+      !(editor.line?.startMs !== null && !editor.recordingArmed)
+    );
+  return !editor.isComplete;
+});
 function focus() {
   document
     .querySelector<HTMLElement>("[data-workspace]")
@@ -110,18 +98,22 @@ function act(time = performance.now()) {
   if (!editor.asset || editor.mode === "starting" || editor.mode === "ended")
     return;
   focus();
-  if (lineReady.value && !editor.recordingArmed) editor.confirmLines();
-  else if (broken.value) editor.retime(editor.selectedIndex);
-  else if (editor.isComplete && !lineMode.value) void editor.review();
-  else {
-    if (
-      lineMode.value &&
-      editor.line?.startMs !== null &&
-      !editor.recordingArmed
-    )
+  if (lineMode.value) {
+    if (lineReady.value && !editor.recordingArmed) editor.confirmLines();
+    else if (editor.line?.startMs !== null && !editor.recordingArmed)
       editor.retimeLine();
-    void editor.enter(time);
+    else void editor.enter(time);
+    return;
   }
+  if (broken.value) return;
+  if (editor.isComplete) void editor.restartWordTiming();
+  else void editor.enter(time);
+}
+function restart() {
+  if (!editor.asset || editor.mode === "starting" || editor.mode === "ended")
+    return;
+  focus();
+  void editor.restartWordTiming();
 }
 function pointer(event: PointerEvent) {
   if (event.button === 0) {
@@ -143,9 +135,7 @@ function click(event: MouseEvent) {
           :class="{ live: editor.mode === 'recording' }"
         />{{ status }}</span
       >
-      <span class="target-caption">{{
-        lineMode ? "句首" : editor.isComplete ? "选中" : "待录"
-      }}</span>
+      <span class="target-caption">{{ targetCaption }}</span>
       <strong class="target-text" :class="{ 'sentence-target': lineMode }">{{
         target
       }}</strong>
@@ -156,15 +146,33 @@ function click(event: MouseEvent) {
         :disabled="
           !editor.asset ||
           editor.editingText ||
+          broken ||
           ['starting', 'ended'].includes(editor.mode)
         "
         @pointerdown="pointer"
         @click="click"
         >{{ action }}<kbd v-if="showEnter">Enter</kbd></UiButton
       >
+      <UiButton
+        v-if="
+          !lineMode &&
+          !broken &&
+          editor.wordTimingAction === 'continue' &&
+          editor.mode !== 'recording'
+        "
+        variant="text"
+        title="清空本句逐字时间与收尾，保留句首"
+        @click="restart"
+        >从头重打</UiButton
+      >
       <small v-if="hint" class="cue-hint">{{ hint }}</small>
     </div>
-    <span v-if="editor.lastRecorded" class="last-recorded"
+    <span
+      v-if="
+        editor.lastRecorded &&
+        (!editor.line || editor.lastRecorded.lineId === editor.line.id)
+      "
+      class="last-recorded"
       >刚记：{{ editor.lastRecorded.text }}
       <time>{{ formatTime(editor.lastRecorded.timeMs) }}</time></span
     >

@@ -127,7 +127,7 @@ test("Enter plays, repeated keys and IME do not double mark, Backspace pauses an
   await expect(page.locator(".state-label")).toContainText("已暂停");
 });
 
-test("dragging shared boundaries, marker keys, invalid fields, Japanese grouping and local retime", async ({
+test("dragging shared boundaries, marker keys, invalid fields, Japanese grouping and whole-line restart", async ({
   page,
 }) => {
   await wordStage(
@@ -168,12 +168,17 @@ test("dragging shared boundaries, marker keys, invalid fields, Japanese grouping
   await page.getByRole("button", { name: "应用切分", exact: true }).click();
   await expect(page.locator(".unit-strip button")).toHaveCount(3);
   await expect(page.locator(".target-text")).toHaveText("日");
-  await page.getByRole("button", { name: "从选中单位重打" }).click();
+  await page.getByRole("button", { name: /^(从头重打|重打本句)$/ }).click();
   await expect(page.locator("[data-workspace]")).toBeFocused();
-  await expect(page.locator(".target-text")).toHaveText("日");
-  await expect(
-    page.getByRole("slider", { name: "今时间边界" }),
-  ).toHaveAttribute("aria-valuenow", "1000");
+  await expect(page.locator(".target-text")).toHaveText("今");
+  await expect(page.locator(".state-label")).toContainText("正在记录");
+  await expect(page.locator(".lyric-nav-list button").first()).toContainText(
+    "00:01.000",
+  );
+  await expect(page.locator(".unit-strip button")).toHaveCount(3);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".state-label")).toContainText("已暂停");
+  await expect(page.getByRole("button", { name: /^开始打轴/ })).toBeVisible();
   await page.screenshot({ path: "test-results/timing-desktop.png" });
 });
 
@@ -261,6 +266,91 @@ test("half speed uses source time, record button returns keyboard focus, termina
   await expect(
     page.getByRole("button", { name: "播放", exact: true }),
   ).toBeVisible();
+});
+
+test("word timing cue starts, continues and restarts without clearing on Enter", async ({
+  page,
+}) => {
+  await wordStage(page, "[00:01]今日\n[00:06]hello world");
+  await expect(page.getByRole("button", { name: /^开始打轴/ })).toBeVisible();
+  await page.getByRole("button", { name: /^开始打轴/ }).click();
+  await expect(page.locator(".state-label")).toContainText("正在记录");
+  await page.waitForTimeout(250);
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".target-text")).toHaveText("日");
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".state-label")).toContainText("已暂停");
+  await expect(page.getByRole("button", { name: /^继续打轴/ })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "从头重打", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /^继续打轴/ }).click();
+  await expect(page.locator(".state-label")).toContainText("正在记录");
+  await page.waitForTimeout(250);
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".target-text")).toHaveText("收尾");
+  await page.waitForTimeout(250);
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".state-label")).toHaveText("本行完成");
+  await expect(
+    page.getByRole("button", { name: "重打本句", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "从头重打", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("slider", { name: "今时间边界" })).toBeVisible();
+  // Enter on a complete line only explains the restart action; it must not clear data.
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("button", { name: "重打本句", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("slider", { name: "今时间边界" })).toBeVisible();
+  await page.getByRole("button", { name: "重打本句", exact: true }).click();
+  await expect(page.locator(".state-label")).toContainText("正在记录");
+  await expect(page.locator(".target-text")).toHaveText("今");
+  await expect(page.getByRole("slider", { name: "今时间边界" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "从选中单位重打", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("whole-song playback starts at the playhead, crosses lines and writes nothing", async ({
+  page,
+}) => {
+  await wordStage(
+    page,
+    "[00:01]<00:01>今<00:02>日<00:03>\n[00:06]<00:06>次<00:07>",
+  );
+  await page.getByLabel("音频位置", { exact: true }).fill("5800");
+  await page.locator("[data-workspace]").focus();
+  await page.keyboard.press("Space");
+  await expect(
+    page.getByRole("button", { name: "暂停", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".lyric-preview .preview-token.playing"),
+  ).toHaveText("次", { timeout: 3000 });
+  await page.getByRole("button", { name: "暂停", exact: true }).click();
+  await page.getByRole("button", { name: "试听本行" }).click();
+  await expect(
+    page.getByRole("button", { name: "暂停", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "暂停", exact: true }).click();
+  const backup = page.waitForEvent("download");
+  await page.getByRole("button", { name: "备份", exact: true }).click();
+  const fs = await import("node:fs/promises");
+  const draft = JSON.parse(
+    await fs.readFile((await (await backup).path())!, "utf8"),
+  );
+  expect(
+    draft.parts[0].lines.map((line: any) =>
+      line.units.map((unit: any) => unit.syllables[0].startMs),
+    ),
+  ).toEqual([[1000, 2000], [6000]]);
+  expect(draft.parts[0].lines.map((line: any) => line.endMs)).toEqual([
+    3000, 7000,
+  ]);
 });
 
 test("continuous line recording advances, Backspace returns to previous line, final Enter stops", async ({

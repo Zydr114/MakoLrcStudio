@@ -64,7 +64,13 @@ export function createAudition(
     generation++;
   }
   function handleEnd(): boolean {
-    if (!loop.value || !scope.value || !target.value) return false;
+    if (
+      !loop.value ||
+      !scope.value ||
+      !target.value ||
+      scope.value === "song"
+    )
+      return false;
     try {
       range.value = resolve(scope.value, target.value, true);
       void play();

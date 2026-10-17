@@ -280,15 +280,6 @@ onBeforeUnmount(() => {
           >罗马音</UiButton
         >
       </div>
-      <UiButton
-        variant="text"
-        class="text-link"
-        @click="
-          editor.retime(editor.selectedIndex);
-          focusWorkspace();
-        "
-        >从选中单位重打</UiButton
-      >
     </div>
   </div>
   <div

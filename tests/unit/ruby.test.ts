@@ -135,11 +135,13 @@ describe("recording a ruby unit", () => {
     ]);
     expect(editor.line?.endMs).toBe(2500);
     expect(editor.isComplete).toBe(true);
-    editor.retime(1);
+    await editor.restartWordTiming();
     expect(syllablesOf(editor.line!).map((s) => s.startMs)).toEqual([
-      1000,
+      null,
       null,
       null,
     ]);
+    expect(editor.line?.endMs).toBeNull();
+    expect(editor.line?.startMs).toBe(1000);
   });
 });

@@ -189,6 +189,16 @@ export function createEditor(
   const isComplete = computed(
     () => !!line.value && completeLine(line.value) && validLine(line.value.id),
   );
+  /** What the primary word-timing button does for the current line. */
+  const wordTimingAction = computed<"start" | "continue" | "restart">(() => {
+    if (!line.value) return "start";
+    if (isComplete.value) return "restart";
+    return syllablesOf(line.value).some(
+      (syllable) => syllable.startMs !== null || syllable.endMs !== null,
+    )
+      ? "continue"
+      : "start";
+  });
   const finishedCount = computed(
     () =>
       lines.value.filter((line) => completeLine(line) && validLine(line.id))
@@ -678,26 +688,15 @@ export function createEditor(
       asset.value?.info.durationMs ?? 0,
     );
   }
+  /** Stage-2 line-start recording. Word timing has its own session below. */
   async function startRecording() {
-    if (editingText.value) return;
+    if (project.value.stage !== 2 || editingText.value) return;
     sync();
     if (!asset.value || !line.value) {
       error.value = "请先选择音频。";
       return;
     }
-    if (project.value.stage === 3 && isComplete.value) {
-      message.value = "本行已完成。R 试听，Ctrl / Cmd + Enter 下一句。";
-      return;
-    }
-    if (project.value.stage === 3 && completeLine(line.value)) {
-      error.value = "本行有时间冲突，请调整时标或从选中单位重打。";
-      return;
-    }
-    if (
-      project.value.stage === 2 &&
-      line.value.startMs !== null &&
-      !retimeOne
-    ) {
+    if (line.value.startMs !== null && !retimeOne) {
       message.value = "句首已有时间，选择重打本句以修改。";
       return;
     }
@@ -706,12 +705,7 @@ export function createEditor(
     message.value = "";
     mode.value = "starting";
     try {
-      await transport.play(
-        positionMs.value,
-        project.value.stage === 3
-          ? recordingEnd()
-          : asset.value.info.durationMs,
-      );
+      await transport.play(positionMs.value, asset.value.info.durationMs);
       if (mode.value === "starting")
         mode.value = transport.playing ? "recording" : "paused";
       sync();
@@ -719,6 +713,104 @@ export function createEditor(
       mode.value = "paused";
       showError(value);
     }
+  }
+  async function playWordSession(from: number): Promise<boolean> {
+    if (!asset.value || !line.value) {
+      error.value = "请先选择音频。";
+      return false;
+    }
+    const end = recordingEnd();
+    if (!(end > from)) {
+      error.value = "本句没有可播放的区间，请先补全句首和收尾。";
+      return false;
+    }
+    transport.seek(from);
+    sync();
+    recordingArmed.value = true;
+    audition.cancel();
+    message.value = "";
+    error.value = "";
+    mode.value = "starting";
+    try {
+      await transport.play(from, end);
+      if (mode.value === "starting")
+        mode.value = transport.playing ? "recording" : "paused";
+      sync();
+      return true;
+    } catch (value) {
+      mode.value = "paused";
+      showError(value);
+      return false;
+    }
+  }
+  /** Start or continue the current line's word-timing session. */
+  async function startWordTiming(): Promise<boolean> {
+    if (project.value.stage !== 3) return false;
+    if (!asset.value || !line.value) {
+      error.value = "请先选择音频。";
+      return false;
+    }
+    if (line.value.startMs === null) {
+      error.value = "本句还没有句首，请先在逐行打轴记录。";
+      return false;
+    }
+    if (isComplete.value) {
+      message.value = "本行已完成。点「重打本句」会清空逐字时间并保留句首。";
+      return false;
+    }
+    if (lineIssues.value.length) {
+      error.value = lineIssues.value[0].message;
+      return false;
+    }
+    prepareUnits();
+    if (wordTimingAction.value === "continue") return continueWordTiming();
+    selectedIndex.value = 0;
+    return playWordSession(Math.max(0, line.value.startMs - 1000));
+  }
+  async function continueWordTiming(): Promise<boolean> {
+    const current = line.value;
+    if (!asset.value || !current) {
+      error.value = "请先选择音频。";
+      return false;
+    }
+    if (current.startMs === null) {
+      error.value = "本句还没有句首，请先在逐行打轴记录。";
+      return false;
+    }
+    const end = recordingEnd();
+    const points = syllablesOf(current)
+      .flatMap((syllable) => [syllable.startMs, syllable.endMs])
+      .filter((time): time is number => time !== null);
+    const last = points.length ? Math.max(...points) : null;
+    const from =
+      positionMs.value >= current.startMs && positionMs.value < end
+        ? positionMs.value
+        : Math.max(0, (last ?? current.startMs) - 1000);
+    return playWordSession(from);
+  }
+  /** Clear every word point and the measured end, keep the line onset, then replay. */
+  async function restartWordTiming(): Promise<boolean> {
+    if (project.value.stage !== 3 || !line.value || !asset.value) {
+      error.value = "请先选择音频。";
+      return false;
+    }
+    const index = lineIndex.value;
+    pause();
+    audition.cancel();
+    const success = command("重打本句", (draft) => {
+      const target = activeLines(draft)[index];
+      syllablesOf(target).forEach((syllable) => {
+        syllable.startMs = null;
+        syllable.endMs = null;
+      });
+      target.endMs = null;
+      target.endInferred = undefined;
+    });
+    if (!success) return false;
+    selectedIndex.value = 0;
+    return playWordSession(
+      Math.max(0, (line.value?.startMs ?? positionMs.value) - 1000),
+    );
   }
   function recordPoint(ms: number) {
     const current = line.value;
@@ -774,7 +866,9 @@ export function createEditor(
         pause();
         mode.value = "idle";
         recordingArmed.value = false;
-        message.value = "";
+        message.value = isComplete.value
+          ? "本行完成。Ctrl / Cmd + Enter 进入下一句。"
+          : "";
       }
     }
   }
@@ -796,6 +890,8 @@ export function createEditor(
       recordPoint(ms - Math.round(correction));
     } else if (mode.value === "ended") {
       message.value = "范围结束，定位后补打。";
+    } else if (project.value.stage === 3) {
+      await startWordTiming();
     } else await startRecording();
   }
   function stopRecording() {
@@ -878,17 +974,13 @@ export function createEditor(
       pause();
       return;
     }
-    if (recordingArmed.value && mode.value === "paused") await startRecording();
-    else if (asset.value) {
-      recordingArmed.value = false;
-      if (audition.range.value) await audition.resume(positionMs.value);
-      else
-        await audition.start(
-          project.value.stage === 3 && line.value ? "line" : "song",
-          { lineId: line.value?.id ?? "", syllableId: null },
-          positionMs.value,
-        );
-    }
+    if (!asset.value) return;
+    recordingArmed.value = false;
+    await audition.start(
+      "song",
+      { lineId: line.value?.id ?? "", syllableId: null },
+      positionMs.value,
+    );
   }
   function setRate(value: number) {
     pause();
@@ -912,30 +1004,6 @@ export function createEditor(
       pause();
       message.value = "已到最后一行，可以检查并导出。";
     }
-  }
-  function retime(index = 0) {
-    if (!line.value) return;
-    pause();
-    recordingArmed.value = false;
-    audition.cancel();
-    command("从选中单位重打", (draft) => {
-      const syllables = syllablesOf(activeLines(draft)[lineIndex.value]);
-      // The pause before the retimed syllable is re-recorded with it.
-      if (index > 0) syllables[index - 1].endMs = null;
-      syllables.slice(index).forEach((s) => {
-        s.startMs = null;
-        s.endMs = null;
-      });
-      activeLines(draft)[lineIndex.value].endMs = null;
-      activeLines(draft)[lineIndex.value].endInferred = undefined;
-    });
-    selectedIndex.value = index;
-    mode.value = "idle";
-    seek(
-      (index > 0
-        ? syllablesOf(line.value)[index - 1].startMs
-        : (line.value.startMs ?? 0))! - 1000,
-    );
   }
   function clearLineTiming() {
     const current = line.value;
@@ -1196,7 +1264,10 @@ export function createEditor(
     setRate,
     setVolume,
     nextLine,
-    retime,
+    wordTimingAction,
+    startWordTiming,
+    continueWordTiming,
+    restartWordTiming,
     clearLineTiming,
     exportLrc,
     exportTtml,
