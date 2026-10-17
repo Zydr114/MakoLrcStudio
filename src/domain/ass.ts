@@ -290,7 +290,7 @@ export function exportAss(
     const side = blockSide(block);
     const hint = block.hintStart !== undefined;
     const eventStart = block.hintStart ?? block.start;
-    const prefix = hint ? "●" : "";
+    const prefix = hint ? "● " : "";
     const mainWidth = width(prefix + line.text, size.main, style.mainBold);
     const left = x(side, mainWidth);
     const lineStyle = partStyle(part);
@@ -298,7 +298,7 @@ export function exportAss(
     // the ordinary lyric syllables fill at their own times.
     const pieces = hint
       ? [
-          { text: "●", start: eventStart, end: block.start },
+          { text: "● ", start: eventStart, end: block.start },
           ...basePieces(line),
         ]
       : basePieces(line);

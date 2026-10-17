@@ -222,7 +222,7 @@ describe("ASS export", () => {
       "Dialogue: 1,0:00:06.20,0:00:12.30,Mako-A,A,0,0,0,fx",
     );
     expect(hints[0]).toContain(
-      `{\\an1\\pos(120,1024)\\fad(150,150)}{\\kf300}●{\\k80}{\\kf200}あ`,
+      `{\\an1\\pos(120,1024)\\fad(150,150)}{\\kf300}● {\\k80}{\\kf200}あ`,
     );
     expect(hints[1]).toContain(
       "Dialogue: 1,0:00:16.20,0:00:22.30,Mako-A,A,0,0,0,fx",
@@ -247,7 +247,7 @@ describe("ASS export", () => {
     expect(main).toContain("Dialogue: 1,0:00:06.20,0:00:12.30,Mako-A,A");
     const ruby = all.find((line) => line.includes("Mako-A-Ruby"))!;
     const em = 64 / 1.448;
-    expect(ruby).toContain(`\\pos(${Math.round(120 + em + em / 2)},`);
+    expect(ruby).toContain(`\\pos(${Math.round(120 + em * 2 + em / 2)},`);
   });
   it("skips an intro dot when another line is still on screen", () => {
     const project = fromLyrics("[00:10]あ");
