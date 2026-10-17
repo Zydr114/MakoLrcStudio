@@ -177,6 +177,28 @@ describe("ASS export", () => {
     expect(main("二")).toContain("{\\k400}");
     expect(main("三")).toContain("{\\k400}");
   });
+  it("keeps previewed ruby unsung until its real start", () => {
+    const project = fromLyrics("[00:01]一");
+    const first = timedLine("一", [1000], 4000);
+    const second = timedLine("君", [5000], 8000);
+    setRuby(second, 0, ["き", "み"]);
+    second.units[0].syllables[1].startMs = 5200;
+    project.parts[0].lines = [first, second];
+    const style = {
+      ...defaultAssStyle,
+      layout: "diagonal" as const,
+      diagonalPreview: true,
+    };
+    const { text } = exportAss(project, { ...options, style });
+    const ruby = events(text).find(
+      (line) =>
+        line.includes(",Mako-主唱-Ruby,") &&
+        line.includes(",fx,") &&
+        line.includes("き"),
+    )!;
+    expect(ruby).toContain("Dialogue: 2,0:00:01.00,");
+    expect(ruby).toContain("{\\k400}");
+  });
   it("applies per-layer bold, colors, unsung color and independent roman size", () => {
     const style = {
       ...defaultAssStyle,

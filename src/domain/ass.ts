@@ -369,7 +369,7 @@ export function exportAss(
           part.name,
           "fx",
           `{\\an2\\pos(${round(center)},${round(bandBottom(block.row, "ruby"))})\\fad(150,150)}` +
-            karaoke(pieces, block.start, options.fill),
+            karaoke(pieces, eventStart, options.fill),
         );
       }
       index += unit.syllables.length;
@@ -403,7 +403,7 @@ export function exportAss(
         bg.part.name,
         "fx",
         `{\\an1\\pos(${round(x(side, bgWidth))},${round(bandBottom(block.row, "background"))})\\fad(150,150)}` +
-          karaoke(basePieces(bg.line), block.start, options.fill),
+          karaoke(basePieces(bg.line), eventStart, options.fill),
       );
     }
     if (style.includeRoman && line.roman.trim())
