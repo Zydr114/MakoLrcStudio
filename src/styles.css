@@ -556,6 +556,29 @@ kbd {
   color: var(--ink);
   background: var(--sheet);
 }
+.modal.wide {
+  max-width: min(980px, calc(100vw - 32px));
+  max-height: min(880px, calc(100dvh - 24px));
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.modal.wide > header {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 22px 24px 16px;
+}
+.modal.wide > footer {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 14px 24px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--sheet);
+}
+.modal.wide:not([open]) {
+  display: none;
+}
 .modal::backdrop {
   background: rgba(20, 30, 22, 0.35);
   backdrop-filter: blur(4px);

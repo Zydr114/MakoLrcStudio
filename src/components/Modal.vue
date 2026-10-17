@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onBeforeUnmount } from "vue";
 import UiIconButton from "./UiIconButton.vue";
-const props = defineProps<{ open: boolean; title: string }>();
+const props = withDefaults(
+  defineProps<{ open: boolean; title: string; wide?: boolean }>(),
+  { wide: false },
+);
 const emit = defineEmits<{ close: []; closed: [] }>();
 const dialog = ref<HTMLDialogElement>();
 watch(
@@ -18,6 +21,7 @@ onBeforeUnmount(() => dialog.value?.close());
   <dialog
     ref="dialog"
     class="modal"
+    :class="{ wide: props.wide }"
     :aria-label="title"
     @cancel.prevent="emit('close')"
     @close="emit('closed')"

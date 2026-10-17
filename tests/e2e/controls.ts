@@ -8,6 +8,14 @@ export async function choose(page: Page, label: string, value: string) {
   await control.locator(`mdui-menu-item[value="${value}"]`).click();
   await expect(input).toHaveAttribute("aria-expanded", "false");
 }
+/** Open a color trigger, type a hex value, and close the picker. */
+export async function setColor(page: Page, label: string, value: string) {
+  await page.getByLabel(label, { exact: true }).click();
+  const panel = page.locator(".color-popover:visible");
+  await panel.getByLabel(`${label} 十六进制值`, { exact: true }).fill(value);
+  await panel.getByRole("button", { name: "完成" }).click();
+  await expect(panel).toBeHidden();
+}
 export async function setChecked(page: Page, label: string, checked = true) {
   const input = page.getByLabel(label, { exact: true });
   const control = page

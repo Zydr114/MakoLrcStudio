@@ -211,6 +211,7 @@ function exportTtml() {
   <AssStyleDialog
     :open="assStyleOpen"
     :style="currentStyle"
+    :part-color="parts[0]?.color"
     @close="assStyleOpen = false"
     @save="saveStyle"
   />

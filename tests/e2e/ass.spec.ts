@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { choose, exportAs, setChecked } from "./controls";
+import { exportAs, setChecked, setColor } from "./controls";
 let n = 0;
 const id = () => `p-${++n}`;
 type S = [string, number];
@@ -354,7 +354,7 @@ test("ASS style: per-layer sizes, bold, colors and roman toggle", async ({
   await assDialog.getByRole("button", { name: "编辑样式…" }).click();
   const styleDialog = page.getByRole("dialog", { name: "字幕样式" });
   await expect(styleDialog).toBeVisible();
-  await choose(page, "版式预设", "diagonal");
+  await styleDialog.getByRole("button", { name: /对角双行/ }).click();
   await styleDialog.getByLabel("歌词字号").fill("80");
   await styleDialog.getByLabel("注音字号").fill("40");
   await styleDialog.getByLabel("罗马音字号").fill("36");
@@ -362,13 +362,13 @@ test("ASS style: per-layer sizes, bold, colors and roman toggle", async ({
   await setChecked(page, "注音粗体");
   await setChecked(page, "罗马音粗体");
   await setChecked(page, "跟随歌词色", false);
-  await styleDialog.getByLabel("注音颜色").fill("#abcdef");
-  await styleDialog.getByLabel("罗马音颜色").fill("#123456");
+  await setColor(page, "注音颜色", "#abcdef");
+  await setColor(page, "罗马音颜色", "#123456");
   await styleDialog.getByLabel("描边粗细").fill("6");
-  await styleDialog.getByLabel("描边颜色").fill("#ff0000");
-  await styleDialog.getByLabel("未唱颜色").fill("#112233");
+  await setColor(page, "描边颜色", "#ff0000");
+  await setColor(page, "未唱颜色", "#112233");
   await setChecked(page, "统一文字颜色", true);
-  await styleDialog.getByLabel("纯色").fill("#00ff00");
+  await setColor(page, "纯色", "#00ff00");
   await styleDialog.getByRole("button", { name: "应用" }).click();
   await expect(styleDialog).not.toBeVisible();
   await expect(assDialog).toContainText("对角双行");
