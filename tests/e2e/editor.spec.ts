@@ -491,16 +491,19 @@ test("continuous line recording advances, Backspace returns to previous line, fi
   await page.keyboard.press("Enter");
   await page.waitForTimeout(350);
   await page.keyboard.press("Enter");
-  await expect(page.locator(".target-text")).toHaveText("日");
+  await expect(page.locator(".target-text")).toHaveText("今");
+  await expect(page.locator(".cue-next")).toContainText("日");
   await page.keyboard.press("Backspace");
   await expect(page.locator(".target-text")).toHaveText("今");
   await expect(page.getByLabel("本句起点")).toHaveValue("");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(400);
   await page.keyboard.press("Enter");
-  await expect(page.locator(".target-text")).toHaveText("日");
+  await expect(page.locator(".target-text")).toHaveText("今");
+  await expect(page.locator(".cue-next")).toContainText("日");
   await page.waitForTimeout(350);
   await page.keyboard.press("Enter");
+  await expect(page.locator(".target-text")).toHaveText("日");
   await expect(
     page.getByRole("button", { name: "播放", exact: true }),
   ).toBeVisible();

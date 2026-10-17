@@ -22,8 +22,41 @@ const broken = computed(
 const pending = computed(() =>
   editor.line ? syllableRefs(editor.line)[editor.cursor] : undefined,
 );
+/** The line whose onset was just recorded, while the next line awaits its own. */
+const recordedLine = computed(() => {
+  const last = editor.lastRecorded;
+  if (!lineMode.value || !last || last.stage !== 2) return null;
+  return editor.lines.find((line) => line.id === last.lineId) ?? null;
+});
+const followRecorded = computed(() => {
+  const recorded = recordedLine.value;
+  if (
+    !lineMode.value ||
+    !editor.recordingArmed ||
+    !recorded ||
+    !editor.line ||
+    recorded.id === editor.line.id
+  )
+    return false;
+  const recordedIndex = editor.lines.findIndex(
+    (line) => line.id === recorded.id,
+  );
+  const activeIndex = editor.lines.findIndex(
+    (line) => line.id === editor.line?.id,
+  );
+  const nextMissing = editor.lines.findIndex(
+    (line, index) => index > recordedIndex && line.startMs === null,
+  );
+  return activeIndex >= 0 && activeIndex === nextMissing;
+});
+const cueLine = computed(() =>
+  followRecorded.value ? recordedLine.value : editor.line,
+);
+const nextTarget = computed(() =>
+  followRecorded.value && cueLine.value && editor.line ? editor.line : null,
+);
 const target = computed(() => {
-  if (lineMode.value) return editor.line?.text;
+  if (lineMode.value) return cueLine.value?.text;
   if (broken.value) return "待调整";
   if (editor.isComplete) return "整句";
   if (pending.value)
@@ -32,7 +65,9 @@ const target = computed(() => {
 });
 const targetCaption = computed(() =>
   lineMode.value
-    ? "句首"
+    ? followRecorded.value
+      ? "当前句"
+      : "句首"
     : broken.value
       ? "冲突"
       : editor.isComplete
@@ -60,7 +95,13 @@ const status = computed(() =>
 );
 const action = computed(() => {
   if (editor.mode === "recording")
-    return lineMode.value ? "记句首" : pending.value ? "记起点" : "记收尾";
+    return lineMode.value
+      ? nextTarget.value
+        ? "记下一句句首"
+        : "记句首"
+      : pending.value
+        ? "记起点"
+        : "记收尾";
   if (editor.mode === "starting") return "启动中";
   if (editor.mode === "ended") return "定位后补打";
   if (lineMode.value) {
@@ -167,8 +208,11 @@ function click(event: MouseEvent) {
       >
       <small v-if="hint" class="cue-hint">{{ hint }}</small>
     </div>
+    <span v-if="nextTarget" class="last-recorded cue-next"
+      >下一句：<strong>{{ nextTarget.text }}</strong></span
+    >
     <span
-      v-if="
+      v-else-if="
         editor.lastRecorded &&
         (!editor.line || editor.lastRecorded.lineId === editor.line.id)
       "

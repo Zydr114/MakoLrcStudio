@@ -526,6 +526,10 @@
 .last-recorded time {
   font-family: ui-monospace, monospace;
 }
+.cue-next strong {
+  color: var(--ink);
+  font-weight: 500;
+}
 .segmentation-row {
   display: flex;
   align-items: center;

@@ -20,6 +20,13 @@ test("text-first preparation and explicitly armed line recording", async ({
   await expect(page.getByLabel("本句起点")).toHaveValue("");
   await page.waitForTimeout(200);
   await page.keyboard.press("Enter");
+  // The cue follows the line that was just recorded; the next target is explicit.
+  await expect(page.locator(".target-text")).toHaveText("今");
+  await expect(page.locator(".target-caption")).toHaveText("当前句");
+  await expect(page.locator(".cue-next")).toContainText("日");
+  await expect(
+    page.getByRole("button", { name: /记下一句句首/ }),
+  ).toBeVisible();
   await expect(page.locator(".lyric-nav-list button").first()).not.toHaveClass(
     /active/,
   );

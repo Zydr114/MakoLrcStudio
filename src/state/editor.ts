@@ -214,6 +214,7 @@ export function createEditor(
     const ref = sourceLine && syllableRefs(sourceLine)[entry.point.index];
     return {
       ...entry.point,
+      stage: entry.after.stage,
       text:
         entry.after.stage === 2
           ? sourceLine?.text
