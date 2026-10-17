@@ -362,7 +362,19 @@ test("ASS style: per-layer sizes, bold, colors and roman toggle", async ({
   await setChecked(page, "注音粗体");
   await setChecked(page, "罗马音粗体");
   await setChecked(page, "跟随歌词色", false);
-  await setColor(page, "注音颜色", "#abcdef");
+  await styleDialog.getByLabel("注音颜色", { exact: true }).click();
+  const picker = page.getByRole("dialog", { name: "注音颜色取色器" });
+  await picker.getByLabel("使用颜色 #ff8a65", { exact: true }).click();
+  await expect(
+    styleDialog
+      .locator(".layer-row")
+      .filter({ hasText: "注音" })
+      .locator(".hex"),
+  ).toHaveText("#FF8A65");
+  await picker
+    .getByLabel("注音颜色 十六进制值", { exact: true })
+    .fill("#abcdef");
+  await picker.getByRole("button", { name: "完成" }).click();
   await setColor(page, "罗马音颜色", "#123456");
   await styleDialog.getByLabel("描边粗细").fill("6");
   await setColor(page, "描边颜色", "#ff0000");

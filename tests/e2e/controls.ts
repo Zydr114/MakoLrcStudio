@@ -11,7 +11,7 @@ export async function choose(page: Page, label: string, value: string) {
 /** Open a color trigger, type a hex value, and close the picker. */
 export async function setColor(page: Page, label: string, value: string) {
   await page.getByLabel(label, { exact: true }).click();
-  const panel = page.locator(".color-popover:visible");
+  const panel = page.getByRole("dialog", { name: `${label}取色器` });
   await panel.getByLabel(`${label} 十六进制值`, { exact: true }).fill(value);
   await panel.getByRole("button", { name: "完成" }).click();
   await expect(panel).toBeHidden();
