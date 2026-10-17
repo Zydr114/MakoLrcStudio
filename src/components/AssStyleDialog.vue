@@ -11,6 +11,7 @@ import Modal from "./Modal.vue";
 import UiButton from "./UiButton.vue";
 import UiColorField from "./UiColorField.vue";
 import UiField from "./UiField.vue";
+import UiSelect from "./UiSelect.vue";
 import UiToggle from "./UiToggle.vue";
 const props = withDefaults(
   defineProps<{ open: boolean; style: AssStyle; partColor?: string }>(),
@@ -52,6 +53,10 @@ const layouts: {
 const layout = computed(
   () => layouts.find((item) => item.value === draft.value.layout) ?? layouts[0],
 );
+const nextLineOptions = [
+  { value: "line", label: "本句开始时" },
+  { value: "previous", label: "上一句开始时" },
+];
 const mainColor = computed(() =>
   draft.value.colorMode === "solid" ? draft.value.solidColor : props.partColor,
 );
@@ -97,7 +102,14 @@ function save() {
       <aside class="style-preview">
         <div class="preview-heading">
           <span>预览</span>
-          <span class="preview-layout">{{ layout.title }}</span>
+          <span class="preview-layout"
+            >{{ layout.title
+            }}<template
+              v-if="draft.layout === 'diagonal' && draft.diagonalPreview"
+            >
+              · 双行预告</template
+            ></span
+          >
         </div>
         <div
           class="preview-stage"
@@ -160,7 +172,21 @@ function save() {
               </span>
             </button>
           </div>
-          <UiField v-model="draft.font" label="字体" />
+          <div
+            class="font-row"
+            :class="{ 'has-timing': draft.layout === 'diagonal' }"
+          >
+            <UiField v-model="draft.font" label="字体" />
+            <UiSelect
+              v-if="draft.layout === 'diagonal'"
+              :model-value="draft.diagonalPreview ? 'previous' : 'line'"
+              label="下一句出现时机"
+              :options="nextLineOptions"
+              @update:model-value="
+                draft.diagonalPreview = $event === 'previous'
+              "
+            />
+          </div>
         </section>
         <section class="style-section">
           <div class="section-heading"><h3>文字层</h3></div>
@@ -518,12 +544,26 @@ function save() {
   padding-top: 14px;
   border-top: 1px solid var(--line);
 }
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 .section-heading h3 {
   margin: 0;
   color: var(--muted);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.08em;
+}
+.font-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.font-row.has-timing {
+  grid-template-columns: minmax(0, 1fr) 220px;
 }
 .layout-grid {
   display: grid;
@@ -734,6 +774,9 @@ function save() {
   }
   .appearance-grid {
     grid-template-columns: 1fr 1fr;
+  }
+  .font-row.has-timing {
+    grid-template-columns: 1fr;
   }
 }
 @media (max-width: 460px) {

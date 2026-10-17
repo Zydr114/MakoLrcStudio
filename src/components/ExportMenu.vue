@@ -42,11 +42,16 @@ const layoutLabels = {
   diagonal: "对角双行",
   single: "单行底部居中",
 };
-const layoutSummary = computed(
-  () =>
-    layoutLabels[currentStyle.value.layout] +
-    (currentStyle.value.includeRoman ? "" : " · 不含罗马音行"),
-);
+const layoutSummary = computed(() => {
+  const style = currentStyle.value;
+  return (
+    layoutLabels[style.layout] +
+    (style.layout === "diagonal" && style.diagonalPreview
+      ? " · 双行预告"
+      : "") +
+    (style.includeRoman ? "" : " · 不含罗马音行")
+  );
+});
 function saveStyle(style: AssStyle) {
   if (editor.setAssStyle(style)) assStyleOpen.value = false;
 }

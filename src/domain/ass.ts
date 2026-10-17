@@ -129,6 +129,10 @@ interface Block {
   start: number;
   end: number;
   row: number;
+  /** End of the previous block in this row, before this block was placed. */
+  rowFreeBefore: number;
+  /** Early start when the diagonal layout shows this line as the next preview. */
+  previewStart?: number;
   /** Start of the intro dot, when the gap can fit the whole hint. */
   hintStart?: number;
 }
@@ -215,10 +219,10 @@ export function exportAss(
           `「${entry.line.text}」与上一句重叠，单行版式下可能互相遮挡。`,
         );
     } else if (style.layout === "diagonal") {
-      // Odd lines take the lower-right slot, even lines the upper-left one.
-      // If the preferred slot is still busy, use the other rather than showing
-      // a third overlapping line.
-      row = index % 2;
+      // The first line takes the upper-left slot, then lines alternate with
+      // the lower-right one. If the preferred slot is still busy, use the
+      // other rather than showing a third overlapping line.
+      row = 1 - (index % 2);
       if (rowsFree[row] > start) {
         const other = 1 - row;
         if (rowsFree[other] <= start) row = other;
@@ -238,15 +242,44 @@ export function exportAss(
         );
       }
     }
+    const rowFreeBefore = rowsFree[row];
     rowsFree[row] = end;
-    return { entry, background, start: Math.max(0, start), end, row };
+    return {
+      entry,
+      background,
+      start: Math.max(0, start),
+      end,
+      row,
+      rowFreeBefore,
+    };
   });
+
+  // Diagonal can show the next line in the other slot from the moment the
+  // previous line starts singing. The event starts early in unsung color; its
+  // karaoke pieces still begin at the real line start, so the fill waits.
+  if (style.layout === "diagonal" && style.diagonalPreview) {
+    for (let index = 1; index < blocks.length; index++) {
+      const block = blocks[index],
+        previous = blocks[index - 1],
+        ownStart = block.entry.line.startMs!,
+        desired = previous.entry.line.startMs!;
+      if (desired >= ownStart) continue;
+      // A long line in this slot (for example a duet) may still be visible;
+      // wait for it rather than drawing two lines on the same row.
+      const previewStart = Math.max(0, desired, block.rowFreeBefore);
+      if (previewStart >= ownStart || previewStart >= block.start) continue;
+      block.previewStart = previewStart;
+    }
+  }
 
   const hintMs = Number.isFinite(options.introHintMs)
     ? Math.max(0, Math.round(options.introHintMs))
     : 0;
   if (hintMs > 0) {
     for (const block of blocks) {
+      // A diagonally previewed line is already on screen; the dot would start
+      // a second copy of it, so keep the intro cue for ordinary starts only.
+      if (block.previewStart !== undefined) continue;
       const start = block.start - hintMs;
       if (start < 0) continue;
       // Only a genuinely free gap gets a cue: no other lyric event may still
@@ -289,7 +322,7 @@ export function exportAss(
     const { line, part } = block.entry;
     const side = blockSide(block);
     const hint = block.hintStart !== undefined;
-    const eventStart = block.hintStart ?? block.start;
+    const eventStart = block.hintStart ?? block.previewStart ?? block.start;
     const prefix = hint ? "● " : "";
     const mainWidth = width(prefix + line.text, size.main, style.mainBold);
     const left = x(side, mainWidth);
@@ -330,7 +363,7 @@ export function exportAss(
         }));
         dialogue(
           2,
-          block.start,
+          eventStart,
           block.end,
           `${lineStyle}-Ruby`,
           part.name,
@@ -351,7 +384,7 @@ export function exportAss(
       const textWidth = width(text, size[band], bold);
       dialogue(
         0,
-        block.start,
+        eventStart,
         block.end,
         subStyle,
         part.name,
@@ -364,7 +397,7 @@ export function exportAss(
       const bgWidth = width(bg.line.text, size.background, style.mainBold);
       dialogue(
         1,
-        block.start,
+        eventStart,
         block.end,
         `${partStyle(bg.part)}-Background`,
         bg.part.name,

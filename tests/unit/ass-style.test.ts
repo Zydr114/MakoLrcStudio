@@ -33,6 +33,7 @@ describe("ASS style", () => {
         romanBold: true,
         romanColor: "#123456",
         includeRoman: false,
+        diagonalPreview: true,
         outline: -3,
         outlineColor: "#FF0000",
         colorMode: "solid",
@@ -51,6 +52,7 @@ describe("ASS style", () => {
       romanBold: true,
       romanColor: "#123456",
       includeRoman: false,
+      diagonalPreview: true,
       outline: 0,
       outlineColor: "#ff0000",
       colorMode: "solid",
@@ -81,6 +83,7 @@ describe("ASS style", () => {
       romanBold: false,
       romanColor: defaultAssStyle.romanColor,
       includeRoman: true,
+      diagonalPreview: false,
       unsungColor: defaultAssStyle.unsungColor,
     });
     expect(normalizeAssStyle({ mainSize: 80, romanSize: 24 })).toMatchObject({
@@ -103,6 +106,7 @@ describe("ASS style", () => {
     project.assStyle = {
       ...defaultAssStyle,
       layout: "diagonal",
+      diagonalPreview: true,
       mainSize: 80,
       rubySize: 40,
       outline: 6,

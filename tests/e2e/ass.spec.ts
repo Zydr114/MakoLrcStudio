@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { exportAs, setChecked, setColor } from "./controls";
+import { choose, exportAs, setChecked, setColor } from "./controls";
 let n = 0;
 const id = () => `p-${++n}`;
 type S = [string, number];
@@ -289,6 +289,66 @@ test("ASS intro hint appears before a line after a long gap", async ({
   ).toBe(false);
 });
 
+test("ASS diagonal preview shows the next line from the previous start", async ({
+  page,
+}) => {
+  const first = line([["一", null, 1000]], 4000);
+  const second = line([["二", null, 5000]], 8000);
+  const third = line([["三", null, 9000]], 12000);
+  const a = part("A", "#0b84d8", [first, second, third]);
+  const project = {
+    version: 2,
+    name: "ass-preview-sample",
+    metadata: { ti: "Preview" },
+    audio: null,
+    parts: [a],
+    mainPartId: a.id,
+    activePartId: a.id,
+    stage: 1,
+    unlockedStage: 3,
+    activeLineId: first.id,
+    playheadMs: 0,
+    translationLang: "",
+    romanLang: "",
+  };
+  await page.goto("/");
+  await page
+    .locator('input[type=file][accept=".json,application/json"]')
+    .setInputFiles({
+      name: "preview.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+  await expect(page.locator(".prepare-view")).toBeVisible();
+  await exportAs(page, "ASS");
+  const assDialog = page.getByRole("dialog", { name: "导出 ASS" });
+  await assDialog.getByRole("button", { name: "编辑样式…" }).click();
+  const styleDialog = page.getByRole("dialog", { name: "字幕样式" });
+  await styleDialog.getByRole("button", { name: /对角双行/ }).click();
+  await choose(page, "下一句出现时机", "previous");
+  await styleDialog.getByRole("button", { name: "应用" }).click();
+  await expect(assDialog).toContainText("双行预告");
+  const download = page.waitForEvent("download");
+  await assDialog.getByRole("button", { name: "导出 ASS" }).click();
+  const file = await download;
+  const fs = await import("node:fs/promises");
+  const ass = await fs.readFile((await file.path())!, "utf8");
+  const event = (text: string) =>
+    ass
+      .split("\n")
+      .find(
+        (line) =>
+          line.includes(",Mako-A,A,") &&
+          line.includes(",fx,") &&
+          line.includes(text),
+      )!;
+  expect(event("一")).toContain("Dialogue: 1,0:00:00.20,");
+  expect(event("二")).toContain("Dialogue: 1,0:00:01.00,");
+  expect(event("三")).toContain("Dialogue: 1,0:00:05.00,");
+  expect(event("二")).toContain("{\\k400}");
+  expect(event("三")).toContain("{\\k400}");
+});
+
 test("ASS style: per-layer sizes, bold, colors and roman toggle", async ({
   page,
 }) => {
@@ -430,12 +490,13 @@ test("ASS style: per-layer sizes, bold, colors and roman toggle", async ({
     (line) => line.includes(",Mako-A,A,") && line.includes(",fx,"),
   )!;
   const aX = Number(/\\pos\((\d+),/.exec(aLine)![1]);
-  expect(aX).toBeGreaterThan(1500);
-  expect(aX).toBeLessThan(1800);
+  expect(aX).toBe(120);
   const bLine = lines.find(
     (line) => line.includes(",Mako-B,B,") && line.includes(",fx,"),
   )!;
-  expect(bLine).toContain("\\pos(120,");
+  const bX = Number(/\\pos\((\d+),/.exec(bLine)![1]);
+  expect(bX).toBeGreaterThan(1500);
+  expect(bX).toBeLessThan(1800);
 
   await page.getByRole("button", { name: "导入", exact: true }).click();
   await page.locator('input[type=file][accept^=".lrc"]').setInputFiles({

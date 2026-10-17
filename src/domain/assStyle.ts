@@ -22,6 +22,11 @@ export interface AssStyle {
   romanColor: string;
   /** When false the romanization row is not written to the ASS file. */
   includeRoman: boolean;
+  /**
+   * Diagonal layout only: show the next line in the opposite slot from the
+   * previous line's start, while it stays unsung until its own timing.
+   */
+  diagonalPreview: boolean;
   outline: number;
   outlineColor: string;
   colorMode: AssColorMode;
@@ -43,6 +48,7 @@ export const defaultAssStyle: AssStyle = {
   romanBold: false,
   romanColor: "#e0e0e0",
   includeRoman: true,
+  diagonalPreview: false,
   outline: 3,
   outlineColor: "#202020",
   colorMode: "part",
@@ -122,6 +128,7 @@ export function normalizeAssStyle(value: unknown): AssStyle {
     romanBold: raw.romanBold === true,
     romanColor: color(raw.romanColor, defaultAssStyle.romanColor),
     includeRoman: raw.includeRoman !== false,
+    diagonalPreview: raw.diagonalPreview === true,
     outline: integer(
       raw.outline,
       assStyleRanges.outline,

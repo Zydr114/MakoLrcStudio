@@ -136,16 +136,46 @@ describe("ASS export", () => {
     const a = all.find(
       (line) => line.includes(",Mako-A,A,") && line.includes(",fx,"),
     )!;
-    expect(a).toContain(`\pos(${Math.round(1920 - 120 - 3 * em)},`);
+    expect(a).toContain("\pos(120,");
     const b = all.find(
       (line) => line.includes(",Mako-B,B,") && line.includes(",fx,"),
     )!;
-    expect(b).toContain("\pos(120,");
+    expect(b).toContain(`\pos(${Math.round(1920 - 120 - 2 * em)},`);
     const group = all.find(
       (line) => line.includes(",Mako-全员,全员,") && line.includes(",fx,"),
     )!;
-    expect(group).toContain(`\pos(${Math.round(1920 - 120 - 3 * em)},`);
+    expect(group).toContain("\pos(120,");
     expect(importAss(text).assStyle).toEqual(normalizeAssStyle(style));
+  });
+  it("previews the next diagonal line from the previous line's start", () => {
+    const project = fromLyrics("[00:01]一");
+    project.parts[0].lines = [
+      timedLine("一", [1000], 4000),
+      timedLine("二", [5000], 8000),
+      timedLine("三", [9000], 12000),
+    ];
+    const style = {
+      ...defaultAssStyle,
+      layout: "diagonal" as const,
+      diagonalPreview: true,
+    };
+    const { text } = exportAss(project, { ...options, style });
+    const all = events(text);
+    const main = (text: string) =>
+      all.find(
+        (line) =>
+          line.includes(",Mako-主唱,主唱,") &&
+          line.includes(",fx,") &&
+          line.includes(text),
+      )!;
+    // Line one starts normally; line two is already on screen when line one
+    // starts singing, and line three appears at line two's real start.
+    expect(main("一")).toContain("Dialogue: 1,0:00:00.20,");
+    expect(main("二")).toContain("Dialogue: 1,0:00:01.00,");
+    expect(main("三")).toContain("Dialogue: 1,0:00:05.00,");
+    // The preview text is unsung until its real start: 4 s of empty karaoke.
+    expect(main("二")).toContain("{\\k400}");
+    expect(main("三")).toContain("{\\k400}");
   });
   it("applies per-layer bold, colors, unsung color and independent roman size", () => {
     const style = {
