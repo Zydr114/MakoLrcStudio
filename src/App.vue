@@ -17,6 +17,7 @@ import type { Tabs } from "mdui/components/tabs.js";
 import Modal from "./components/Modal.vue";
 import PartSwitcher from "./components/PartSwitcher.vue";
 import ExportMenu from "./components/ExportMenu.vue";
+import { gitInfo } from "./buildInfo";
 import brandMark from "./assets/brand/mark.png";
 const audioInput = ref<HTMLInputElement>(),
   backupInput = ref<HTMLInputElement>();
@@ -467,6 +468,25 @@ onBeforeUnmount(() => {
           >新建空白项目</UiButton
         >
         <dl class="about-list">
+          <dt>Git 提交</dt>
+          <dd>
+            <a
+              v-if="gitInfo.known"
+              :href="`${sourceUrl}/commit/${gitInfo.commit}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              :aria-label="`在 GitHub 查看提交 ${gitInfo.commit}`"
+              ><code>{{ gitInfo.commit }}</code></a
+            ><span v-else>{{ gitInfo.commit }}</span>
+            <span class="about-sep"> · </span>{{ gitInfo.branch }}
+            <span v-if="gitInfo.dirty" class="about-dirty"
+              >（工作区有未提交改动）</span
+            >
+          </dd>
+          <dt>提交时间</dt>
+          <dd>
+            <time :datetime="gitInfo.date">{{ gitInfo.dateLabel }}</time>
+          </dd>
           <dt>许可证</dt>
           <dd>AGPL-3.0</dd>
           <dt>词典许可</dt>

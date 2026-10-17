@@ -640,6 +640,16 @@ kbd {
 .about-list a {
   color: var(--accent);
 }
+.about-list code {
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.about-sep {
+  color: var(--muted);
+}
+.about-dirty {
+  color: var(--warning, #b26a00);
+}
 .clean-preview {
   max-height: 360px;
   overflow: auto;

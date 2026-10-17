@@ -185,6 +185,11 @@ test("backup restore, input Enter isolation, dark theme and Shift-JIS preview", 
   await page.keyboard.press("Enter");
   await expect(page.locator(".prepare-view")).toBeVisible();
   await page.getByRole("button", { name: "设置", exact: true }).click();
+  await expect(page.locator(".about-list")).toContainText("Git 提交");
+  await expect(page.locator('.about-list a[href*="/commit/"]')).toHaveAttribute(
+    "href",
+    /\/commit\/[0-9a-f]{7}$/,
+  );
   await choose(page, "主题", "dark");
   await page.keyboard.press("Escape");
   await expect(page.locator("html")).toHaveClass(/mdui-theme-dark/);
