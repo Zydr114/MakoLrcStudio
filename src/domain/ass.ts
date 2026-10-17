@@ -294,13 +294,14 @@ export function exportAss(
     const mainWidth = width(prefix + line.text, size.main, style.mainBold);
     const left = x(side, mainWidth);
     const lineStyle = partStyle(part);
-    // The dot is the first lyric character, but the rest stays invisible until
-    // the line's normal appearance so the hint does not spoil the next line.
-    const revealAt = block.start - eventStart;
-    const lineDuration = block.end - eventStart;
-    const reveal = hint
-      ? `{\\alpha&HFF&\\t(${revealAt},${revealAt + 150},\\alpha&H00&)\\t(${Math.max(revealAt + 150, lineDuration - 150)},${lineDuration},\\alpha&HFF&)}`
-      : "";
+    // The dot is the first karaoke character: it fills during the hint, then
+    // the ordinary lyric syllables fill at their own times.
+    const pieces = hint
+      ? [
+          { text: "●", start: eventStart, end: block.start },
+          ...basePieces(line),
+        ]
+      : basePieces(line);
     dialogue(
       1,
       eventStart,
@@ -308,8 +309,8 @@ export function exportAss(
       lineStyle,
       part.name,
       "fx",
-      `{\\an1\\pos(${round(left)},${round(bandBottom(block.row, "main"))})\\fad(150,150)}${escape(prefix)}${reveal}` +
-        karaoke(basePieces(line), eventStart, options.fill),
+      `{\\an1\\pos(${round(left)},${round(bandBottom(block.row, "main"))})\\fad(150,150)}` +
+        karaoke(pieces, eventStart, options.fill),
     );
     // Each reading sits centered over its base and fills syllable by syllable.
     let before = prefix;
