@@ -225,6 +225,18 @@ watch(
         ?.scrollIntoView({ block: "nearest", inline: "nearest" }),
     ),
 );
+// Follow the audio visually without changing the line being edited.
+watch(
+  () => [playingLine.value, editor.playing] as const,
+  ([index, playing]) => {
+    if (!playing || index < 0) return;
+    void nextTick(() =>
+      document
+        .querySelectorAll<HTMLButtonElement>(".lyric-nav-list button")
+        [index]?.scrollIntoView({ block: "nearest" }),
+    );
+  },
+);
 </script>
 <template>
   <section class="timing-layout">

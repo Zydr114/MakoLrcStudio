@@ -7,6 +7,8 @@ async function importProject(page: Page, text: string) {
   await page.locator('input[type=file][accept^="audio"]').setInputFiles(audio);
   await expect(page.getByText("音频已准备", { exact: true })).toBeVisible();
   await page.getByLabel("粘贴歌词").fill(text);
+  // Firefox can reflow the autosizing field between mousedown and mouseup.
+  await page.getByLabel("粘贴歌词").blur();
   await page.getByRole("button", { name: "下一步，整理歌词" }).click();
 }
 async function wordStage(
@@ -390,6 +392,48 @@ test("loop repeats a line audition but never the whole song", async ({
   await expect(
     page.getByRole("button", { name: "播放", exact: true }),
   ).toBeVisible();
+});
+
+test("the lyric list follows the playing line without changing the edit target", async ({
+  page,
+}) => {
+  const text = [
+    "hello world",
+    ...Array.from({ length: 11 }, (_, i) => `line${i + 2}`),
+  ]
+    .map((line, i) => `[00:${String(i).padStart(2, "0")}.000]${line}`)
+    .join("\n");
+  await importProject(page, text);
+  await page.getByRole("button", { name: "确认文本，开始逐行打轴" }).click();
+  await page.getByRole("button", { name: "进入逐字", exact: true }).click();
+  await page.locator(".unit-strip button").nth(1).click();
+  await expect(page.locator(".unit-strip button.selected")).toContainText(
+    "world",
+  );
+  await page.getByLabel("音频位置", { exact: true }).fill("9500");
+  await page.locator("[data-workspace]").focus();
+  await page.keyboard.press("Space");
+  const playing = page.locator(".lyric-nav-list button.playing");
+  await expect(playing).toContainText("line11", { timeout: 3000 });
+  const list = page.locator(".lyric-nav-list");
+  await expect
+    .poll(() => list.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0);
+  const [listBox, playingBox] = await Promise.all([
+    list.boundingBox(),
+    playing.boundingBox(),
+  ]);
+  expect(playingBox!.y).toBeGreaterThanOrEqual(listBox!.y);
+  expect(playingBox!.y + playingBox!.height).toBeLessThanOrEqual(
+    listBox!.y + listBox!.height + 1,
+  );
+  await expect(page.locator(".lyric-nav-list button.active")).toContainText(
+    "hello world",
+  );
+  await expect(page.locator(".unit-strip button.selected")).toContainText(
+    "world",
+  );
+  await page.getByRole("button", { name: "暂停", exact: true }).click();
 });
 
 test("continuous line recording advances, Backspace returns to previous line, final Enter stops", async ({
