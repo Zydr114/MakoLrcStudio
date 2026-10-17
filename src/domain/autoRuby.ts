@@ -3,28 +3,24 @@ import { moraCuts, rubyParts, setRuby, splitAt } from "./ruby";
 import { graphemes, mergeUnits, splitUnit, tokenize } from "./tokenize";
 import type { ReadingSpan } from "../lang/align";
 
-export type RubySkipReason = "timed" | "mismatch";
-export interface SkippedReading {
-  /** The word or kanji run the dictionary tried to read. */
-  text: string;
-  /** `timed` would merge units with recorded times; `mismatch` cannot align. */
-  reason: RubySkipReason;
-}
 export interface AutoRubyStats {
   /** Units that received an automatic reading. */
   annotated: number;
   /** Readings someone typed or confirmed, which automatic ruby never replaces. */
   kept: number;
-  /** Spans that do not fit the current units, or would drop recorded times. */
+  /** Spans that cannot be aligned to the current units. */
   skipped: number;
   /** Every skipped span, for a per-word report. */
-  skippedReadings: SkippedReading[];
+  skippedReadings: string[];
+  /** Words merged across recorded times; their later times were dropped. */
+  retimedReadings: string[];
 }
 export const emptyStats = (): AutoRubyStats => ({
   annotated: 0,
   kept: 0,
   skipped: 0,
   skippedReadings: [],
+  retimedReadings: [],
 });
 const manual = (unit: TimingUnit) => unit.ruby && !unit.autoRuby;
 const timed = (unit: TimingUnit) =>
@@ -74,9 +70,9 @@ export function applyJapaneseRuby(
   stats = emptyStats(),
 ): AutoRubyStats {
   hasUnits(line);
-  const skipped = (text: string, reason: RubySkipReason) => {
+  const skipped = (text: string) => {
     stats.skipped++;
-    stats.skippedReadings.push({ text, reason });
+    stats.skippedReadings.push(text);
   };
   for (const span of spans) {
     const groupAt = () => {
@@ -88,7 +84,7 @@ export function applyJapaneseRuby(
     const word = line.text.slice(span.start, span.end);
     const before = groupAt();
     if (before.first < 0 || !before.group.length) {
-      skipped(word, "mismatch");
+      skipped(word);
       continue;
     }
     // Check typed or confirmed readings before any splitting destroys them.
@@ -99,24 +95,23 @@ export function applyJapaneseRuby(
     // The kanji run may end inside a word-level unit (四角い): split at the
     // reading borders instead of dropping the reading for the whole word.
     if (!splitAtBorder(line, span.start) || !splitAtBorder(line, span.end)) {
-      skipped(word, "mismatch");
+      skipped(word);
       continue;
     }
     const { first, last, group } = groupAt();
     if (first < 0 || !group.length) {
-      skipped(word, "mismatch");
+      skipped(word);
       continue;
     }
     const text = group.map((unit) => unit.text).join("");
     if (rubyParts(text).base !== word) {
-      skipped(word, "mismatch");
+      skipped(word);
       continue;
     }
-    if (group.slice(1).some(timed)) {
-      // Merging these units into one ruby group would discard their start times.
-      skipped(word, "timed");
-      continue;
-    }
+    // The reading has to sit on one unit. When later characters already have
+    // starts, merging keeps the first start and drops the rest: still annotate
+    // the word, but tell the user that its line needs timing again.
+    if (group.slice(1).some(timed)) stats.retimedReadings.push(word);
     if (last > first) line.units = mergeUnits(line.units, first, last);
     setRuby(line, first, splitAt(span.reading, moraCuts(span.reading)));
     line.units[first].autoRuby = true;

@@ -6,21 +6,21 @@ import {
   applyJapaneseRuby,
   emptyStats,
   type AutoRubyStats,
-  type RubySkipReason,
 } from "../domain/autoRuby";
 
-/** A skipped reading with its 1-based line number in the current part. */
+/** A word in the last run with its 1-based line number in the current part. */
 export interface RubySkipNote {
   line: number;
   text: string;
-  reason: RubySkipReason;
 }
 
 export type RubyLanguage = "ja" | "zh";
 /** Shown while a dictionary loads: the Japanese one is about 17 MB. */
 export const rubyLoading = ref<RubyLanguage | null>(null);
-/** Per-word report of the last run, so a skip is never silent. */
+/** Words the dictionary could not align, so a skip is never silent. */
 export const rubySkips = ref<RubySkipNote[]>([]);
+/** Words merged across recorded times; their lines need timing again. */
+export const rubyRetimes = ref<RubySkipNote[]>([]);
 
 /**
  * Reads the given lines of the current part with a dictionary, then writes the
@@ -57,30 +57,40 @@ export async function runAutoRuby(
     }
     const stats = emptyStats();
     const skips: RubySkipNote[] = [];
+    const retimes: RubySkipNote[] = [];
     let reopened = 0;
     const ok = editor.command("自动注音", (draft) => {
       for (const [index, line] of activeLines(draft).entries()) {
         // A line edited while the dictionary loaded is left alone.
         if (texts.get(line.id) !== line.text) continue;
         const complete = completeLine(line);
-        const before = stats.skippedReadings.length;
+        const beforeSkip = stats.skippedReadings.length;
+        const beforeRetime = stats.retimedReadings.length;
         annotate(line, stats);
-        for (const entry of stats.skippedReadings.slice(before))
-          skips.push({ line: index + 1, ...entry });
+        for (const text of stats.skippedReadings.slice(beforeSkip))
+          skips.push({ line: index + 1, text });
+        for (const text of stats.retimedReadings.slice(beforeRetime))
+          retimes.push({ line: index + 1, text });
         if (complete && !completeLine(line)) reopened++;
       }
     });
     if (!ok) return false;
     rubySkips.value = skips;
-    const listed = skips
-      .slice(0, 4)
-      .map((entry) => `第 ${entry.line} 行「${entry.text}」`)
-      .join("、");
-    const more = skips.length > 4 ? ` 等 ${skips.length} 处` : "";
+    rubyRetimes.value = retimes;
+    const listed = (notes: RubySkipNote[]) => {
+      const shown = notes
+        .slice(0, 4)
+        .map((entry) => `第 ${entry.line} 行「${entry.text}」`)
+        .join("、");
+      return notes.length > 4 ? `${shown} 等 ${notes.length} 处` : shown;
+    };
     editor.message = [
       `自动注音完成：${stats.annotated} 处待确认`,
       stats.kept ? `${stats.kept} 处保留了已确认的读音` : "",
-      skips.length ? `${skips.length} 处未注音：${listed}${more}` : "",
+      skips.length ? `${skips.length} 处未注音：${listed(skips)}` : "",
+      retimes.length
+        ? `${retimes.length} 处已有打点被合并，需要重新打轴：${listed(retimes)}`
+        : "",
       reopened ? `${reopened} 行新增了待打的音节` : "",
     ]
       .filter(Boolean)

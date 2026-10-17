@@ -80,6 +80,7 @@ describe("automatic Japanese ruby", () => {
       kept: 0,
       skipped: 0,
       skippedReadings: [],
+      retimedReadings: [],
     });
     expect(pendingRuby(line)).toBe(5);
     expect(line.units.map((unit) => unit.text).join("")).toBe(line.text);
@@ -115,7 +116,7 @@ describe("automatic Japanese ruby", () => {
     ]);
     expect(stats).toMatchObject({ annotated: 6, skipped: 0 });
   }, 30000);
-  it("reports which word a recorded time kept from merging", async () => {
+  it("annotates words across recorded times and asks for re-timing", async () => {
     const read = await tokenizer;
     const line = newLine("部屋");
     line.units = [newUnit("部"), newUnit("屋")];
@@ -123,21 +124,25 @@ describe("automatic Japanese ruby", () => {
     line.units[1].syllables[0].startMs = 1500;
     const stats = applyJapaneseRuby(line, lineSpans(read.tokenize("部屋")));
     expect(stats).toMatchObject({
-      annotated: 0,
+      annotated: 1,
       kept: 0,
-      skipped: 1,
-      skippedReadings: [{ text: "部屋", reason: "timed" }],
+      skipped: 0,
+      retimedReadings: ["部屋"],
     });
-    expect(readings(line)).toEqual(["部", "屋"]);
+    expect(readings(line)).toEqual(["部屋|へ・や"]);
+    expect(unitStart(line.units[0])).toBe(1000);
+    expect(syllablesOf(line).map((s) => s.startMs)).toEqual([1000, null]);
   }, 30000);
-  it("never replaces a typed reading and never drops recorded times", () => {
+  it("never replaces a typed reading and keeps the first recorded time", () => {
     const project = fromLyrics("[00:01]<00:01>今<00:02>日<00:03>も<00:04>");
     const line = activeLines(project)[0];
     const spans = [{ start: 0, end: 2, reading: "きょう" }];
-    expect(applyJapaneseRuby(line, spans)).toMatchObject({ skipped: 1 });
-    line.units[1].syllables[0].startMs = null;
-    expect(applyJapaneseRuby(line, spans)).toMatchObject({ annotated: 1 });
+    expect(applyJapaneseRuby(line, spans)).toMatchObject({
+      annotated: 1,
+      retimedReadings: ["今日"],
+    });
     expect(unitStart(line.units[0])).toBe(1000);
+    // 日's start is dropped by the merge; も keeps its own start.
     expect(syllablesOf(line).map((s) => s.startMs)).toEqual([1000, null, 3000]);
     confirmRuby(line);
     expect(pendingRuby(line)).toBe(0);

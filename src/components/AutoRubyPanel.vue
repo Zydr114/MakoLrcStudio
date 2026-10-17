@@ -3,10 +3,10 @@ import { computed, ref, watch } from "vue";
 import { editor } from "../state/editor";
 import {
   rubyLoading,
+  rubyRetimes,
   rubySkips,
   runAutoRuby,
   type RubyLanguage,
-  type RubySkipNote,
 } from "../state/autoRuby";
 import { guessLanguage } from "../domain/autoRuby";
 import UiButton from "./UiButton.vue";
@@ -27,10 +27,6 @@ const languages = [
   { value: "ja" as const, label: "日语（假名，按音拍）" },
   { value: "zh" as const, label: "中文（带调拼音）" },
 ];
-const reasonText: Record<RubySkipNote["reason"], string> = {
-  timed: "所在单位已有打点，合并会丢失时间",
-  mismatch: "与现有切分不符",
-};
 const scopes = computed(() => [
   {
     value: "part" as const,
@@ -78,11 +74,26 @@ function run() {
       ><template v-else>中文每个字的拼音只作显示，不增加打轴次数。</template>
     </p>
     <div v-if="rubySkips.length" class="skip-report">
-      <p class="small-note">上次自动注音有 {{ rubySkips.length }} 处未注音：</p>
+      <p class="small-note">
+        上次自动注音有 {{ rubySkips.length }} 处因切分不符未注音：
+      </p>
       <ul class="skip-list">
         <li v-for="(entry, index) in rubySkips" :key="`${entry.line}-${index}`">
-          第 {{ entry.line }} 行「{{ entry.text }}」·
-          {{ reasonText[entry.reason] }}
+          第 {{ entry.line }} 行「{{ entry.text }}」
+        </li>
+      </ul>
+    </div>
+    <div v-if="rubyRetimes.length" class="skip-report">
+      <p class="small-note">
+        上次自动注音合并了 {{ rubyRetimes.length }}
+        处已有打点，需要重新打轴：
+      </p>
+      <ul class="skip-list">
+        <li
+          v-for="(entry, index) in rubyRetimes"
+          :key="`${entry.line}-${index}`"
+        >
+          第 {{ entry.line }} 行「{{ entry.text }}」
         </li>
       </ul>
     </div>

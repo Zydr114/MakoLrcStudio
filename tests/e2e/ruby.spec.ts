@@ -95,7 +95,7 @@ test("automatic Japanese ruby splits word-level units for okurigana", async ({
   await expect(page.getByRole("status")).toContainText("6 处待确认");
 });
 
-test("automatic Japanese ruby lists words it cannot merge across times", async ({
+test("automatic Japanese ruby annotates across times and asks for re-timing", async ({
   page,
 }) => {
   await rubyView(
@@ -104,17 +104,15 @@ test("automatic Japanese ruby lists words it cannot merge across times", async (
   );
   await choose(page, "语言", "ja");
   await page.getByRole("button", { name: "自动注音" }).click();
-  await expect(page.locator(".skip-report")).toBeVisible({ timeout: 30000 });
-  await expect(page.locator(".skip-report")).toContainText("3 处未注音");
+  await expect(page.locator(".ruby-unit rt")).toHaveText(
+    ["しかく", "へや", "かたすみ", "のぞ", "あ", "きょう"],
+    { timeout: 30000 },
+  );
+  await expect(page.locator(".skip-report")).toContainText(
+    "合并了 3 处已有打点，需要重新打轴",
+  );
   await expect(page.locator(".skip-report")).toContainText("第 1 行「四角」");
   await expect(page.locator(".skip-report")).toContainText("「部屋」");
   await expect(page.locator(".skip-report")).toContainText("「片隅」");
-  await expect(page.locator(".skip-report")).toContainText(
-    "所在单位已有打点，合并会丢失时间",
-  );
-  await expect(page.locator(".ruby-unit rt")).toHaveText([
-    "のぞ",
-    "あ",
-    "きょう",
-  ]);
+  await expect(page.getByRole("status")).toContainText("需要重新打轴");
 });
