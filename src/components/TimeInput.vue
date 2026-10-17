@@ -41,8 +41,13 @@ watch(
   },
 );
 function preview() {
-  dirty.value = true;
   const ms = parseTime(text.value);
+  if (ms === props.value) {
+    props.cancel?.();
+    dirty.value = false;
+    return;
+  }
+  dirty.value = true;
   if (ms === null) props.cancel?.();
   else if (props.preview && !props.preview(ms)) props.cancel?.();
 }

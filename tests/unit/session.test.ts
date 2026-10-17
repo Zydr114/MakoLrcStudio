@@ -50,11 +50,13 @@ describe("recording session transitions", () => {
     audio.position = 1700;
     await editor.enter();
     expect(editor.cursor).toBe(2);
-    expect(editor.line?.endMs).toBeNull();
+    expect(editor.line?.endMs).toBe(6000);
+    expect(editor.line?.endInferred).toBe(true);
     expect(editor.playing).toBe(true);
     audio.position = 2600;
     await editor.enter();
     expect(editor.line?.endMs).toBe(2600);
+    expect(editor.line?.endInferred).toBeUndefined();
     expect(editor.mode).toBe("idle");
     expect(editor.lineIndex).toBe(0);
     await editor.enter();
@@ -90,7 +92,8 @@ describe("recording session transitions", () => {
     audio.end();
     expect(editor.mode).toBe("ended");
     await editor.enter();
-    expect(editor.line?.endMs).toBeNull();
+    expect(editor.line?.endMs).toBe(4000);
+    expect(editor.line?.endInferred).toBe(true);
     expect(editor.isComplete).toBe(false);
   });
   it("requires valid lines, ignores input before timing stages, preserves prefix on local retime", async () => {

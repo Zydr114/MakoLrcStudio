@@ -423,8 +423,13 @@ watch(
             label="停顿"
             @update:model-value="togglePause"
           />
-          <span v-if="lineMode && editor.line.endMs === null" class="small-note"
-            >参考范围</span
+          <span
+            v-if="
+              lineMode &&
+              (editor.line.endMs === null || editor.line.endInferred)
+            "
+            class="small-note"
+            >{{ editor.line.endMs === null ? "参考范围" : "参考收尾" }}</span
           >
           <span
             v-if="!lineMode && selectedInterval?.kind === 'confirmed'"
@@ -480,10 +485,11 @@ watch(
               :options="extraModes"
             /><span
               v-if="
-                editor.auditionScope === 'line' && editor.line.endMs === null
+                editor.auditionScope === 'line' &&
+                (editor.line.endMs === null || editor.line.endInferred)
               "
               class="small-note"
-              >参考范围</span
+              >参考收尾</span
             >
           </div>
           <UiButton

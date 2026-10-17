@@ -91,6 +91,7 @@ function checkLine(line: LyricLine, unique: (id: unknown) => void) {
     !isText(line.translation) ||
     !isText(line.roman) ||
     (line.romanAuto !== undefined && typeof line.romanAuto !== "boolean") ||
+    (line.endInferred !== undefined && typeof line.endInferred !== "boolean") ||
     (line.songPart !== undefined && !isText(line.songPart))
   )
     fail();

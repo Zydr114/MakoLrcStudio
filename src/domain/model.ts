@@ -25,6 +25,8 @@ export interface LyricLine {
   text: string;
   startMs: number | null;
   endMs: number | null;
+  /** The end was inferred (next onset or audio duration), not measured. */
+  endInferred?: boolean;
   units: TimingUnit[];
   translation: string;
   roman: string;
@@ -181,7 +183,8 @@ export function retextUnit(unit: TimingUnit, text: string): TimingUnit {
 export const completeLine = (line: LyricLine): boolean =>
   line.units.length > 0 &&
   syllablesOf(line).every((syllable) => syllable.startMs !== null) &&
-  line.endMs !== null;
+  line.endMs !== null &&
+  !line.endInferred;
 
 export function formatTime(ms: number | null): string {
   if (ms === null) return "—";

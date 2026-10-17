@@ -881,6 +881,7 @@ export function createEditor(
         s.endMs = null;
       });
       activeLines(draft)[lineIndex.value].endMs = null;
+      activeLines(draft)[lineIndex.value].endInferred = undefined;
     });
     selectedIndex.value = index;
     mode.value = "idle";
@@ -908,6 +909,7 @@ export function createEditor(
       const target = activeLines(draft)[index];
       target.startMs = null;
       target.endMs = null;
+      target.endInferred = undefined;
       syllablesOf(target).forEach((syllable) => {
         syllable.startMs = null;
         syllable.endMs = null;

@@ -109,6 +109,27 @@ export function importLyrics(input: string): ImportResult {
       result.notices.push("offset 不是有效整数，已忽略该偏移，时标保持原值。");
     }
   }
+  // Plain LRC has no line endings: the next later onset is the best reference.
+  const onsets = [
+    ...new Set(
+      result.lines
+        .map((line) => line.startMs)
+        .filter((start): start is number => start !== null),
+    ),
+  ].sort((a, b) => a - b);
+  let inferred = 0;
+  for (const line of result.lines) {
+    if (line.startMs === null || line.endMs !== null) continue;
+    const next = onsets.find((start) => start > line.startMs!);
+    if (next === undefined) continue;
+    line.endMs = next;
+    line.endInferred = true;
+    inferred++;
+  }
+  if (inferred)
+    result.notices.push(
+      `已按下一句起点补全 ${inferred} 句的句末（参考收尾）。`,
+    );
   return result;
 }
 

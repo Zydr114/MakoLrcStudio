@@ -25,6 +25,7 @@ export function editLine(
   line.text = text;
   line.units = kept;
   line.endMs = null;
+  line.endInferred = undefined;
 }
 
 /**
@@ -104,6 +105,7 @@ export function splitLine(
     throw new Error("拆句后两行都需要歌词正文。");
   const second = newLine(secondText);
   second.endMs = line.endMs;
+  second.endInferred = line.endInferred;
   let boundaryMs: number | null = null;
   if (line.units.length) {
     if (line.units.map((unit) => unit.text).join("") !== line.text)
@@ -146,6 +148,7 @@ export function splitLine(
   }
   line.text = firstText;
   line.endMs = boundaryMs;
+  line.endInferred = undefined;
   lines.splice(index + 1, 0, second);
 }
 
@@ -282,7 +285,9 @@ export function setLineEnd(
 ): void {
   const [lower, upper] = lineEndBounds(project, index);
   assertRange(ms, lower, upper);
-  activeLines(project)[index].endMs = ms;
+  const line = activeLines(project)[index];
+  line.endMs = ms;
+  line.endInferred = undefined;
 }
 
 export function lineStartBounds(

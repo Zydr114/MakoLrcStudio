@@ -26,7 +26,7 @@ const lanes = computed(() => {
           id: line.id,
           text: line.text,
           title: `${part.name} · ${line.text} · ${formatTime(line.startMs)} → ${formatTime(line.endMs)}`,
-          reference: line.endMs === null,
+          reference: line.endMs === null || !!line.endInferred,
           ...intervalGeometry(line.startMs, end, props.view),
         },
       ];

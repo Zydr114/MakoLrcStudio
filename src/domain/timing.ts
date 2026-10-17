@@ -81,11 +81,13 @@ export function lineIntervals(project: ProjectDraft): TimingInterval[] {
         endMs: end !== null && Number.isFinite(end) ? end : null,
         kind: conflicts.has(line.id)
           ? "conflict"
-          : line.endMs !== null
-            ? "confirmed"
-            : end === null || !Number.isFinite(end)
-              ? "unknown"
-              : "reference",
+          : line.endInferred
+            ? "reference"
+            : line.endMs !== null
+              ? "confirmed"
+              : end === null || !Number.isFinite(end)
+                ? "unknown"
+                : "reference",
       },
     ];
   });

@@ -44,6 +44,29 @@ describe("lyric import and export", () => {
     expect(activeLines(project)[0].endMs).toBeNull();
     expect(() => exportLyrics(project)).toThrow("收尾");
   });
+  it("infers a plain LRC ending from the next later onset", () => {
+    const result = importLyrics("[00:01]今日\n[00:03]君\n");
+    expect(result.lines.map((line) => line.endMs)).toEqual([3000, null]);
+    expect(result.lines.map((line) => line.endInferred)).toEqual([
+      true,
+      undefined,
+    ]);
+    expect(result.notices.join("")).toContain("补全 1 句");
+  });
+  it("keeps an explicit enhanced ending and skips equal onsets", () => {
+    const explicit = importLyrics("[00:01]<00:01>a<00:02>\n[00:03]b");
+    expect(explicit.lines[0].endMs).toBe(2000);
+    expect(explicit.lines[0].endInferred).toBeUndefined();
+    const equal = importLyrics("[00:01]a\n[00:01]b\n[00:02]c");
+    expect(equal.lines.map((line) => line.endMs)).toEqual([2000, 2000, null]);
+    expect(equal.lines.every((line) => line.endMs !== 1000)).toBe(true);
+  });
+  it("infers endings after applying the file offset", () => {
+    const result = importLyrics("[offset:100]\n[00:01]a\n[00:03]b");
+    expect(result.lines[0].startMs).toBe(900);
+    expect(result.lines[0].endMs).toBe(2900);
+    expect(result.lines[0].endInferred).toBe(true);
+  });
   it("preserves an implicit first unit before the first inline tag", () => {
     const line = importLyrics("[00:01]a<00:02>b<00:03>").lines[0];
     expect(line.units.map((u) => [u.text, unitStart(u)])).toEqual([

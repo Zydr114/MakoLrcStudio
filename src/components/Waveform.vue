@@ -2,12 +2,7 @@
 import { ref, computed, onBeforeUnmount } from "vue";
 import { useWaveformViewport } from "./useWaveformViewport";
 import { editor } from "../state/editor";
-import {
-  formatTime,
-  completeLine,
-  syllableLabel,
-  syllableRefs,
-} from "../domain/model";
+import { formatTime, syllableLabel, syllableRefs } from "../domain/model";
 import {
   syllableBounds,
   syllableEndBounds,
@@ -90,15 +85,16 @@ const points = computed<Point[]>(() => {
         lines[index + 1]?.startMs ??
         editor.project.audio?.durationMs ??
         null;
+      const inferred = line.endMs === null || !!line.endInferred;
       if (reference !== null && reference > line.startMs)
         result.push({
           key: `${line.id}-end`,
           lineIndex: index,
           index: syllableRefs(line).length,
           time: reference,
-          label: line.endMs === null ? "参考收尾" : "收尾",
+          label: inferred ? "参考收尾" : "收尾",
           end: true,
-          reference: line.endMs === null,
+          reference: inferred,
         });
     }
     return result;
@@ -139,8 +135,9 @@ const points = computed<Point[]>(() => {
       lineIndex: editor.lineIndex,
       index: refs.length,
       time: line.endMs,
-      label: "收尾",
+      label: line.endInferred ? "参考收尾" : "收尾",
       end: true,
+      reference: line.endInferred,
     });
   return result;
 });
@@ -232,6 +229,10 @@ function moveDrag(event: PointerEvent) {
     min,
     Math.min(Math.round(drag.value.point.time + delta), max),
   );
+  if (drag.value.ms === drag.value.point.time) {
+    editor.clearPreview();
+    return;
+  }
   editor.previewCommand("waveform", (p) =>
     applyPoint(p, drag.value!.point, drag.value!.ms),
   );
@@ -290,7 +291,8 @@ function seek(event: MouseEvent) {
 const canMoveSentence = computed(
   () =>
     !!editor.line &&
-    completeLine(editor.line) &&
+    editor.line.startMs !== null &&
+    editor.line.endMs !== null &&
     !editor.conflicts.some((issue) => issue.lineId === editor.line.id),
 );
 function auditionRegion(index: number | null) {
@@ -307,7 +309,12 @@ const contextGeometry = computed(() =>
   ),
 );
 function moveSentence(event: PointerEvent) {
-  if (!editor.line || !completeLine(editor.line)) return;
+  if (
+    !editor.line ||
+    editor.line.startMs === null ||
+    editor.line.endMs === null
+  )
+    return;
   startDrag(event, {
     key: editor.line.id + "-move",
     lineIndex: editor.lineIndex,

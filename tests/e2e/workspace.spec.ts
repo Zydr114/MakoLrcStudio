@@ -28,7 +28,7 @@ test("text-first preparation and explicitly armed line recording", async ({
   await expect(page.getByLabel("本句起点")).toHaveValue("");
 });
 
-test("line reference overlays and boundary cancellation preserve real endpoints", async ({
+test("line reference overlays and boundary cancellation preserve the inferred endpoint", async ({
   page,
 }) => {
   await page.goto("/");
@@ -52,7 +52,8 @@ test("line reference overlays and boundary cancellation preserve real endpoints"
     await fs.readFile((await (await backup).path())!, "utf8"),
   );
   expect(draft.version).toBe(2);
-  expect(draft.parts[0].lines[0].endMs).toBeNull();
+  expect(draft.parts[0].lines[0].endMs).toBe(6000);
+  expect(draft.parts[0].lines[0].endInferred).toBe(true);
 });
 
 test("the line end handle belongs to the current line and stops at the next line start", async ({
@@ -75,12 +76,16 @@ test("the line end handle belongs to the current line and stops at the next line
     page.getByRole("slider", { name: "参考收尾时间边界", exact: true }),
   ).toHaveCount(1);
   const end = page.getByLabel("本句终点");
-  await expect(end).toHaveValue("");
-  await expect(page.getByText("参考范围")).toHaveCount(1);
+  await expect(end).toHaveValue("00:06.000");
+  await expect(
+    page.locator("span.small-note").filter({ hasText: "参考收尾" }),
+  ).toHaveCount(1);
   await end.fill("00:04.500");
   await end.press("Enter");
   await expect(end).toHaveValue("00:04.500");
-  await expect(page.getByText("参考范围")).toHaveCount(0);
+  await expect(
+    page.locator("span.small-note").filter({ hasText: "参考收尾" }),
+  ).toHaveCount(0);
   await expect(page.locator(".time-marker.ending")).toHaveAttribute(
     "aria-valuenow",
     "4500",

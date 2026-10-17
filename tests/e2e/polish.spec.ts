@@ -116,10 +116,10 @@ test("IME confirmation in precise fields does not commit or mark, valid shared e
   ).toHaveAttribute("aria-valuenow", "3000");
 });
 
-test("unknown successors have no invented regions or playback fill and long lines keep actions reachable", async ({
+test("unknown endings have no invented playback fill and long lines keep actions reachable", async ({
   page,
 }, testInfo) => {
-  await workspace(page, "[00:01]<00:01>今日も\n[00:06]次");
+  await workspace(page, "[00:01]<00:01>今日も");
   await page.getByLabel("音频位置", { exact: true }).fill("1900");
   await expect(page.locator(".timing-region")).toHaveCount(0);
   await expect(page.locator(".preview-token.playing")).toHaveCount(0);
