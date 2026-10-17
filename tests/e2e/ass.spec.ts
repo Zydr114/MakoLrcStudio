@@ -231,7 +231,7 @@ test("ASS exports the layout and the karaoke source, and imports back into parts
   );
 });
 
-test("ASS style: preset, sizes, outline and solid color round-trip", async ({
+test("ASS style: per-layer sizes, bold, colors and roman toggle", async ({
   page,
 }) => {
   const a = line(
@@ -248,6 +248,7 @@ test("ASS style: preset, sizes, outline and solid color round-trip", async ({
       ["い", null, 1900],
     ],
     4000,
+    { roman: "sen nai" },
   );
   const b = line(
     [
@@ -262,6 +263,7 @@ test("ASS style: preset, sizes, outline and solid color round-trip", async ({
       ["と", null, 3600],
     ],
     6000,
+    { roman: "kimi to" },
   );
   const A = part("A", "#0b84d8", [a]);
   const project = {
@@ -295,16 +297,26 @@ test("ASS style: preset, sizes, outline and solid color round-trip", async ({
   const styleDialog = page.getByRole("dialog", { name: "字幕样式" });
   await expect(styleDialog).toBeVisible();
   await choose(page, "版式预设", "diagonal");
-  await styleDialog.getByLabel("主行字号").fill("80");
+  await styleDialog.getByLabel("歌词字号").fill("80");
   await styleDialog.getByLabel("注音字号").fill("40");
+  await styleDialog.getByLabel("罗马音字号").fill("36");
+  await setChecked(page, "歌词粗体");
+  await setChecked(page, "注音粗体");
+  await setChecked(page, "罗马音粗体");
+  await setChecked(page, "跟随歌词色", false);
+  await styleDialog.getByLabel("注音颜色").fill("#abcdef");
+  await styleDialog.getByLabel("罗马音颜色").fill("#123456");
   await styleDialog.getByLabel("描边粗细").fill("6");
   await styleDialog.getByLabel("描边颜色").fill("#ff0000");
+  await styleDialog.getByLabel("未唱颜色").fill("#112233");
   await setChecked(page, "统一文字颜色", true);
   await styleDialog.getByLabel("纯色").fill("#00ff00");
   await styleDialog.getByRole("button", { name: "应用" }).click();
   await expect(styleDialog).not.toBeVisible();
   await expect(assDialog).toContainText("对角双行");
-  await expect(assDialog).toContainText("主行 80px");
+  await expect(assDialog).toContainText("歌词 80px");
+  await expect(assDialog).toContainText("罗马音 36px");
+  await expect(assDialog).toContainText("粗体：歌词、注音、罗马音");
   const download = page.waitForEvent("download");
   await assDialog.getByRole("button", { name: "导出 ASS" }).click();
   const file = await download;
@@ -312,14 +324,36 @@ test("ASS style: preset, sizes, outline and solid color round-trip", async ({
   const ass = await fs.readFile((await file.path())!, "utf8");
   if (process.env.MAKO_ASS_STYLE_SAMPLE)
     await fs.writeFile(process.env.MAKO_ASS_STYLE_SAMPLE, ass);
-  expect(ass).toContain(
-    '; mako-style: {"layout":"diagonal","font":"Noto Sans CJK JP","mainSize":80,"rubySize":40,"outline":6,"outlineColor":"#ff0000","colorMode":"solid","solidColor":"#00ff00"}',
+  const styleComment = ass
+    .split("\n")
+    .find((line) => line.startsWith("; mako-style: "))!;
+  expect(JSON.parse(styleComment.slice("; mako-style: ".length))).toMatchObject(
+    {
+      layout: "diagonal",
+      mainSize: 80,
+      mainBold: true,
+      rubySize: 40,
+      rubyBold: true,
+      rubyColor: "#abcdef",
+      romanSize: 36,
+      romanBold: true,
+      romanColor: "#123456",
+      includeRoman: true,
+      outline: 6,
+      outlineColor: "#ff0000",
+      colorMode: "solid",
+      solidColor: "#00ff00",
+      unsungColor: "#112233",
+    },
   );
   expect(ass).toContain(
-    "Style: Mako-A,Noto Sans CJK JP,80,&H0000FF00,&H00FFFFFF,&H000000FF,&H64000000,0,0,0,0,100,100,0,0,1,6,0,1,0,0,0,1",
+    "Style: Mako-A,Noto Sans CJK JP,80,&H0000FF00,&H00332211,&H000000FF,&H64000000,-1,0,0,0,100,100,0,0,1,6,0,1,0,0,0,1",
   );
   expect(ass).toContain(
-    "Style: Mako-A-Ruby,Noto Sans CJK JP,40,&H0000FF00,&H00FFFFFF,&H000000FF,&H64000000,0,0,0,0,100,100,0,0,1,4,0,1,0,0,0,1",
+    "Style: Mako-A-Ruby,Noto Sans CJK JP,40,&H00EFCDAB,&H00332211,&H000000FF,&H64000000,-1,0,0,0,100,100,0,0,1,4,0,1,0,0,0,1",
+  );
+  expect(ass).toContain(
+    "Style: Mako-Romaji,Noto Sans CJK JP,36,&H00563412,&H00332211,&H000000FF,&H64000000,-1,0,0,0,100,100,0,0,1,4,0,1,0,0,0,1",
   );
   const lines = ass.split("\n").filter((line) => line.startsWith("Dialogue:"));
   const aLine = lines.find(
@@ -342,10 +376,29 @@ test("ASS style: preset, sizes, outline and solid color round-trip", async ({
   await page.getByRole("button", { name: "下一步，整理歌词" }).click();
   await expect(page.getByRole("status")).toContainText("已导入 ASS");
   await exportAs(page, "ASS");
-  await expect(page.getByRole("dialog", { name: "导出 ASS" })).toContainText(
-    "对角双行",
+  const reopened = page.getByRole("dialog", { name: "导出 ASS" });
+  await expect(reopened).toContainText("对角双行");
+  await expect(reopened).toContainText("歌词 80px");
+  await expect(reopened).toContainText("罗马音 36px");
+  await expect(reopened).toContainText("粗体：歌词、注音、罗马音");
+
+  await reopened.getByRole("button", { name: "编辑样式…" }).click();
+  await expect(styleDialog).toBeVisible();
+  await setChecked(page, "包含罗马音行", false);
+  await styleDialog.getByRole("button", { name: "应用" }).click();
+  await expect(reopened).toContainText("不含罗马音行");
+  const noRomanDownload = page.waitForEvent("download");
+  await reopened.getByRole("button", { name: "导出 ASS" }).click();
+  const noRoman = await fs.readFile(
+    (await (await noRomanDownload).path())!,
+    "utf8",
   );
-  await expect(page.getByRole("dialog", { name: "导出 ASS" })).toContainText(
-    "主行 80px",
-  );
+  expect(noRoman).not.toContain("Mako-Romaji");
+  expect(noRoman).not.toContain("sen nai");
+  const noRomanComment = noRoman
+    .split("\n")
+    .find((line) => line.startsWith("; mako-style: "))!;
+  expect(
+    JSON.parse(noRomanComment.slice("; mako-style: ".length)),
+  ).toMatchObject({ includeRoman: false, romanSize: 36 });
 });

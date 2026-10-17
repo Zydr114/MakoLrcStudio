@@ -18,8 +18,8 @@ import { rubyParts } from "./ruby";
 import { songLines, type Side, type SongVoice } from "./song";
 import { normalizeAssStyle, type AssStyle } from "./assStyle";
 
-/** Text width in pixels at a font size given in CSS pixels per em. */
-export type Measure = (text: string, emPx: number) => number;
+/** Text width in pixels at a font size given in CSS pixels per em; bold asks for the bold face. */
+export type Measure = (text: string, emPx: number, bold?: boolean) => number;
 export interface AssOptions {
   style: AssStyle;
   width: number;
@@ -147,16 +147,19 @@ export function exportAss(
   const size = {
     main: Math.round(style.mainSize * scale),
     ruby: Math.round(style.rubySize * scale),
-    // The ancillary layers keep their current proportion to the main line.
+    // Harmony and translation keep their current proportion to the main line.
     background: Math.round(style.mainSize * (44 / 64) * scale),
-    roman: Math.round(style.mainSize * (32 / 64) * scale),
+    roman: Math.round(style.romanSize * scale),
     translation: Math.round(style.mainSize * (36 / 64) * scale),
   };
   const all = parts.flatMap((part) => part.lines);
+  const hasRoman = all.some((line) => line.roman.trim());
+  if (!style.includeRoman && hasRoman)
+    notices.push("样式设置为不包含罗马音行，导出的 ASS 不含罗马音。");
   const has = {
     ruby: all.some((line) => line.units.some((unit) => unit.ruby)),
     background: parts.some((part) => part.background),
-    roman: all.some((line) => line.roman.trim()),
+    roman: style.includeRoman && hasRoman,
     translation: all.some((line) => line.translation.trim()),
   };
   // A block is a main line with what rides on it, stacked top to bottom.
@@ -180,8 +183,8 @@ export function exportAss(
   };
   const margin = Math.round(120 * scale);
   const em = (styleSize: number) => styleSize / options.emRatio;
-  const width = (text: string, styleSize: number) =>
-    options.measure(text, em(styleSize));
+  const width = (text: string, styleSize: number, bold = false) =>
+    options.measure(text, em(styleSize), bold);
 
   // Two rows: each block takes the lower row unless it is still busy.
   const song = songLines({ ...project, parts });
@@ -265,7 +268,7 @@ export function exportAss(
   for (const block of blocks) {
     const { line, part } = block.entry;
     const side = blockSide(block);
-    const mainWidth = width(line.text, size.main);
+    const mainWidth = width(line.text, size.main, style.mainBold);
     const left = x(side, mainWidth);
     const lineStyle = partStyle(part);
     dialogue(
@@ -287,8 +290,8 @@ export function exportAss(
       if (unit.ruby) {
         const center =
           left +
-          width(before + parts_.before, size.main) +
-          width(parts_.base, size.main) / 2;
+          width(before + parts_.before, size.main, style.mainBold) +
+          width(parts_.base, size.main, style.mainBold) / 2;
         const pieces = unit.syllables.map((syllable, i) => ({
           text: syllable.text,
           start: syllable.startMs!,
@@ -312,8 +315,9 @@ export function exportAss(
       band: "roman" | "translation",
       text: string,
       subStyle: string,
+      bold = false,
     ) => {
-      const textWidth = width(text, size[band]);
+      const textWidth = width(text, size[band], bold);
       dialogue(
         0,
         block.start,
@@ -326,7 +330,7 @@ export function exportAss(
     };
     if (block.background) {
       const bg = block.background;
-      const bgWidth = width(bg.line.text, size.background);
+      const bgWidth = width(bg.line.text, size.background, style.mainBold);
       dialogue(
         1,
         block.start,
@@ -338,7 +342,8 @@ export function exportAss(
           karaoke(basePieces(bg.line), block.start, options.fill),
       );
     }
-    if (line.roman.trim()) sub("roman", line.roman.trim(), "Mako-Romaji");
+    if (style.includeRoman && line.roman.trim())
+      sub("roman", line.roman.trim(), "Mako-Romaji", style.romanBold);
     if (line.translation.trim())
       sub("translation", line.translation.trim(), "Mako-Translation");
   }
@@ -372,27 +377,57 @@ export function exportAss(
     primary: string,
     secondary: string,
     outline: number,
+    bold: boolean,
   ) =>
-    `Style: ${name},${font},${fontSize},${primary},${secondary},${outlineColor},&H64000000,0,0,0,0,100,100,0,0,1,${outline},0,1,0,0,0,1`;
+    `Style: ${name},${font},${fontSize},${primary},${secondary},${outlineColor},&H64000000,${bold ? -1 : 0},0,0,0,100,100,0,0,1,${outline},0,1,0,0,0,1`;
   const white = "&H00FFFFFF";
+  const unsung = assColor(style.unsungColor);
+  const roman = assColor(style.romanColor);
   const styles = [
     ...parts.flatMap((part) => {
       const name = partStyle(part);
       const color = lyricColor(part);
+      const ruby = style.rubyColor ? assColor(style.rubyColor) : color;
       return [
-        styleLine(name, size.main, color, white, outlineMain),
-        styleLine(`${name}-Ruby`, size.ruby, color, white, outlineSmall),
+        styleLine(name, size.main, color, unsung, outlineMain, style.mainBold),
+        styleLine(
+          `${name}-Ruby`,
+          size.ruby,
+          ruby,
+          unsung,
+          outlineSmall,
+          style.rubyBold,
+        ),
         styleLine(
           `${name}-Background`,
           size.background,
           color,
-          white,
+          unsung,
           outlineSmall,
+          style.mainBold,
         ),
       ];
     }),
-    styleLine("Mako-Romaji", size.roman, "&H00E0E0E0", white, outlineSmall),
-    styleLine("Mako-Translation", size.translation, white, white, outlineSmall),
+    ...(style.includeRoman
+      ? [
+          styleLine(
+            "Mako-Romaji",
+            size.roman,
+            roman,
+            unsung,
+            outlineSmall,
+            style.romanBold,
+          ),
+        ]
+      : []),
+    styleLine(
+      "Mako-Translation",
+      size.translation,
+      white,
+      white,
+      outlineSmall,
+      false,
+    ),
   ];
   const partInfo = parts.map(
     (part) =>

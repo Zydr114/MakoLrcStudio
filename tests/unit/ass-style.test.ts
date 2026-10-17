@@ -25,26 +25,68 @@ describe("ASS style", () => {
         layout: "diagonal",
         font: "  Noto Serif CJK JP ",
         mainSize: "72",
+        mainBold: true,
         rubySize: 999,
+        rubyBold: true,
+        rubyColor: "#ABCDEF",
+        romanSize: 999,
+        romanBold: true,
+        romanColor: "#123456",
+        includeRoman: false,
         outline: -3,
         outlineColor: "#FF0000",
         colorMode: "solid",
         solidColor: "#00FF00",
+        unsungColor: "#654321",
       }),
     ).toEqual({
       layout: "diagonal",
       font: "Noto Serif CJK JP",
       mainSize: 72,
+      mainBold: true,
       rubySize: assStyleRanges.rubySize[1],
+      rubyBold: true,
+      rubyColor: "#abcdef",
+      romanSize: assStyleRanges.romanSize[1],
+      romanBold: true,
+      romanColor: "#123456",
+      includeRoman: false,
       outline: 0,
       outlineColor: "#ff0000",
       colorMode: "solid",
       solidColor: "#00ff00",
+      unsungColor: "#654321",
     });
     expect(normalizeAssStyle({ mainSize: 1 }).mainSize).toBe(40);
     expect(normalizeAssStyle({ outlineColor: "red" }).outlineColor).toBe(
       defaultAssStyle.outlineColor,
     );
+    expect(normalizeAssStyle({ rubyColor: "red" }).rubyColor).toBeNull();
+  });
+
+  it("derives the old roman size and keeps per-layer values independent", () => {
+    const old = normalizeAssStyle({
+      mainSize: 80,
+      rubySize: 40,
+      outline: 6,
+      outlineColor: "#ff0000",
+      colorMode: "solid",
+      solidColor: "#00ff00",
+    });
+    expect(old.romanSize).toBe(40);
+    expect(old).toMatchObject({
+      mainBold: false,
+      rubyBold: false,
+      rubyColor: null,
+      romanBold: false,
+      romanColor: defaultAssStyle.romanColor,
+      includeRoman: true,
+      unsungColor: defaultAssStyle.unsungColor,
+    });
+    expect(normalizeAssStyle({ mainSize: 80, romanSize: 24 })).toMatchObject({
+      mainSize: 80,
+      romanSize: 24,
+    });
   });
 
   it("adds the default style to old projects and backups", () => {

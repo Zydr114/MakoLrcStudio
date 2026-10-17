@@ -115,8 +115,11 @@ describe("ASS export", () => {
       solidColor: "#00ff00",
     };
     const { text } = exportAss(duet(), { ...options, style });
-    expect(text).toContain(
-      '; mako-style: {"layout":"diagonal","font":"Noto Sans CJK JP","mainSize":80,"rubySize":40,"outline":6,"outlineColor":"#ff0000","colorMode":"solid","solidColor":"#00ff00"}',
+    const styleComment = text
+      .split("\n")
+      .find((line) => line.startsWith("; mako-style: "))!;
+    expect(JSON.parse(styleComment.slice("; mako-style: ".length))).toEqual(
+      normalizeAssStyle(style),
     );
     expect(text).toContain(
       "Style: Mako-A,Noto Sans CJK JP,80,&H0000FF00,&H00FFFFFF,&H000000FF,&H64000000,0,0,0,0,100,100,0,0,1,6,0,1,0,0,0,1",
@@ -142,6 +145,66 @@ describe("ASS export", () => {
     )!;
     expect(group).toContain(`\pos(${Math.round(1920 - 120 - 3 * em)},`);
     expect(importAss(text).assStyle).toEqual(normalizeAssStyle(style));
+  });
+  it("applies per-layer bold, colors, unsung color and independent roman size", () => {
+    const style = {
+      ...defaultAssStyle,
+      mainBold: true,
+      rubyBold: true,
+      rubyColor: "#abcdef",
+      romanSize: 40,
+      romanBold: true,
+      romanColor: "#123456",
+      unsungColor: "#112233",
+    };
+    const { text } = exportAss(duet(), { ...options, style });
+    expect(text).toContain(
+      "Style: Mako-A,Noto Sans CJK JP,64,&H00D8840B,&H00332211,&H00202020,&H64000000,-1,0,0,0,100,100,0,0,1,3,0,1,0,0,0,1",
+    );
+    expect(text).toContain(
+      "Style: Mako-A-Ruby,Noto Sans CJK JP,30,&H00EFCDAB,&H00332211,&H00202020,&H64000000,-1,0,0,0,100,100,0,0,1,2,0,1,0,0,0,1",
+    );
+    expect(text).toContain(
+      "Style: Mako-A-Background,Noto Sans CJK JP,44,&H00D8840B,&H00332211,&H00202020,&H64000000,-1,0,0,0,100,100,0,0,1,2,0,1,0,0,0,1",
+    );
+    expect(text).toContain(
+      "Style: Mako-Romaji,Noto Sans CJK JP,40,&H00563412,&H00332211,&H00202020,&H64000000,-1,0,0,0,100,100,0,0,1,2,0,1,0,0,0,1",
+    );
+    expect(text).toContain(
+      "Style: Mako-Translation,Noto Sans CJK JP,36,&H00FFFFFF,&H00FFFFFF,&H00202020,&H64000000,0,0,0,0,100,100,0,0,1,2,0,1,0,0,0,1",
+    );
+    expect(
+      events(text).some(
+        (line) => line.includes("Mako-Romaji,A") && line.endsWith("sen nai"),
+      ),
+    ).toBe(true);
+  });
+  it("measures every bold layer with the bold weight", () => {
+    const calls: [string, boolean | undefined][] = [];
+    exportAss(duet(), {
+      ...options,
+      style: {
+        ...defaultAssStyle,
+        mainBold: true,
+        rubyBold: true,
+        romanBold: true,
+      },
+      measure: (text, em, bold) => {
+        calls.push([text, bold]);
+        return [...text].length * em;
+      },
+    });
+    expect(calls).toContainEqual(["詮ない", true]);
+    expect(calls).toContainEqual(["sen nai", true]);
+    expect(calls).toContainEqual(["pointless", false]);
+  });
+  it("omits the romanization row when the style asks for it", () => {
+    const style = { ...defaultAssStyle, includeRoman: false };
+    const { text, notices } = exportAss(duet(), { ...options, style });
+    expect(text).not.toContain("Mako-Romaji");
+    expect(text).not.toContain("sen nai");
+    expect(notices.join(" ")).toContain("不含罗马音");
+    expect(importAss(text).assStyle?.includeRoman).toBe(false);
   });
   it("centers every line in the single-row preset and warns about overlap", () => {
     const style = { ...defaultAssStyle, layout: "single" as const };

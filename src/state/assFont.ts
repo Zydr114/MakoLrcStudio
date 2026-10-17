@@ -8,7 +8,10 @@ export async function fontMetrics(
   font: string,
 ): Promise<{ measure: Measure; emRatio: number; available: boolean }> {
   const family = `"${font.replace(/"/g, "")}"`;
-  await document.fonts.load(`64px ${family}`, "あ漢A").catch(() => []);
+  await Promise.all([
+    document.fonts.load(`64px ${family}`, "あ漢A"),
+    document.fonts.load(`bold 64px ${family}`, "あ漢A"),
+  ]).catch(() => []);
   const available = document.fonts.check(`64px ${family}`, "あ漢A");
   const context = document.createElement("canvas").getContext("2d")!;
   context.font = `100px ${family}, sans-serif`;
@@ -18,8 +21,8 @@ export async function fontMetrics(
   return {
     emRatio: height / 100,
     available,
-    measure: (text, emPx) => {
-      context.font = `${emPx}px ${family}, sans-serif`;
+    measure: (text, emPx, bold = false) => {
+      context.font = `${bold ? "bold " : ""}${emPx}px ${family}, sans-serif`;
       return context.measureText(text).width;
     },
   };

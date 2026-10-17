@@ -12,28 +12,48 @@ export interface AssStyle {
   layout: AssLayout;
   font: string;
   mainSize: number;
+  mainBold: boolean;
   rubySize: number;
+  rubyBold: boolean;
+  /** null follows the lyric color (part color or the solid choice). */
+  rubyColor: string | null;
+  romanSize: number;
+  romanBold: boolean;
+  romanColor: string;
+  /** When false the romanization row is not written to the ASS file. */
+  includeRoman: boolean;
   outline: number;
   outlineColor: string;
   colorMode: AssColorMode;
   /** Used when colorMode is solid; part colors are ignored for lyrics. */
   solidColor: string;
+  /** Secondary color of all karaoke lyric layers: main, ruby and harmony. */
+  unsungColor: string;
 }
 
 export const defaultAssStyle: AssStyle = {
   layout: "classic",
   font: "Noto Sans CJK JP",
   mainSize: 64,
+  mainBold: false,
   rubySize: 30,
+  rubyBold: false,
+  rubyColor: null,
+  romanSize: 32,
+  romanBold: false,
+  romanColor: "#e0e0e0",
+  includeRoman: true,
   outline: 3,
   outlineColor: "#202020",
   colorMode: "part",
   solidColor: "#ffffff",
+  unsungColor: "#ffffff",
 };
 
 export const assStyleRanges = {
   mainSize: [40, 120],
   rubySize: [12, 72],
+  romanSize: [12, 72],
   outline: [0, 12],
 } as const;
 
@@ -57,6 +77,8 @@ const integer = (
 };
 const color = (value: unknown, fallback: string) =>
   typeof value === "string" && HEX.test(value) ? value.toLowerCase() : fallback;
+const colorOrNull = (value: unknown) =>
+  typeof value === "string" && HEX.test(value) ? value.toLowerCase() : null;
 const font = (value: unknown) => {
   if (typeof value !== "string") return defaultAssStyle.font;
   const cleaned = value
@@ -72,21 +94,34 @@ export function normalizeAssStyle(value: unknown): AssStyle {
     value && typeof value === "object" && !Array.isArray(value)
       ? (value as Partial<AssStyle>)
       : {};
+  const mainSize = integer(
+    raw.mainSize,
+    assStyleRanges.mainSize,
+    defaultAssStyle.mainSize,
+  );
   return {
     layout: layouts.includes(raw.layout as AssLayout)
       ? (raw.layout as AssLayout)
       : defaultAssStyle.layout,
     font: font(raw.font),
-    mainSize: integer(
-      raw.mainSize,
-      assStyleRanges.mainSize,
-      defaultAssStyle.mainSize,
-    ),
+    mainSize,
+    mainBold: raw.mainBold === true,
     rubySize: integer(
       raw.rubySize,
       assStyleRanges.rubySize,
       defaultAssStyle.rubySize,
     ),
+    rubyBold: raw.rubyBold === true,
+    rubyColor: colorOrNull(raw.rubyColor),
+    // Old styles only had a ratio; derive it so their output keeps its size.
+    romanSize: integer(
+      raw.romanSize,
+      assStyleRanges.romanSize,
+      Math.round(mainSize / 2),
+    ),
+    romanBold: raw.romanBold === true,
+    romanColor: color(raw.romanColor, defaultAssStyle.romanColor),
+    includeRoman: raw.includeRoman !== false,
     outline: integer(
       raw.outline,
       assStyleRanges.outline,
@@ -95,6 +130,7 @@ export function normalizeAssStyle(value: unknown): AssStyle {
     outlineColor: color(raw.outlineColor, defaultAssStyle.outlineColor),
     colorMode: raw.colorMode === "solid" ? "solid" : "part",
     solidColor: color(raw.solidColor, defaultAssStyle.solidColor),
+    unsungColor: color(raw.unsungColor, defaultAssStyle.unsungColor),
   };
 }
 

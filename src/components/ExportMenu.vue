@@ -21,6 +21,18 @@ const ass = ref({
   leadIn: "800",
 });
 const currentStyle = computed(() => assStyleOf(editor.project));
+const boldLayers = computed(
+  () =>
+    [
+      currentStyle.value.mainBold && "歌词",
+      currentStyle.value.rubyBold && "注音",
+      currentStyle.value.includeRoman &&
+        currentStyle.value.romanBold &&
+        "罗马音",
+    ]
+      .filter(Boolean)
+      .join("、") || "无",
+);
 watch(assOpen, (open) => {
   if (!open) assStyleOpen.value = false;
 });
@@ -29,6 +41,11 @@ const layoutLabels = {
   diagonal: "对角双行",
   single: "单行底部居中",
 };
+const layoutSummary = computed(
+  () =>
+    layoutLabels[currentStyle.value.layout] +
+    (currentStyle.value.includeRoman ? "" : " · 不含罗马音行"),
+);
 function saveStyle(style: AssStyle) {
   if (editor.setAssStyle(style)) assStyleOpen.value = false;
 }
@@ -148,11 +165,17 @@ function exportTtml() {
     </p>
     <div class="ass-style-summary">
       <div>
-        <strong>{{ layoutLabels[currentStyle.layout] }}</strong>
+        <strong>{{ layoutSummary }}</strong>
+        <small>{{ currentStyle.font }}</small>
         <small
-          >{{ currentStyle.font }} · 主行 {{ currentStyle.mainSize }}px · 注音
-          {{ currentStyle.rubySize }}px · 描边
-          {{ currentStyle.outline }}px</small
+          >歌词 {{ currentStyle.mainSize }}px · 注音
+          {{ currentStyle.rubySize }}px · 罗马音
+          {{ currentStyle.romanSize }}px{{
+            currentStyle.includeRoman ? "" : "（不导出）"
+          }}</small
+        >
+        <small
+          >描边 {{ currentStyle.outline }}px · 粗体：{{ boldLayers }}</small
         >
       </div>
       <UiButton variant="text" @click="assStyleOpen = true">编辑样式…</UiButton>
