@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { exportAss, importAss, looksLikeAss } from "../../src/domain/ass";
+import { defaultAssStyle, normalizeAssStyle } from "../../src/domain/assStyle";
 import {
   newLine,
   newPart,
@@ -13,7 +14,7 @@ import { fromLyrics } from "./helpers";
 
 /** Every character one em wide: positions become easy to check by hand. */
 const options = {
-  font: "Noto Sans CJK JP",
+  style: defaultAssStyle,
   width: 1920,
   height: 1080,
   fill: "kf" as const,
@@ -102,6 +103,63 @@ describe("ASS export", () => {
       true,
     );
   });
+  it("applies the simple style and the diagonal layout", () => {
+    const style = {
+      ...defaultAssStyle,
+      layout: "diagonal" as const,
+      mainSize: 80,
+      rubySize: 40,
+      outline: 6,
+      outlineColor: "#ff0000",
+      colorMode: "solid" as const,
+      solidColor: "#00ff00",
+    };
+    const { text } = exportAss(duet(), { ...options, style });
+    expect(text).toContain(
+      '; mako-style: {"layout":"diagonal","font":"Noto Sans CJK JP","mainSize":80,"rubySize":40,"outline":6,"outlineColor":"#ff0000","colorMode":"solid","solidColor":"#00ff00"}',
+    );
+    expect(text).toContain(
+      "Style: Mako-A,Noto Sans CJK JP,80,&H0000FF00,&H00FFFFFF,&H000000FF,&H64000000,0,0,0,0,100,100,0,0,1,6,0,1,0,0,0,1",
+    );
+    expect(text).toContain(
+      "Style: Mako-A-Ruby,Noto Sans CJK JP,40,&H0000FF00,&H00FFFFFF,&H000000FF,&H64000000,0,0,0,0,100,100,0,0,1,4,0,1,0,0,0,1",
+    );
+    expect(text).toContain(
+      "Style: Mako-A-Background,Noto Sans CJK JP,55,&H0000FF00,&H00FFFFFF,&H000000FF,&H64000000,0,0,0,0,100,100,0,0,1,4,0,1,0,0,0,1",
+    );
+    const em = 80 / 1.448;
+    const all = events(text);
+    const a = all.find(
+      (line) => line.includes(",Mako-A,A,") && line.includes(",fx,"),
+    )!;
+    expect(a).toContain(`\pos(${Math.round(1920 - 120 - 3 * em)},`);
+    const b = all.find(
+      (line) => line.includes(",Mako-B,B,") && line.includes(",fx,"),
+    )!;
+    expect(b).toContain("\pos(120,");
+    const group = all.find(
+      (line) => line.includes(",Mako-全员,全员,") && line.includes(",fx,"),
+    )!;
+    expect(group).toContain(`\pos(${Math.round(1920 - 120 - 3 * em)},`);
+    expect(importAss(text).assStyle).toEqual(normalizeAssStyle(style));
+  });
+  it("centers every line in the single-row preset and warns about overlap", () => {
+    const style = { ...defaultAssStyle, layout: "single" as const };
+    const { text, notices } = exportAss(duet(), { ...options, style });
+    const em = 64 / 1.448;
+    const all = events(text);
+    for (const [marker, chars] of [
+      [",Mako-A,A,", 3],
+      [",Mako-B,B,", 2],
+      [",Mako-全员,全员,", 3],
+    ] as const) {
+      const line = all.find(
+        (event) => event.includes(marker) && event.includes(",fx,"),
+      )!;
+      expect(line).toContain(`\pos(${Math.round((1920 - chars * em) / 2)},`);
+    }
+    expect(notices.join(" ")).toContain("单行版式下可能互相遮挡");
+  });
   it("rounds karaoke from absolute times so errors never add up", () => {
     const project = fromLyrics(
       "[00:01.004]<00:01.004>あ<00:01.013>い<00:01.027>う<00:01.041>",
@@ -169,6 +227,7 @@ describe("ASS import", () => {
     ].join("\n");
     const back = importAss(aegisub);
     expect(back.parts.map((part) => part.name)).toEqual(["Default", "Alt"]);
+    expect(back.assStyle).toBeNull();
     const line = back.parts[0].lines[0];
     expect(line.text).toBe("今も Hello");
     expect(syllablesOf(line).map((s) => [s.text, s.startMs])).toEqual([

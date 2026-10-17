@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { exportAs } from "./controls";
+import { choose, exportAs, setChecked } from "./controls";
 let n = 0;
 const id = () => `p-${++n}`;
 type S = [string, number];
@@ -228,5 +228,124 @@ test("ASS exports the layout and the karaoke source, and imports back into parts
   await page.locator("mdui-segmented-button", { hasText: "翻译" }).click();
   await expect(page.getByLabel("第 1 行翻译")).toHaveValue(
     "终究只是梦中的世界",
+  );
+});
+
+test("ASS style: preset, sizes, outline and solid color round-trip", async ({
+  page,
+}) => {
+  const a = line(
+    [
+      [
+        "詮",
+        [
+          ["せ", 1000],
+          ["ん", 1300],
+        ],
+        0,
+      ],
+      ["な", null, 1600],
+      ["い", null, 1900],
+    ],
+    4000,
+  );
+  const b = line(
+    [
+      [
+        "君",
+        [
+          ["き", 3000],
+          ["み", 3300],
+        ],
+        0,
+      ],
+      ["と", null, 3600],
+    ],
+    6000,
+  );
+  const A = part("A", "#0b84d8", [a]);
+  const project = {
+    version: 2,
+    name: "ass-style-sample",
+    metadata: { ti: "Style" },
+    audio: null,
+    parts: [A, part("B", "#d6457f", [b])],
+    mainPartId: A.id,
+    activePartId: A.id,
+    stage: 1,
+    unlockedStage: 3,
+    activeLineId: a.id,
+    playheadMs: 0,
+    translationLang: "",
+    romanLang: "",
+  };
+  await page.goto("/");
+  await page
+    .locator('input[type=file][accept=".json,application/json"]')
+    .setInputFiles({
+      name: "style.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+  await expect(page.locator(".prepare-view")).toBeVisible();
+  await exportAs(page, "ASS");
+  const assDialog = page.getByRole("dialog", { name: "导出 ASS" });
+  await expect(assDialog).toContainText("经典双行");
+  await assDialog.getByRole("button", { name: "编辑样式…" }).click();
+  const styleDialog = page.getByRole("dialog", { name: "字幕样式" });
+  await expect(styleDialog).toBeVisible();
+  await choose(page, "版式预设", "diagonal");
+  await styleDialog.getByLabel("主行字号").fill("80");
+  await styleDialog.getByLabel("注音字号").fill("40");
+  await styleDialog.getByLabel("描边粗细").fill("6");
+  await styleDialog.getByLabel("描边颜色").fill("#ff0000");
+  await setChecked(page, "统一文字颜色", true);
+  await styleDialog.getByLabel("纯色").fill("#00ff00");
+  await styleDialog.getByRole("button", { name: "应用" }).click();
+  await expect(styleDialog).not.toBeVisible();
+  await expect(assDialog).toContainText("对角双行");
+  await expect(assDialog).toContainText("主行 80px");
+  const download = page.waitForEvent("download");
+  await assDialog.getByRole("button", { name: "导出 ASS" }).click();
+  const file = await download;
+  const fs = await import("node:fs/promises");
+  const ass = await fs.readFile((await file.path())!, "utf8");
+  if (process.env.MAKO_ASS_STYLE_SAMPLE)
+    await fs.writeFile(process.env.MAKO_ASS_STYLE_SAMPLE, ass);
+  expect(ass).toContain(
+    '; mako-style: {"layout":"diagonal","font":"Noto Sans CJK JP","mainSize":80,"rubySize":40,"outline":6,"outlineColor":"#ff0000","colorMode":"solid","solidColor":"#00ff00"}',
+  );
+  expect(ass).toContain(
+    "Style: Mako-A,Noto Sans CJK JP,80,&H0000FF00,&H00FFFFFF,&H000000FF,&H64000000,0,0,0,0,100,100,0,0,1,6,0,1,0,0,0,1",
+  );
+  expect(ass).toContain(
+    "Style: Mako-A-Ruby,Noto Sans CJK JP,40,&H0000FF00,&H00FFFFFF,&H000000FF,&H64000000,0,0,0,0,100,100,0,0,1,4,0,1,0,0,0,1",
+  );
+  const lines = ass.split("\n").filter((line) => line.startsWith("Dialogue:"));
+  const aLine = lines.find(
+    (line) => line.includes(",Mako-A,A,") && line.includes(",fx,"),
+  )!;
+  const aX = Number(/\\pos\((\d+),/.exec(aLine)![1]);
+  expect(aX).toBeGreaterThan(1500);
+  expect(aX).toBeLessThan(1800);
+  const bLine = lines.find(
+    (line) => line.includes(",Mako-B,B,") && line.includes(",fx,"),
+  )!;
+  expect(bLine).toContain("\\pos(120,");
+
+  await page.getByRole("button", { name: "导入", exact: true }).click();
+  await page.locator('input[type=file][accept^=".lrc"]').setInputFiles({
+    name: "ass-style-sample.ass",
+    mimeType: "text/x-ssa",
+    buffer: Buffer.from(ass),
+  });
+  await page.getByRole("button", { name: "下一步，整理歌词" }).click();
+  await expect(page.getByRole("status")).toContainText("已导入 ASS");
+  await exportAs(page, "ASS");
+  await expect(page.getByRole("dialog", { name: "导出 ASS" })).toContainText(
+    "对角双行",
+  );
+  await expect(page.getByRole("dialog", { name: "导出 ASS" })).toContainText(
+    "主行 80px",
   );
 });

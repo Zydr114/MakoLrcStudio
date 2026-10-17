@@ -41,6 +41,11 @@ import {
 } from "../domain/ass";
 import { fontMetrics } from "./assFont";
 import {
+  assStyleOf,
+  normalizeAssStyle,
+  type AssStyle,
+} from "../domain/assStyle";
+import {
   createAudition,
   type AuditionScope,
   type AuditionTarget,
@@ -113,6 +118,8 @@ export function createEditor(
     },
   );
   const part = computed(() => activePart(project.value));
+  /** The shared ASS preset and appearance; old drafts fall back to defaults. */
+  const assStyle = computed(() => assStyleOf(project.value));
   /** Lines of the part being edited; every view works on one part at a time. */
   const lines = computed(() => part.value.lines);
   const displayLines = computed(() => activeLines(displayProject.value));
@@ -258,6 +265,11 @@ export function createEditor(
   function view(update: Partial<ProjectDraft>) {
     project.value = { ...project.value, ...update };
   }
+  function setAssStyle(style: AssStyle): boolean {
+    return command("修改字幕样式", (draft) => {
+      draft.assStyle = normalizeAssStyle(style);
+    });
+  }
   async function flushSave() {
     if (!persist || !initialized) return;
     const generation = ++saveGeneration;
@@ -335,6 +347,7 @@ export function createEditor(
       return importParts(name, asPart, "TTML", () => ({
         ...importTtml(text),
         mainIndex: 0,
+        assStyle: null,
       }));
     if (looksLikeAss(text))
       return importParts(name, asPart, "ASS", () => importAss(text));
@@ -409,6 +422,7 @@ export function createEditor(
             imported.name ||
             name.replace(/\.(ttml|xml|ass|ssa)$/i, "") ||
             draft.name;
+          if (imported.assStyle) draft.assStyle = imported.assStyle;
           draft.stage = 0;
           draft.unlockedStage = 1;
         }
@@ -422,6 +436,7 @@ export function createEditor(
       success
         ? `已导入 ${format}：${imported.parts.length} 个声部（${imported.parts.map((p) => p.name).join("、")}）。`
         : "",
+      asPart && imported.assStyle ? "作为新声部导入，未改变当前字幕样式。" : "",
       ...imported.notices,
     ]
       .filter(Boolean)
@@ -1005,15 +1020,14 @@ export function createEditor(
     }
   }
   async function exportAss(
-    options: Pick<
-      AssOptions,
-      "font" | "width" | "height" | "fill" | "leadInMs"
-    >,
+    options: Pick<AssOptions, "width" | "height" | "fill" | "leadInMs">,
   ) {
+    const style = assStyleOf(project.value);
     try {
-      const metrics = await fontMetrics(options.font);
+      const metrics = await fontMetrics(style.font);
       const { text, notices } = assText(project.value, {
         ...options,
+        style,
         measure: metrics.measure,
         emRatio: metrics.emRatio,
       });
@@ -1027,7 +1041,7 @@ export function createEditor(
         "ASS 已导出：成品字幕与卡拉 OK 源在同一个文件。",
         metrics.available
           ? ""
-          : `本机没有字体「${options.font}」，注音位置按替代字体计算，可能错位。`,
+          : `本机没有字体「${style.font}」，注音位置按替代字体计算，可能错位。`,
         ...notices,
       ]
         .filter(Boolean)
@@ -1059,6 +1073,7 @@ export function createEditor(
     asset,
     displayProject,
     part,
+    assStyle,
     lines,
     lineTotal,
     displayLines,
@@ -1109,6 +1124,7 @@ export function createEditor(
     showError,
     command,
     view,
+    setAssStyle,
     loadAudio,
     importText,
     resetProject,

@@ -6,6 +6,7 @@ import {
   type LyricLine,
   type ProjectDraft,
 } from "./model";
+import { defaultAssStyle, normalizeAssStyle } from "./assStyle";
 
 interface V1Line {
   id: string;
@@ -76,6 +77,7 @@ function migrate(value: V1Project): ProjectDraft {
     activePartId: partId,
     translationLang: "",
     romanLang: "",
+    assStyle: { ...defaultAssStyle },
   };
 }
 
@@ -207,6 +209,9 @@ export function readBackup(text: string): ProjectDraft {
     value.playheadMs > (value.audio?.durationMs ?? 0)
   )
     fail();
+  // Style is deliberately forgiving: old drafts get the current defaults and
+  // out-of-range values are clamped instead of rejecting the whole backup.
+  value.assStyle = normalizeAssStyle(value.assStyle);
   return copyProject(value);
 }
 

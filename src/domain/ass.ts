@@ -16,11 +16,12 @@ import {
 } from "./model";
 import { rubyParts } from "./ruby";
 import { songLines, type Side, type SongVoice } from "./song";
+import { normalizeAssStyle, type AssStyle } from "./assStyle";
 
 /** Text width in pixels at a font size given in CSS pixels per em. */
 export type Measure = (text: string, emPx: number) => number;
 export interface AssOptions {
-  font: string;
+  style: AssStyle;
   width: number;
   height: number;
   /** \kf fills each syllable smoothly, \k switches it at once. */
@@ -141,13 +142,15 @@ export function exportAss(
       throw new Error(`无法导出 ASS：声部「${part.name}」${issue.message}`);
   }
   const notices: string[] = [];
+  const style = normalizeAssStyle(options.style);
   const scale = options.height / 1080;
   const size = {
-    main: Math.round(64 * scale),
-    ruby: Math.round(30 * scale),
-    background: Math.round(44 * scale),
-    roman: Math.round(32 * scale),
-    translation: Math.round(36 * scale),
+    main: Math.round(style.mainSize * scale),
+    ruby: Math.round(style.rubySize * scale),
+    // The ancillary layers keep their current proportion to the main line.
+    background: Math.round(style.mainSize * (44 / 64) * scale),
+    roman: Math.round(style.mainSize * (32 / 64) * scale),
+    translation: Math.round(style.mainSize * (36 / 64) * scale),
   };
   const all = parts.flatMap((part) => part.lines);
   const has = {
@@ -183,7 +186,7 @@ export function exportAss(
   // Two rows: each block takes the lower row unless it is still busy.
   const song = songLines({ ...project, parts });
   const rowsFree = [-Infinity, -Infinity];
-  const blocks: Block[] = song.map((entry) => {
+  const blocks: Block[] = song.map((entry, index) => {
     const background = entry.backgrounds.length
       ? entry.backgrounds.reduce((a, b) =>
           a.line.startMs! <= b.line.startMs! ? a : b,
@@ -197,17 +200,46 @@ export function exportAss(
       Math.min(entry.line.startMs!, background?.line.startMs ?? Infinity) -
       options.leadInMs;
     const end = Math.max(entry.endMs, background?.endMs ?? 0) + TAIL_MS;
-    let row = rowsFree.findIndex((free) => free <= start);
-    if (row < 0) {
-      row = rowsFree[0] <= rowsFree[1] ? 0 : 1;
-      notices.push(
-        `「${entry.line.text}」开始时两行都被占用，可能与前一句重叠显示。`,
-      );
+    let row: number;
+    if (style.layout === "single") {
+      row = 0;
+      if (rowsFree[0] > start)
+        notices.push(
+          `「${entry.line.text}」与上一句重叠，单行版式下可能互相遮挡。`,
+        );
+    } else if (style.layout === "diagonal") {
+      // Odd lines take the lower-right slot, even lines the upper-left one.
+      // If the preferred slot is still busy, use the other rather than showing
+      // a third overlapping line.
+      row = index % 2;
+      if (rowsFree[row] > start) {
+        const other = 1 - row;
+        if (rowsFree[other] <= start) row = other;
+        else {
+          row = rowsFree[0] <= rowsFree[1] ? 0 : 1;
+          notices.push(
+            `「${entry.line.text}」开始时两行都被占用，可能与前一句重叠显示。`,
+          );
+        }
+      }
+    } else {
+      row = rowsFree.findIndex((free) => free <= start);
+      if (row < 0) {
+        row = rowsFree[0] <= rowsFree[1] ? 0 : 1;
+        notices.push(
+          `「${entry.line.text}」开始时两行都被占用，可能与前一句重叠显示。`,
+        );
+      }
     }
     rowsFree[row] = end;
     return { entry, background, start: Math.max(0, start), end, row };
   });
 
+  const blockSide = (block: Block): Side => {
+    if (style.layout === "diagonal") return block.row === 0 ? "right" : "left";
+    if (style.layout === "single") return "center";
+    return block.entry.side;
+  };
   const partStyle = (part: VocalPart) => `Mako-${styleName(part.name)}`;
   const events: string[] = [];
   const dialogue = (
@@ -231,15 +263,16 @@ export function exportAss(
         : margin;
   const round = (value: number) => Math.round(value);
   for (const block of blocks) {
-    const { line, part, side } = block.entry;
+    const { line, part } = block.entry;
+    const side = blockSide(block);
     const mainWidth = width(line.text, size.main);
     const left = x(side, mainWidth);
-    const style = partStyle(part);
+    const lineStyle = partStyle(part);
     dialogue(
       1,
       block.start,
       block.end,
-      style,
+      lineStyle,
       part.name,
       "fx",
       `{\\an1\\pos(${round(left)},${round(bandBottom(block.row, "main"))})\\fad(150,150)}` +
@@ -265,7 +298,7 @@ export function exportAss(
           2,
           block.start,
           block.end,
-          `${style}-Ruby`,
+          `${lineStyle}-Ruby`,
           part.name,
           "fx",
           `{\\an2\\pos(${round(center)},${round(bandBottom(block.row, "ruby"))})\\fad(150,150)}` +
@@ -323,46 +356,43 @@ export function exportAss(
         "Comment",
       );
 
-  const font = options.font.replace(/,/g, " ");
-  const style = (
+  const font = style.font.replace(/,/g, " ");
+  const outlineColor = assColor(style.outlineColor);
+  const outlineMain = Math.round(style.outline * scale);
+  const outlineSmall =
+    style.outline === 0
+      ? 0
+      : Math.max(1, Math.round(style.outline * (2 / 3) * scale));
+  const solid = assColor(style.solidColor);
+  const lyricColor = (part: VocalPart) =>
+    style.colorMode === "solid" ? solid : assColor(part.color);
+  const styleLine = (
     name: string,
     fontSize: number,
     primary: string,
     secondary: string,
     outline: number,
   ) =>
-    `Style: ${name},${font},${fontSize},${primary},${secondary},&H00202020,&H64000000,0,0,0,0,100,100,0,0,1,${outline},0,1,0,0,0,1`;
+    `Style: ${name},${font},${fontSize},${primary},${secondary},${outlineColor},&H64000000,0,0,0,0,100,100,0,0,1,${outline},0,1,0,0,0,1`;
   const white = "&H00FFFFFF";
   const styles = [
     ...parts.flatMap((part) => {
       const name = partStyle(part);
-      const color = assColor(part.color);
+      const color = lyricColor(part);
       return [
-        style(name, size.main, color, white, Math.round(3 * scale)),
-        style(`${name}-Ruby`, size.ruby, color, white, Math.round(2 * scale)),
-        style(
+        styleLine(name, size.main, color, white, outlineMain),
+        styleLine(`${name}-Ruby`, size.ruby, color, white, outlineSmall),
+        styleLine(
           `${name}-Background`,
           size.background,
           color,
           white,
-          Math.round(2 * scale),
+          outlineSmall,
         ),
       ];
     }),
-    style(
-      "Mako-Romaji",
-      size.roman,
-      "&H00E0E0E0",
-      white,
-      Math.round(2 * scale),
-    ),
-    style(
-      "Mako-Translation",
-      size.translation,
-      white,
-      white,
-      Math.round(2 * scale),
-    ),
+    styleLine("Mako-Romaji", size.roman, "&H00E0E0E0", white, outlineSmall),
+    styleLine("Mako-Translation", size.translation, white, white, outlineSmall),
   ];
   const partInfo = parts.map(
     (part) =>
@@ -373,6 +403,7 @@ export function exportAss(
     "; Mako LRC Studio: Dialogue lines with Effect fx are the rendered layout; Comment lines with Effect karaoke are the timing source.",
     ...partInfo,
     `; mako-languages: ${project.translationLang}|${project.romanLang}`,
+    `; mako-style: ${JSON.stringify(style)}`,
     `Title: ${escape(project.metadata.ti || project.name)}`,
     "ScriptType: v4.00+",
     "WrapStyle: 2",
@@ -400,6 +431,8 @@ export interface AssImport {
   name: string | null;
   translationLang: string;
   romanLang: string;
+  /** Present only when the file carries this tool's ; mako-style comment. */
+  assStyle: AssStyle | null;
   notices: string[];
 }
 
@@ -529,7 +562,8 @@ export function importAss(text: string): AssImport {
   const notices = new Set<string>();
   let section = "",
     title: string | null = null,
-    languages = ["", ""];
+    languages = ["", ""],
+    assStyle: AssStyle | null = null;
   const info: {
     name: string;
     kind: string;
@@ -546,6 +580,17 @@ export function importAss(text: string): AssImport {
       continue;
     }
     if (section === "[script info]") {
+      const styled = /^; mako-style:\s*(.*)$/.exec(line);
+      if (styled) {
+        try {
+          const parsed = JSON.parse(styled[1]);
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+            throw new Error("样式不是对象");
+          assStyle = normalizeAssStyle(parsed);
+        } catch {
+          notices.add("ASS 样式注释无法解析，已忽略。");
+        }
+      }
       const part = /^; mako-part: (.*)$/.exec(line);
       if (part) {
         const [name, kind, background, color, main] = part[1].split("|");
@@ -678,6 +723,7 @@ export function importAss(text: string): AssImport {
     name: title,
     translationLang: languages[0],
     romanLang: languages[1],
+    assStyle,
     notices: [...notices],
   };
 }

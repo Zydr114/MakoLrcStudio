@@ -1,23 +1,37 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { Menu } from "mdui/components/menu.js";
 import { editor } from "../state/editor";
 import { partKindLabels } from "../domain/parts";
+import { assStyleOf, type AssStyle } from "../domain/assStyle";
 import UiButton from "./UiButton.vue";
 import UiToggle from "./UiToggle.vue";
 import UiField from "./UiField.vue";
 import UiSelect from "./UiSelect.vue";
 import Modal from "./Modal.vue";
+import AssStyleDialog from "./AssStyleDialog.vue";
 const ttmlOpen = ref(false),
   foldRuby = ref(false),
   assOpen = ref(false),
+  assStyleOpen = ref(false),
   assBusy = ref(false);
 const ass = ref({
-  font: "Noto Sans CJK JP",
   resolution: "1920x1080",
   fill: "kf" as "kf" | "k",
   leadIn: "800",
 });
+const currentStyle = computed(() => assStyleOf(editor.project));
+watch(assOpen, (open) => {
+  if (!open) assStyleOpen.value = false;
+});
+const layoutLabels = {
+  classic: "经典双行",
+  diagonal: "对角双行",
+  single: "单行底部居中",
+};
+function saveStyle(style: AssStyle) {
+  if (editor.setAssStyle(style)) assStyleOpen.value = false;
+}
 const resolutions = [
   { value: "1920x1080", label: "1920 × 1080" },
   { value: "1280x720", label: "1280 × 720" },
@@ -36,7 +50,6 @@ async function exportAss() {
   const [width, height] = ass.value.resolution.split("x").map(Number);
   assBusy.value = true;
   await editor.exportAss({
-    font: ass.value.font.trim() || "Noto Sans CJK JP",
     width,
     height,
     fill: ass.value.fill,
@@ -133,8 +146,18 @@ function exportTtml() {
       fx，播放器或压制视频直接显示），以及 Aegisub 卡拉 OK 源（Comment
       行，Effect 为 karaoke，可再导回本工具）。
     </p>
+    <div class="ass-style-summary">
+      <div>
+        <strong>{{ layoutLabels[currentStyle.layout] }}</strong>
+        <small
+          >{{ currentStyle.font }} · 主行 {{ currentStyle.mainSize }}px · 注音
+          {{ currentStyle.rubySize }}px · 描边
+          {{ currentStyle.outline }}px</small
+        >
+      </div>
+      <UiButton variant="text" @click="assStyleOpen = true">编辑样式…</UiButton>
+    </div>
     <div class="ass-options">
-      <UiField v-model="ass.font" label="字体" />
       <UiSelect
         v-model="ass.resolution"
         label="分辨率"
@@ -158,6 +181,12 @@ function exportTtml() {
       >
     </footer>
   </Modal>
+  <AssStyleDialog
+    :open="assStyleOpen"
+    :style="currentStyle"
+    @close="assStyleOpen = false"
+    @save="saveStyle"
+  />
 </template>
 <style scoped>
 .export-hint {
@@ -171,11 +200,40 @@ mdui-menu-item::part(container) {
   min-height: 48px;
   padding-block: 6px;
 }
+.ass-style-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft);
+}
+.ass-style-summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.ass-style-summary strong {
+  font-size: 14px;
+  color: var(--ink);
+}
+.ass-style-summary small {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
 .ass-options {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
   margin-bottom: 12px;
+}
+.ass-options > :nth-child(3) {
+  grid-column: 1 / -1;
 }
 .export-parts {
   list-style: none;
