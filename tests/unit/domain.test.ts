@@ -6,6 +6,7 @@ import {
   formatClock,
   unitStart,
   validate,
+  completeLine,
 } from "../../src/domain/model";
 import { fromLyrics } from "./helpers";
 import { importLyrics, exportLyrics } from "../../src/domain/lrc";
@@ -19,6 +20,7 @@ import {
   setLineStartBoundary,
   setLineEnd,
   splitLine,
+  completeLineEnds,
 } from "../../src/domain/edit";
 
 describe("lyric import and export", () => {
@@ -150,6 +152,42 @@ describe("editing invariants", () => {
     setLineEnd(last, 0, 4000);
     expect(activeLines(last)[0].endMs).toBe(4000);
     expect(() => setLineEnd(last, 0, 4001)).toThrow("相邻边界");
+  });
+  it("completes word-timing ends from the last syllable, next onset or duration", () => {
+    const project = fromLyrics("[00:01]<00:01>今<00:02>日<00:03>\n[00:06]次");
+    const [first, last] = activeLines(project);
+    first.units[1].syllables[0].endMs = 2600;
+    const result = completeLineEnds(project, 10000);
+    expect(result.blocked).toEqual([]);
+    expect(first.endMs).toBe(2600);
+    expect(first.endInferred).toBeUndefined();
+    expect(first.units[1].syllables[0].endMs).toBeNull();
+    expect(last.endMs).toBe(10000);
+    expect(last.endInferred).toBe(true);
+  });
+  it("reports blockers instead of inventing a final end without audio", () => {
+    const project = fromLyrics("[00:01]今日\n[00:06]次");
+    const last = activeLines(project)[1];
+    const result = completeLineEnds(project, Infinity);
+    expect(result.blocked.map((blocker) => blocker.lineId)).toEqual([last.id]);
+    expect(result.blocked[0].message).toContain("音频终点");
+    expect(activeLines(project)[0].endMs).toBe(6000);
+    expect(last.endMs).toBeNull();
+  });
+  it("blocks an existing measured end outside its bounds", () => {
+    const project = fromLyrics("[00:01]今日\n[00:06]次");
+    const first = activeLines(project)[0];
+    first.endMs = 500;
+    first.endInferred = undefined;
+    const result = completeLineEnds(project, 12000);
+    expect(result.blocked[0].message).toContain("收尾");
+    expect(first.endMs).toBe(500);
+  });
+  it("requires a measured end for completeness", () => {
+    const line = activeLines(fromLyrics("[00:01]<00:01>今<00:02>"))[0];
+    expect(completeLine(line)).toBe(true);
+    line.endInferred = true;
+    expect(completeLine(line)).toBe(false);
   });
   it("moves only the line start, keeping later units and the end in place", () => {
     const project = fromLyrics("[00:01]<00:01>今<00:02>日<00:03>\n[00:06]次");

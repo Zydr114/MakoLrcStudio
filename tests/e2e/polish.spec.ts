@@ -116,16 +116,16 @@ test("IME confirmation in precise fields does not commit or mark, valid shared e
   ).toHaveAttribute("aria-valuenow", "3000");
 });
 
-test("unknown endings have no invented playback fill and long lines keep actions reachable", async ({
+test("inferred endings fill playback and long lines keep actions reachable", async ({
   page,
 }, testInfo) => {
   await workspace(page, "[00:01]<00:01>今日も");
   await page.getByLabel("音频位置", { exact: true }).fill("1900");
-  await expect(page.locator(".timing-region")).toHaveCount(0);
-  await expect(page.locator(".preview-token.playing")).toHaveCount(0);
+  await expect(page.locator(".timing-region")).toHaveCount(1);
+  await expect(page.locator(".preview-token.playing")).toHaveText("今日も");
   await expect(page.locator(".lyric-preview")).toHaveAttribute(
     "data-sample-status",
-    "unknown",
+    "active",
   );
   await page.getByRole("tab", { name: "文本处理", exact: true }).click();
   await page

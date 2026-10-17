@@ -25,6 +25,7 @@ import {
   setLineStartBoundary,
   setLineEnd,
   setSyllableStart,
+  completeLineEnds,
 } from "../domain/edit";
 import { tokenize } from "../domain/tokenize";
 import { lrcLosses, nextPartName } from "../domain/parts";
@@ -573,12 +574,7 @@ export function createEditor(
         .find((l) => l.startMs !== null)?.startMs ?? 0;
     seek((line.value?.startMs ?? prior) - 1000);
   }
-  function goStage(stage: number) {
-    if (
-      ![0, 1, 2, 3].includes(stage) ||
-      (stage > 0 && !lineCount(project.value))
-    )
-      return;
+  function applyStage(stage: number) {
     pause();
     audition.cancel();
     clearPreview();
@@ -593,6 +589,59 @@ export function createEditor(
       selectedIndex.value = Math.min(selectedIndex.value, lastSyllable());
     }
   }
+  /**
+   * Complete line ends before word timing. A strict call is used by the guided
+   * transition and reports the first blocker; the tab switch only completes
+   * what it can and still lets the user inspect the view.
+   */
+  function prepareWordTiming(strict: boolean): boolean {
+    const duration = project.value.audio?.durationMs ?? Infinity;
+    const probe = copyProject(project.value);
+    const result = completeLineEnds(probe, duration);
+    if (result.blocked.length) {
+      if (!strict) return true;
+      const blocker = result.blocked[0];
+      const index = lines.value.findIndex((line) => line.id === blocker.lineId);
+      if (index >= 0) selectLine(lines.value[index].id);
+      error.value = `第 ${index + 1} 句${blocker.message}，请先在逐行打轴补全。`;
+      return false;
+    }
+    if (!result.changed) return true;
+    return command("补全句末时间", (draft) => {
+      completeLineEnds(draft, duration);
+    });
+  }
+  function enterWordTiming(): boolean {
+    if (!lineCount(project.value)) return false;
+    if (!asset.value) {
+      error.value = "请先选择音频，再进入逐字打轴。";
+      return false;
+    }
+    if (lineIssues.value.length) {
+      selectLine(lineIssues.value[0].lineId);
+      error.value = lineIssues.value[0].message;
+      return false;
+    }
+    prepareUnits();
+    if (!prepareWordTiming(true)) return false;
+    view({ unlockedStage: 3 });
+    applyStage(3);
+    if (line.value && cursor.value < syllablesOf(line.value).length)
+      selectedIndex.value = cursor.value;
+    return true;
+  }
+  function goStage(stage: number) {
+    if (
+      ![0, 1, 2, 3].includes(stage) ||
+      (stage > 0 && !lineCount(project.value))
+    )
+      return;
+    if (stage === 3) {
+      prepareUnits();
+      prepareWordTiming(false);
+    }
+    applyStage(stage);
+  }
   function confirmText() {
     if (!lines.value.length || lines.value.some((l) => !l.text.trim())) {
       error.value = "请删除空行并保留至少一句歌词。";
@@ -603,7 +652,7 @@ export function createEditor(
       return;
     }
     view({ unlockedStage: Math.max(2, project.value.unlockedStage) });
-    goStage(2);
+    applyStage(2);
   }
   function confirmLines() {
     if (lineIssues.value.length) {
@@ -615,10 +664,7 @@ export function createEditor(
       error.value = "请先选择音频。";
       return;
     }
-    view({ unlockedStage: 3 });
-    goStage(3);
-    if (line.value && cursor.value < syllablesOf(line.value).length)
-      selectedIndex.value = cursor.value;
+    enterWordTiming();
   }
   function seek(ms: number) {
     pause();
@@ -1140,6 +1186,7 @@ export function createEditor(
     backspace,
     selectLine,
     goStage,
+    enterWordTiming,
     confirmText,
     confirmLines,
     seek,

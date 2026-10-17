@@ -75,13 +75,32 @@ describe("recording session transitions", () => {
     audio.position = 2400;
     await editor.enter();
     editor.backspace();
-    expect(editor.line?.endMs).toBeNull();
+    expect(editor.line?.endMs).toBe(20000);
+    expect(editor.line?.endInferred).toBe(true);
     expect(editor.positionMs).toBe(1400);
     await editor.enter();
-    expect(editor.line?.endMs).toBeNull();
+    expect(editor.line?.endMs).toBe(20000);
     audio.position = 2500;
     await editor.enter();
     expect(editor.line?.endMs).toBe(2500);
+  });
+  it("completes the last line end on entering word timing and can undo it", async () => {
+    const { editor } = await session("[00:01]今日\n[00:06]次");
+    expect(editor.lines[1].endMs).toBeNull();
+    editor.confirmLines();
+    expect(editor.project.stage).toBe(3);
+    expect(editor.lines[1].endMs).toBe(20000);
+    expect(editor.lines[1].endInferred).toBe(true);
+    editor.undo();
+    expect(editor.lines[1].endMs).toBeNull();
+    expect(editor.project.stage).toBe(3);
+  });
+  it("refuses guided word timing when a line still lacks an onset", async () => {
+    const { editor } = await session("[00:06]次\n今日");
+    editor.confirmLines();
+    expect(editor.project.stage).toBe(2);
+    expect(editor.error).toContain("句首");
+    expect(editor.line?.text).toBe("今日");
   });
   it("stops at next sentence without claiming its boundary is a measured terminal", async () => {
     const { audio, editor } = await session("[00:01]君\n[00:04]次");

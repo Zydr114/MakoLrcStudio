@@ -290,6 +290,96 @@ export function setLineEnd(
   line.endInferred = undefined;
 }
 
+export interface LineEndCompletion {
+  changed: boolean;
+  blocked: { lineId: string; message: string }[];
+}
+
+function nextLaterStart(
+  lines: ReturnType<typeof activeLines>,
+  index: number,
+  start: number,
+): number | null {
+  let next: number | null = null;
+  for (const line of lines.slice(index + 1))
+    if (
+      line.startMs !== null &&
+      line.startMs > start &&
+      (next === null || line.startMs < next)
+    )
+      next = line.startMs;
+  return next;
+}
+
+/**
+ * Give every timed line a line end before word timing: the last syllable's
+ * explicit end, the next later onset, or the audio duration for the last line.
+ * Inferred ends stay marked; blocked lines are reported and left untouched by
+ * the caller (which passes a probe copy).
+ */
+export function completeLineEnds(
+  project: ProjectDraft,
+  duration = project.audio?.durationMs ?? Infinity,
+): LineEndCompletion {
+  const lines = activeLines(project);
+  const blocked: LineEndCompletion["blocked"] = [];
+  let changed = false;
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const last = syllablesOf(line).at(-1);
+    if (last?.endMs != null) {
+      const end = last.endMs;
+      last.endMs = null;
+      if (line.startMs !== null && end > line.startMs && end <= duration) {
+        line.endMs = end;
+        line.endInferred = undefined;
+        changed = true;
+      } else {
+        blocked.push({
+          lineId: line.id,
+          message: "最后一个单位的终点不在本句范围内",
+        });
+      }
+      continue;
+    }
+    if (line.startMs === null) {
+      blocked.push({ lineId: line.id, message: "尚未记录句首" });
+      continue;
+    }
+    const next = nextLaterStart(lines, index, line.startMs);
+    if (line.endMs !== null && !line.endInferred) {
+      const upper = Math.min(duration, next ?? Infinity);
+      if (line.endMs <= line.startMs || line.endMs > upper)
+        blocked.push({
+          lineId: line.id,
+          message: "收尾需要晚于句首，且不超过下一句起点",
+        });
+      continue;
+    }
+    if (next !== null) {
+      if (line.endMs !== next || !line.endInferred) {
+        line.endMs = next;
+        line.endInferred = true;
+        changed = true;
+      }
+      continue;
+    }
+    if (Number.isFinite(duration) && duration > line.startMs) {
+      if (line.endMs !== duration || !line.endInferred) {
+        line.endMs = duration;
+        line.endInferred = true;
+        changed = true;
+      }
+      continue;
+    }
+    blocked.push({
+      lineId: line.id,
+      message: "最后一句没有下一句起点，也缺少音频终点",
+    });
+  }
+  return { changed, blocked };
+}
+
 export function lineStartBounds(
   project: ProjectDraft,
   index: number,
