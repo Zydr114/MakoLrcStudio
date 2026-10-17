@@ -89,11 +89,7 @@ function key(event: KeyboardEvent) {
     @keydown="key"
   >
     <div class="segmentation-heading">
-      <strong>注音「{{ base }}」</strong
-      ><span class="small-note"
-        >读音可输入假名或罗马音（点下方按钮转成假名）；按音拍自动切分，点击字间增删分隔线，每个音节按一次
-        Enter。</span
-      >
+      <strong>注音「{{ base }}」</strong>
       <div>
         <UiButton v-if="removable" variant="text" @click="emit('remove')"
           >移除注音</UiButton
