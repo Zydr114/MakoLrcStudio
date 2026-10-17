@@ -112,6 +112,30 @@ test("caret sentence splitting stays in the line view and timed sentence split c
   ).toHaveAttribute("aria-selected", "true");
 });
 
+test("splitting an untimed sentence distributes line time by character count", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByLabel("粘贴歌词").fill("[00:01]今日も\n[00:07]次");
+  await page.getByLabel("粘贴歌词").blur();
+  await page.getByRole("button", { name: "下一步，整理歌词" }).click();
+  await page.locator('input[type=file][accept^="audio"]').setInputFiles(audio);
+  await page.getByRole("tab", { name: "逐行打轴", exact: true }).click();
+  await page.getByRole("button", { name: "编辑／拆分", exact: true }).click();
+  const field = page.getByRole("textbox", { name: "当前行歌词", exact: true });
+  await field.focus();
+  await field.evaluate((element: HTMLTextAreaElement) => {
+    element.setSelectionRange(2, 2);
+    element.dispatchEvent(new Event("select", { bubbles: true }));
+  });
+  await page.getByRole("button", { name: "在光标处拆句", exact: true }).click();
+  await expect(page.locator(".lyric-nav-list button")).toHaveCount(3);
+  await expect(page.getByLabel("本句终点")).toHaveValue("00:05.000");
+  await page.locator(".lyric-nav-list button").nth(1).click();
+  await expect(page.getByLabel("本句起点")).toHaveValue("00:05.000");
+  await expect(page.getByLabel("本句终点")).toHaveValue("00:07.000");
+});
+
 test("inline word split preserves subsequent anchors and text edit can be canceled without changing project", async ({
   page,
 }) => {

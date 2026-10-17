@@ -22,18 +22,19 @@ describe("caret based structural changes", () => {
     expect(activeLines(p)[2]).toEqual(next);
     expect(validate(p)).toEqual([]);
   });
-  it("splits inside a repeated token without guessing onset or terminal and preserves later anchors", () => {
+  it("splits inside a repeated token at a character share and preserves later anchors", () => {
     const p = project("[00:01]<00:01>らら<00:03>ら<00:04>");
     const laterId = activeLines(p)[0].units[1].id;
     splitLine(p, activeLines(p)[0].id, 1);
     expect(activeLines(p)[0]).toMatchObject({
       text: "ら",
       startMs: 1000,
-      endMs: null,
+      endMs: 2000,
+      endInferred: true,
     });
     expect(activeLines(p)[1]).toMatchObject({
       text: "らら",
-      startMs: null,
+      startMs: 2000,
       endMs: 4000,
     });
     expect(activeLines(p)[1].units.map((u) => unitStart(u))).toEqual([
@@ -44,6 +45,37 @@ describe("caret based structural changes", () => {
     expect(validate(p).filter((issue) => issue.kind === "conflict")).toEqual(
       [],
     );
+  });
+  it("splits an untimed line by base character count and keeps the terminal", () => {
+    const p = project("[00:01]今日も\n[00:07]次");
+    splitLine(p, activeLines(p)[0].id, 2);
+    expect(
+      activeLines(p).map((line) => [line.text, line.startMs, line.endMs]),
+    ).toEqual([
+      ["今日", 1000, 5000],
+      ["も", 5000, 7000],
+      ["次", 7000, null],
+    ]);
+    expect(activeLines(p)[0].endInferred).toBe(true);
+    expect(activeLines(p)[1].endInferred).toBe(true);
+    expect(validate(p).filter((issue) => issue.kind === "conflict")).toEqual(
+      [],
+    );
+  });
+  it("uses the next onset as the terminal when the line has no end", () => {
+    const p = project("[00:01]今日も\n[00:07]次");
+    activeLines(p)[0].endMs = null;
+    activeLines(p)[0].endInferred = undefined;
+    splitLine(p, activeLines(p)[0].id, 1);
+    expect(
+      activeLines(p).map((line) => [line.text, line.startMs, line.endMs]),
+    ).toEqual([
+      ["今", 1000, 3000],
+      ["日も", 3000, 7000],
+      ["次", 7000, null],
+    ]);
+    expect(activeLines(p)[0].endInferred).toBe(true);
+    expect(activeLines(p)[1].endInferred).toBe(true);
   });
   it("splits a grouped word and keeps all subsequent timestamps", () => {
     const p = project("[00:01]<00:01>今日<00:03>も<00:04>"),

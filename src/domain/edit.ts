@@ -84,6 +84,24 @@ function retainUnits(
     : tokenize(after);
 }
 
+/** Character share of an interval, ignoring readings; null when no usable span. */
+function characterRatioBoundary(
+  startMs: number | null,
+  endMs: number | null,
+  text: string,
+  offset: number,
+): number | null {
+  if (startMs === null || endMs === null || endMs - startMs < 2) return null;
+  const total = graphemes(text).length;
+  const first = graphemes(text.slice(0, offset)).length;
+  if (first <= 0 || first >= total) return null;
+  const span = endMs - startMs;
+  return (
+    startMs +
+    Math.min(span - 1, Math.max(1, Math.round((span * first) / total)))
+  );
+}
+
 export function splitLine(
   project: ProjectDraft,
   id: string,
@@ -103,10 +121,25 @@ export function splitLine(
     secondText = line.text.slice(offset);
   if (!firstText.trim() || !secondText.trim())
     throw new Error("拆句后两行都需要歌词正文。");
+  const originalEnd = line.endMs;
+  const effectiveEnd =
+    originalEnd ??
+    lines[index + 1]?.startMs ??
+    project.audio?.durationMs ??
+    null;
   const second = newLine(secondText);
-  second.endMs = line.endMs;
-  second.endInferred = line.endInferred;
+  // Keep the old terminal; when it was only referenced, the new line keeps
+  // that reference instead of silently becoming untimed.
+  second.endMs = effectiveEnd;
+  second.endInferred =
+    originalEnd !== null
+      ? line.endInferred
+      : effectiveEnd !== null
+        ? true
+        : undefined;
   let boundaryMs: number | null = null;
+  let secondStartMs: number | null = null;
+  let boundaryMeasured = false;
   if (line.units.length) {
     if (line.units.map((unit) => unit.text).join("") !== line.text)
       throw new Error("切分文本与歌词正文不一致，请先修改正文。");
@@ -137,18 +170,33 @@ export function splitLine(
       position = end;
     }
     second.units = right;
-    second.startMs = boundaryMs = right[0] ? unitStart(right[0]) : null;
-    // A pause before the cut is where the first half really ends.
+    boundaryMs = secondStartMs = right[0] ? unitStart(right[0]) : null;
+    boundaryMeasured = boundaryMs !== null;
+    // A pause before the cut ends the first half, but the next measured
+    // syllable keeps its own onset after the gap.
     const last = left.at(-1)?.syllables.at(-1);
     if (last?.endMs != null) {
       boundaryMs = last.endMs;
+      boundaryMeasured = true;
       last.endMs = null;
     }
     line.units = left;
   }
+  // Without a measured cut, split the known line interval by base characters.
+  if (boundaryMs === null) {
+    boundaryMs = characterRatioBoundary(
+      line.startMs,
+      effectiveEnd,
+      line.text,
+      offset,
+    );
+    secondStartMs = boundaryMs;
+  }
+  second.startMs = secondStartMs;
   line.text = firstText;
   line.endMs = boundaryMs;
-  line.endInferred = undefined;
+  line.endInferred =
+    boundaryMs === null ? undefined : boundaryMeasured ? undefined : true;
   lines.splice(index + 1, 0, second);
 }
 

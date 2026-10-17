@@ -112,7 +112,7 @@ function apply(action: "text" | "line") {
   if (hadChanges && oldTiming)
     editor.message = "已保留句首；修改行的逐字时间需重打。";
   else if (action === "line")
-    editor.message = "已拆句；缺失的句首和收尾需补打。";
+    editor.message = "已拆句；按字符比例分配时间，缺失处仍需补打。";
   close();
 }
 function key(event: KeyboardEvent) {
