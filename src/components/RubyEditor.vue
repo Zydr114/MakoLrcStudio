@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import UiButton from "./UiButton.vue";
 import UiField from "./UiField.vue";
 import DividerStrip from "./DividerStrip.vue";
 import { moraCuts, splitAt } from "../domain/ruby";
+import { hasRomaji, romajiToKana } from "../domain/romaji";
 /** Reading of one unit: kana or pinyin, divided into the syllables that get timed. */
 const props = defineProps<{
   base: string;
@@ -20,7 +21,9 @@ const emit = defineEmits<{
 }>();
 const reading = ref(props.reading),
   split = ref([...props.cuts]),
-  issue = ref("");
+  issue = ref(""),
+  converting = ref(false);
+const canConvert = computed(() => hasRomaji(reading.value));
 watch(
   () => [props.reading, props.cuts] as const,
   ([value, cuts]) => {
@@ -37,6 +40,25 @@ function type(value: string) {
   reading.value = value;
   split.value = moraCuts(value);
   issue.value = "";
+}
+async function convert() {
+  if (!canConvert.value || converting.value) return;
+  converting.value = true;
+  issue.value = "";
+  try {
+    const converted = await romajiToKana(reading.value);
+    if (converted === reading.value) {
+      issue.value = "没有可转换的罗马音，请检查拼写。";
+      return;
+    }
+    type(converted);
+    if (hasRomaji(converted))
+      issue.value = "已转换，但仍有无法识别的罗马音，请检查读音。";
+  } catch (error) {
+    issue.value = `罗马音转换失败：${(error as Error).message}`;
+  } finally {
+    converting.value = false;
+  }
 }
 const check = (next: number[]) => void splitAt(reading.value, next);
 function apply() {
@@ -69,7 +91,8 @@ function key(event: KeyboardEvent) {
     <div class="segmentation-heading">
       <strong>注音「{{ base }}」</strong
       ><span class="small-note"
-        >读音按音拍自动切分，点击字间增删分隔线；每个音节按一次 Enter。</span
+        >读音可输入假名或罗马音（点下方按钮转成假名）；按音拍自动切分，点击字间增删分隔线，每个音节按一次
+        Enter。</span
       >
       <div>
         <UiButton v-if="removable" variant="text" @click="emit('remove')"
@@ -82,9 +105,17 @@ function key(event: KeyboardEvent) {
       <UiField
         :model-value="reading"
         label="读音"
-        placeholder="假名或拼音"
+        placeholder="假名、拼音或罗马音"
         @update:model-value="type"
       />
+      <UiButton
+        v-if="canConvert"
+        variant="tonal"
+        :loading="converting"
+        title="把输入的罗马音转成平假名"
+        @click="convert"
+        >罗马音 → 假名</UiButton
+      >
       <DividerStrip
         v-if="reading.trim()"
         v-model:cuts="split"

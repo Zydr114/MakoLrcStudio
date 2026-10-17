@@ -32,6 +32,27 @@ test("manual ruby: group characters, type a reading, confirm-free and kept on te
   await expect(units.nth(1)).toHaveText("は");
 });
 
+test("typing a romaji reading offers one-click kana conversion", async ({
+  page,
+}) => {
+  await rubyView(page, "今日も");
+  await page.locator(".ruby-unit").first().click();
+  await page.getByRole("button", { name: "添加读音" }).click();
+  const reading = page.getByRole("textbox", { name: "读音", exact: true });
+  await reading.fill("kyou");
+  const convert = page.getByRole("button", { name: /罗马音.*假名/ });
+  await expect(convert).toBeVisible();
+  await convert.click();
+  await expect(reading).toHaveValue("きょう");
+  await page.getByRole("button", { name: "应用读音" }).click();
+  await expect(page.locator(".ruby-unit").first().locator("rt")).toHaveText(
+    "きょう",
+  );
+  await expect(
+    page.locator(".ruby-unit").first().locator(".ruby-mora"),
+  ).toHaveText(["きょ", "う"]);
+});
+
 test("automatic pinyin is marked for review and confirmed per line", async ({
   page,
 }) => {
