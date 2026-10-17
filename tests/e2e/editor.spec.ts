@@ -436,6 +436,53 @@ test("the lyric list follows the playing line without changing the edit target",
   await page.getByRole("button", { name: "暂停", exact: true }).click();
 });
 
+test("playhead lock centers playback, yields to manual pan and restores edge following", async ({
+  page,
+}) => {
+  await wordStage(page);
+  const lock = page.getByRole("switch", { name: "锁定播放头" });
+  await expect(lock).not.toBeChecked();
+  await page.getByLabel("音频位置", { exact: true }).fill("4000");
+  await setChecked(page, "锁定播放头");
+  await expect(lock).toBeChecked();
+  await page.locator("[data-workspace]").focus();
+  await page.keyboard.press("Space");
+  await expect(
+    page.getByRole("button", { name: "暂停", exact: true }),
+  ).toBeVisible();
+  const offset = async () => {
+    const [cursor, stage] = await Promise.all([
+      page.locator(".wave-cursor").boundingBox(),
+      page.locator(".wave-stage").boundingBox(),
+    ]);
+    return Math.abs(
+      cursor!.x + cursor!.width / 2 - (stage!.x + stage!.width / 2),
+    );
+  };
+  await expect.poll(offset).toBeLessThan(6);
+  await page.getByRole("button", { name: "暂停", exact: true }).click();
+  await page.locator(".wave-stage").hover();
+  await page.mouse.wheel(160, 0);
+  await expect(lock).not.toBeChecked();
+  await expect(page.getByRole("button", { name: "回到播放头" })).toBeVisible();
+  await page.getByRole("button", { name: "适合当前句" }).click();
+  await page.getByLabel("音频位置", { exact: true }).fill("7000");
+  await page.locator("[data-workspace]").focus();
+  await page.keyboard.press("Space");
+  await expect
+    .poll(() =>
+      page
+        .locator(".wave-cursor")
+        .evaluate((element) =>
+          Number.parseFloat((element as HTMLElement).style.left),
+        ),
+    )
+    .toBeLessThan(45);
+  await page.getByRole("button", { name: "暂停", exact: true }).click();
+  await page.getByLabel("波形缩放").fill("200");
+  await expect(page.locator(".wave-cursor")).toBeVisible();
+});
+
 test("continuous line recording advances, Backspace returns to previous line, final Enter stops", async ({
   page,
 }) => {

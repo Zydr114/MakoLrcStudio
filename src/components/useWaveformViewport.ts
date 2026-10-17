@@ -18,7 +18,8 @@ export function useWaveformViewport(
   const view = ref({ startTime: 0, endTime: 10 }),
     zoom = ref(100),
     width = ref(0),
-    following = ref(true);
+    following = ref(true),
+    lockPlayhead = ref(false);
   const span = computed(() =>
     Math.max(0.001, view.value.endTime - view.value.startTime),
   );
@@ -56,6 +57,20 @@ export function useWaveformViewport(
       Math.max(0, editor.positionMs / 1000 - span.value * 0.3),
     );
   }
+  /** Keep the cursor at the middle of the viewport, clamped at the audio edges. */
+  function centerPlayhead() {
+    if (!wave || !editor.asset) return;
+    const duration = editor.asset.buffer.duration;
+    const target = Math.max(
+      0,
+      Math.min(
+        editor.positionMs / 1000 - span.value / 2,
+        duration - span.value,
+      ),
+    );
+    if (Math.abs(view.value.startTime - target) > 0.01)
+      wave.setScrollTime(target);
+  }
   async function mountWave() {
     unsubscribe?.();
     wave?.destroy();
@@ -91,6 +106,10 @@ export function useWaveformViewport(
     () => editor.positionMs,
     (value) => {
       if (!wave || !editor.playing || isDragging() || !following.value) return;
+      if (lockPlayhead.value) {
+        centerPlayhead();
+        return;
+      }
       const t = value / 1000;
       if (
         t > view.value.endTime - span.value * 0.16 ||
@@ -102,25 +121,28 @@ export function useWaveformViewport(
   function wheel(event: WheelEvent) {
     if (!wave) return;
     event.preventDefault();
-    following.value = false;
-    if (event.altKey)
+    if (event.altKey) {
       setZoom(
         Math.max(
           10,
           Math.min(1000, zoom.value * (event.deltaY < 0 ? 1.15 : 0.85)),
         ),
       );
-    else
-      wave.setScrollTime(
-        Math.max(
-          0,
-          view.value.startTime + (event.deltaX || event.deltaY) / zoom.value,
-        ),
-      );
+      return;
+    }
+    following.value = false;
+    lockPlayhead.value = false;
+    wave.setScrollTime(
+      Math.max(
+        0,
+        view.value.startTime + (event.deltaX || event.deltaY) / zoom.value,
+      ),
+    );
   }
   function overview(event: PointerEvent) {
     if (!wave || !editor.asset) return;
     following.value = false;
+    lockPlayhead.value = false;
     const target = event.currentTarget as HTMLElement;
     if (event.type === "pointerdown") target.setPointerCapture(event.pointerId);
     const box = target.getBoundingClientRect();
@@ -167,9 +189,11 @@ export function useWaveformViewport(
     zoom,
     width,
     following,
+    lockPlayhead,
     span,
     fit,
     setZoom,
+    centerPlayhead,
     scrollTo,
     wheel,
     overview,

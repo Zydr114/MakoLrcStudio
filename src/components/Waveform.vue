@@ -18,6 +18,7 @@ import Icon from "./Icon.vue";
 import AudioBar from "./AudioBar.vue";
 import UiSlider from "./UiSlider.vue";
 import UiButton from "./UiButton.vue";
+import UiToggle from "./UiToggle.vue";
 import WaveformRegions from "./WaveformRegions.vue";
 import PartReferenceBand from "./PartReferenceBand.vue";
 import { intervalGeometry, timeToRatio, ratioToTime } from "../domain/viewport";
@@ -35,9 +36,11 @@ const {
   zoom,
   width,
   following,
+  lockPlayhead,
   span,
   fit,
   setZoom,
+  centerPlayhead,
   scrollTo,
   wheel,
   overview,
@@ -237,15 +240,22 @@ function moveDrag(event: PointerEvent) {
     applyPoint(p, drag.value!.point, drag.value!.ms),
   );
 }
+function restoreFollowing() {
+  if (!lockPlayhead.value) return;
+  following.value = true;
+  centerPlayhead();
+}
 function endDrag() {
   if (!drag.value) return;
   drag.value = null;
   editor.commitPreview("调整时间边界");
+  restoreFollowing();
 }
 function cancelDrag() {
   if (!drag.value) return;
   drag.value = null;
   editor.clearPreview();
+  restoreFollowing();
 }
 function markerKey(event: KeyboardEvent, point: Point) {
   if (
@@ -287,6 +297,11 @@ function seek(event: MouseEvent) {
   editor.seek(
     ratioToTime((event.clientX - rect.left) / rect.width, viewport.value),
   );
+}
+function setLock(value: boolean) {
+  lockPlayhead.value = value;
+  following.value = true;
+  if (value) centerPlayhead();
 }
 const canMoveSentence = computed(
   () =>
@@ -401,7 +416,13 @@ onBeforeUnmount(() => {
           "
         >
           回到播放头</UiButton
-        ><UiButton variant="text" @click="fit">适合当前句</UiButton>
+        ><UiToggle
+          switch
+          :model-value="lockPlayhead"
+          label="锁定播放头"
+          title="播放时把播放头固定在波形中央；横向平移会取消"
+          @update:model-value="setLock"
+        /><UiButton variant="text" @click="fit">适合当前句</UiButton>
       </div>
     </div>
     <div
@@ -448,15 +469,9 @@ onBeforeUnmount(() => {
           @pointerdown.stop="moveSentence"
           @pointermove="moveDrag"
           @pointerup="endDrag"
-          @pointercancel="
-            drag = null;
-            editor.clearPreview();
-          "
+          @pointercancel="cancelDrag"
           @click.stop
-          @keydown.escape.stop="
-            drag = null;
-            editor.clearPreview();
-          "
+          @keydown.escape.stop="cancelDrag"
         >
           ↔
         </button>
@@ -517,10 +532,7 @@ onBeforeUnmount(() => {
           @pointerdown="startDrag($event, point)"
           @pointermove="moveDrag"
           @pointerup="endDrag"
-          @pointercancel="
-            drag = null;
-            editor.clearPreview();
-          "
+          @pointercancel="cancelDrag"
           @keydown="markerKey($event, point)"
           @click.stop="selectPoint(point)"
         >
@@ -558,6 +570,7 @@ onBeforeUnmount(() => {
         :max="Math.max(0, editor.asset.info.durationMs - span * 1000)"
         @update:model-value="
           following = false;
+          lockPlayhead = false;
           scrollTo($event / 1000);
         "
       />
