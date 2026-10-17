@@ -217,89 +217,92 @@ function apply() {
             >
           </div>
         </div>
-        <div v-if="!editor.lines.length" class="empty-note">
-          「{{
-            editor.part.name
-          }}」还没有歌词行。添加一行，从其他声部移入，或返回导入歌词。
-        </div>
-        <div
-          v-for="(line, index) in editor.lines"
-          :key="line.id"
-          class="text-row"
-          :class="{
-            selected: selected.includes(line.id),
-            active: editor.project.activeLineId === line.id,
-          }"
-        >
-          <UiToggle
-            :model-value="selected.includes(line.id)"
-            :label="`选择第 ${index + 1} 行`"
-            :show-label="false"
-            @update:model-value="toggle(line.id)"
-          />
-          <span class="row-number">{{
-            String(index + 1).padStart(2, "0")
-          }}</span
-          ><RubyLine
-            v-if="editor.textLayer === 'ruby'"
-            :line="line"
-            :index="index"
-          /><LayerLine
-            v-else-if="
-              editor.textLayer === 'translation' || editor.textLayer === 'roman'
-            "
-            :line="line"
-            :index="index"
-            :field="editor.textLayer"
-          /><template v-else>
-            <textarea
-              :aria-label="`第 ${index + 1} 行歌词`"
-              :value="line.text"
-              rows="1"
-              spellcheck="false"
-              @focus="editor.view({ activeLineId: line.id })"
-              @change="textEdit(line.id, $event)"
-              @click="
-                carets.set(
-                  line.id,
-                  ($event.target as HTMLTextAreaElement).selectionStart,
-                )
+        <div class="lyric-list" aria-label="歌词行列表">
+          <div v-if="!editor.lines.length" class="empty-note">
+            「{{
+              editor.part.name
+            }}」还没有歌词行。添加一行，从其他声部移入，或返回导入歌词。
+          </div>
+          <div
+            v-for="(line, index) in editor.lines"
+            :key="line.id"
+            class="text-row"
+            :class="{
+              selected: selected.includes(line.id),
+              active: editor.project.activeLineId === line.id,
+            }"
+          >
+            <UiToggle
+              :model-value="selected.includes(line.id)"
+              :label="`选择第 ${index + 1} 行`"
+              :show-label="false"
+              @update:model-value="toggle(line.id)"
+            />
+            <span class="row-number">{{
+              String(index + 1).padStart(2, "0")
+            }}</span
+            ><RubyLine
+              v-if="editor.textLayer === 'ruby'"
+              :line="line"
+              :index="index"
+            /><LayerLine
+              v-else-if="
+                editor.textLayer === 'translation' ||
+                editor.textLayer === 'roman'
               "
-              @keyup="
-                carets.set(
-                  line.id,
-                  ($event.target as HTMLTextAreaElement).selectionStart,
-                )
-              "
-              @blur="
-                carets.set(
-                  line.id,
-                  ($event.target as HTMLTextAreaElement).selectionStart,
-                )
-              " /><span class="time-badge"
-              >{{ formatTime(line.startMs)
-              }}<small
-                v-if="invalidatedTiming.has(line.id) && !hasTiming(line)"
-                class="text-timing-reset"
-                role="status"
-                title="句首已保留；修改行的逐字时间需重打。"
-                >逐字待重打</small
-              ></span
-            ><UiIconButton
-              icon="split"
-              label="在光标处拆句"
-              @click="split(line.id)" />
-            <UiIconButton
-              icon="merge"
-              label="合并下一句"
-              :disabled="index === editor.lines.length - 1"
-              @click="merge(line.id)"
-          /></template>
+              :line="line"
+              :index="index"
+              :field="editor.textLayer"
+            /><template v-else>
+              <textarea
+                :aria-label="`第 ${index + 1} 行歌词`"
+                :value="line.text"
+                rows="1"
+                spellcheck="false"
+                @focus="editor.view({ activeLineId: line.id })"
+                @change="textEdit(line.id, $event)"
+                @click="
+                  carets.set(
+                    line.id,
+                    ($event.target as HTMLTextAreaElement).selectionStart,
+                  )
+                "
+                @keyup="
+                  carets.set(
+                    line.id,
+                    ($event.target as HTMLTextAreaElement).selectionStart,
+                  )
+                "
+                @blur="
+                  carets.set(
+                    line.id,
+                    ($event.target as HTMLTextAreaElement).selectionStart,
+                  )
+                " /><span class="time-badge"
+                >{{ formatTime(line.startMs)
+                }}<small
+                  v-if="invalidatedTiming.has(line.id) && !hasTiming(line)"
+                  class="text-timing-reset"
+                  role="status"
+                  title="句首已保留；修改行的逐字时间需重打。"
+                  >逐字待重打</small
+                ></span
+              ><UiIconButton
+                icon="split"
+                label="在光标处拆句"
+                @click="split(line.id)" />
+              <UiIconButton
+                icon="merge"
+                label="合并下一句"
+                :disabled="index === editor.lines.length - 1"
+                @click="merge(line.id)"
+            /></template>
+          </div>
         </div>
-        <UiButton
+        <button
           v-if="editor.textLayer === 'lyrics'"
+          type="button"
           class="add-line"
-          variant="text"
           @click="
             editor.command('添加歌词行', (p) => {
               activeLines(p).push(newLine(''));
@@ -307,7 +310,7 @@ function apply() {
           "
         >
           ＋ 添加一行
-        </UiButton>
+        </button>
       </div>
       <div class="prepare-side">
         <section class="surface part-card"><PartPanel /></section>

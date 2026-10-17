@@ -281,6 +281,7 @@ kbd {
 .prepare-view {
   max-width: 1160px;
   margin: auto;
+  min-height: 0;
 }
 .import-view.dragging {
   outline: 2px dashed var(--accent);
@@ -378,6 +379,7 @@ kbd {
 }
 .import-footer,
 .step-footer {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -421,16 +423,30 @@ kbd {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 290px;
   gap: 20px;
+  min-height: 0;
 }
 .lyric-sheet {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   overflow: hidden;
 }
 .sheet-toolbar {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 10px 20px;
   border-bottom: 1px solid var(--line);
+}
+/* Keep the toolbar and the add-row action outside this scroller, so both stay
+   reachable while the lyric rows scroll independently of the page. */
+.lyric-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .text-row {
   display: flex;
@@ -468,12 +484,22 @@ kbd {
   height: 28px;
 }
 .add-line {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  padding: 16px;
+  min-height: 48px;
+  padding: 0 16px;
   border: 0;
+  border-top: 1px solid var(--line);
   background: transparent;
   color: var(--accent);
+  font: inherit;
   font-size: 12px;
+}
+.add-line:hover {
+  background: var(--soft);
 }
 .prepare-side {
   align-self: start;
@@ -727,7 +753,29 @@ kbd {
     grid-template-columns: minmax(0, 1fr) 250px;
   }
 }
+@media (min-width: 960px) {
+  .prepare-view {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .prepare-view > .page-heading,
+  .prepare-view > .step-footer {
+    flex: 0 0 auto;
+  }
+  .prepare-grid {
+    flex: 1 1 auto;
+  }
+  .prepare-side {
+    max-height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
 @media (max-width: 959px) {
+  .lyric-list {
+    max-height: 55dvh;
+  }
   .project-info {
     display: none;
   }
