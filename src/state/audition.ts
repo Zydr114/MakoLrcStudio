@@ -68,6 +68,7 @@ export function createAudition(
       !loop.value ||
       !scope.value ||
       !target.value ||
+      // A whole-song pass is one-shot; the loop toggle only repeats local auditions.
       scope.value === "song"
     )
       return false;

@@ -353,6 +353,45 @@ test("whole-song playback starts at the playhead, crosses lines and writes nothi
   ]);
 });
 
+test("loop repeats a line audition but never the whole song", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.locator('input[type=file][accept^="audio"]').setInputFiles({
+    name: "short.wav",
+    mimeType: "audio/wav",
+    buffer: wav(2),
+  });
+  await expect(page.getByText("音频已准备", { exact: true })).toBeVisible();
+  await page
+    .getByLabel("粘贴歌词")
+    .fill("[00:00]<00:00>今<00:00.100>\n[00:01]<00:01>次<00:01.100>");
+  await page.getByRole("button", { name: "下一步，整理歌词" }).click();
+  await page.getByRole("button", { name: "确认文本，开始逐行打轴" }).click();
+  await page.getByRole("button", { name: "进入逐字", exact: true }).click();
+  await expect(page.locator(".state-label")).toHaveText("本行完成");
+  await setChecked(page, "循环试听");
+  await page.getByRole("button", { name: "试听本行" }).click();
+  await expect(
+    page.getByRole("button", { name: "暂停", exact: true }),
+  ).toBeVisible();
+  await page.waitForTimeout(700);
+  await expect(
+    page.getByRole("button", { name: "暂停", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "暂停", exact: true }).click();
+  await page.getByLabel("音频位置", { exact: true }).fill("1500");
+  await page.locator("[data-workspace]").focus();
+  await page.keyboard.press("Space");
+  await expect(
+    page.getByRole("button", { name: "暂停", exact: true }),
+  ).toBeVisible();
+  await page.waitForTimeout(900);
+  await expect(
+    page.getByRole("button", { name: "播放", exact: true }),
+  ).toBeVisible();
+});
+
 test("continuous line recording advances, Backspace returns to previous line, final Enter stops", async ({
   page,
 }) => {
