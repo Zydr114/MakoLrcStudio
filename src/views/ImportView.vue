@@ -113,6 +113,7 @@ function next() {
           label="粘贴歌词"
           aria-label="粘贴歌词"
           multiline
+          :autosize="false"
           :rows="10"
           placeholder="粘贴歌词，每句一行"
           @update:model-value="

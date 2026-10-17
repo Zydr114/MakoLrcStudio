@@ -8,6 +8,8 @@ const props = withDefaults(
     label: string;
     placeholder?: string;
     multiline?: boolean;
+    /** Grow the textarea with its content. Disable to keep a fixed height and scroll inside. */
+    autosize?: boolean;
     rows?: number;
     type?: "text" | "number";
     min?: number | string;
@@ -15,7 +17,7 @@ const props = withDefaults(
     step?: number | string;
     ariaLabel?: string;
   }>(),
-  { placeholder: "", multiline: false, rows: 3 },
+  { placeholder: "", multiline: false, autosize: true, rows: 3 },
 );
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 const control = ref<TextField>();
@@ -40,7 +42,7 @@ function update(event: Event) {
     :min="min"
     :max="max"
     :step="step"
-    :autosize="multiline"
+    :autosize="multiline && autosize"
     :rows="multiline ? rows : undefined"
     @input="update"
   />
