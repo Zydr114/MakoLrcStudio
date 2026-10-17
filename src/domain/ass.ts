@@ -28,6 +28,8 @@ export interface AssOptions {
   fill: "kf" | "k";
   /** How long a line is on screen before it is sung. */
   leadInMs: number;
+  /** 0 disables the intro dot; otherwise it is shown for this long. */
+  introHintMs: number;
   measure: Measure;
   /**
    * libass sizes a font by its full line height: the em is the style size
@@ -127,6 +129,8 @@ interface Block {
   start: number;
   end: number;
   row: number;
+  /** Start of the intro dot, when the gap can fit the whole hint. */
+  hintStart?: number;
 }
 
 export function exportAss(
@@ -238,6 +242,22 @@ export function exportAss(
     return { entry, background, start: Math.max(0, start), end, row };
   });
 
+  const hintMs = Number.isFinite(options.introHintMs)
+    ? Math.max(0, Math.round(options.introHintMs))
+    : 0;
+  if (hintMs > 0) {
+    for (const block of blocks) {
+      const start = block.start - hintMs;
+      if (start < 0) continue;
+      // Only a genuinely free gap gets a cue: no other lyric event may still
+      // be on screen during it, including a longer duet line.
+      const covered = blocks.some(
+        (other) =>
+          other !== block && other.start < block.start && other.end > start,
+      );
+      if (!covered) block.hintStart = start;
+    }
+  }
   const blockSide = (block: Block): Side => {
     if (style.layout === "diagonal") return block.row === 0 ? "right" : "left";
     if (style.layout === "single") return "center";
@@ -271,6 +291,16 @@ export function exportAss(
     const mainWidth = width(line.text, size.main, style.mainBold);
     const left = x(side, mainWidth);
     const lineStyle = partStyle(part);
+    if (block.hintStart !== undefined)
+      dialogue(
+        1,
+        block.hintStart,
+        block.start,
+        lineStyle,
+        part.name,
+        "fx",
+        `{\\an1\\pos(${round(left)},${round(bandBottom(block.row, "main"))})\\fad(150,150)}${escape("●")}`,
+      );
     dialogue(
       1,
       block.start,

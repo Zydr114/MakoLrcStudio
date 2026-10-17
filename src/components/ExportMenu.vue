@@ -19,6 +19,7 @@ const ass = ref({
   resolution: "1920x1080",
   fill: "kf" as "kf" | "k",
   leadIn: "800",
+  introHint: "0",
 });
 const currentStyle = computed(() => assStyleOf(editor.project));
 const boldLayers = computed(
@@ -64,6 +65,15 @@ async function exportAss() {
     editor.error = "提前显示时间需在 0–10000ms 之间。";
     return;
   }
+  const introHintMs = Number(ass.value.introHint);
+  if (
+    !Number.isSafeInteger(introHintMs) ||
+    introHintMs < 0 ||
+    introHintMs > 10000
+  ) {
+    editor.error = "前奏提示时长需在 0–10000ms 之间。";
+    return;
+  }
   const [width, height] = ass.value.resolution.split("x").map(Number);
   assBusy.value = true;
   await editor.exportAss({
@@ -71,6 +81,7 @@ async function exportAss() {
     height,
     fill: ass.value.fill,
     leadInMs,
+    introHintMs,
   });
   assBusy.value = false;
   assOpen.value = false;
@@ -188,9 +199,16 @@ function exportTtml() {
       />
       <UiSelect v-model="ass.fill" label="填色方式" :options="fills" />
       <UiField v-model="ass.leadIn" label="提前显示（ms）" type="number" />
+      <UiField
+        v-model="ass.introHint"
+        label="前奏提示（ms）"
+        type="number"
+        placeholder="0 关闭"
+      />
     </div>
     <p class="small-note">
-      注音位置按本机浏览器中该字体的字宽计算。播放端要装有同一字体，否则注音会错位。
+      前奏提示会在下一行出现前有完整空档时显示「●」，样式跟随该行；填 0
+      关闭。注音位置按本机浏览器中该字体的字宽计算，播放端要装有同一字体，否则注音会错位。
     </p>
     <footer>
       <UiButton @click="assOpen = false">取消</UiButton
@@ -254,9 +272,6 @@ mdui-menu-item::part(container) {
   grid-template-columns: 1fr 1fr;
   gap: 14px;
   margin-bottom: 12px;
-}
-.ass-options > :nth-child(3) {
-  grid-column: 1 / -1;
 }
 .export-parts {
   list-style: none;

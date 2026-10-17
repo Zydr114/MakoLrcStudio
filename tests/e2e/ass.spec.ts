@@ -231,6 +231,64 @@ test("ASS exports the layout and the karaoke source, and imports back into parts
   );
 });
 
+test("ASS intro hint appears before a line after a long gap", async ({
+  page,
+}) => {
+  const first = line([["あ", null, 10000]], 12000);
+  const second = line([["い", null, 20000]], 22000);
+  const a = part("A", "#0b84d8", [first, second]);
+  const project = {
+    version: 2,
+    name: "ass-intro-sample",
+    metadata: { ti: "Intro" },
+    audio: null,
+    parts: [a],
+    mainPartId: a.id,
+    activePartId: a.id,
+    stage: 1,
+    unlockedStage: 3,
+    activeLineId: first.id,
+    playheadMs: 0,
+    translationLang: "",
+    romanLang: "",
+  };
+  await page.goto("/");
+  await page
+    .locator('input[type=file][accept=".json,application/json"]')
+    .setInputFiles({
+      name: "intro.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+  await expect(page.locator(".prepare-view")).toBeVisible();
+  await exportAs(page, "ASS");
+  const dialog = page.getByRole("dialog", { name: "导出 ASS" });
+  await dialog.getByLabel("前奏提示").fill("3000");
+  const download = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "导出 ASS" }).click();
+  const file = await download;
+  const fs = await import("node:fs/promises");
+  const ass = await fs.readFile((await file.path())!, "utf8");
+  if (process.env.MAKO_ASS_INTRO_SAMPLE)
+    await fs.writeFile(process.env.MAKO_ASS_INTRO_SAMPLE, ass);
+  const lines = ass
+    .split("\n")
+    .filter((line) => /^(Dialogue|Comment):/.test(line));
+  const hints = lines.filter((line) => line.includes("●"));
+  expect(hints).toHaveLength(2);
+  expect(hints[0]).toContain(
+    "Dialogue: 1,0:00:06.20,0:00:09.20,Mako-A,A,0,0,0,fx",
+  );
+  expect(hints[1]).toContain(
+    "Dialogue: 1,0:00:16.20,0:00:19.20,Mako-A,A,0,0,0,fx",
+  );
+  expect(
+    lines
+      .filter((line) => line.startsWith("Comment"))
+      .some((line) => line.includes("●")),
+  ).toBe(false);
+});
+
 test("ASS style: per-layer sizes, bold, colors and roman toggle", async ({
   page,
 }) => {

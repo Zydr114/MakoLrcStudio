@@ -19,6 +19,7 @@ const options = {
   height: 1080,
   fill: "kf" as const,
   leadInMs: 800,
+  introHintMs: 0,
   measure: (text: string, em: number) => [...text].length * em,
   emRatio: 1.448,
 };
@@ -205,6 +206,49 @@ describe("ASS export", () => {
     expect(text).not.toContain("sen nai");
     expect(notices.join(" ")).toContain("不含罗马音");
     expect(importAss(text).assStyle?.includeRoman).toBe(false);
+  });
+  it("shows an intro dot in a free gap and keeps it out of the karaoke source", () => {
+    const project = fromLyrics("[00:10]あ");
+    project.parts[0].name = "A";
+    project.parts[0].lines = [
+      timedLine("あ", [10000], 12000),
+      timedLine("い", [20000], 22000),
+    ];
+    const { text } = exportAss(project, { ...options, introHintMs: 3000 });
+    const all = events(text);
+    const hints = all.filter((line) => line.includes("●"));
+    expect(hints).toHaveLength(2);
+    expect(hints[0]).toContain(
+      "Dialogue: 1,0:00:06.20,0:00:09.20,Mako-A,A,0,0,0,fx",
+    );
+    expect(hints[0]).toContain(`{\\an1\\pos(120,1024)\\fad(150,150)}●`);
+    expect(hints[1]).toContain(
+      "Dialogue: 1,0:00:16.20,0:00:19.20,Mako-A,A,0,0,0,fx",
+    );
+    expect(
+      all
+        .filter((line) => line.startsWith("Comment"))
+        .some((line) => line.includes("●")),
+    ).toBe(false);
+  });
+  it("skips an intro dot when another line is still on screen", () => {
+    const project = fromLyrics("[00:10]あ");
+    project.parts[0].name = "A";
+    project.parts[0].lines = [
+      timedLine("あ", [10000], 20000),
+      timedLine("い", [21000], 22000),
+    ];
+    const { text } = exportAss(project, { ...options, introHintMs: 3000 });
+    const hints = events(text).filter((line) => line.includes("●"));
+    expect(hints).toHaveLength(1);
+    expect(hints[0]).toContain("0:00:06.20,0:00:09.20");
+  });
+  it("does not show an intro dot when the opening is shorter than the hint", () => {
+    const project = fromLyrics("[00:01]あ");
+    project.parts[0].lines = [timedLine("あ", [1000], 3000)];
+    expect(
+      exportAss(project, { ...options, introHintMs: 3000 }).text,
+    ).not.toContain("●");
   });
   it("centers every line in the single-row preset and warns about overlap", () => {
     const style = { ...defaultAssStyle, layout: "single" as const };

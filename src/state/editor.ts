@@ -1020,7 +1020,10 @@ export function createEditor(
     }
   }
   async function exportAss(
-    options: Pick<AssOptions, "width" | "height" | "fill" | "leadInMs">,
+    options: Pick<
+      AssOptions,
+      "width" | "height" | "fill" | "leadInMs" | "introHintMs"
+    >,
   ) {
     const style = assStyleOf(project.value);
     try {
