@@ -100,6 +100,16 @@ test("mdui menus and sliders keep native keyboard actions isolated from recordin
   await volume.focus();
   await volume.press("ArrowLeft");
   await expect(volume).toHaveValue("0.79");
+  await expect
+    .poll(() =>
+      volume.evaluate((input) => {
+        const host = (input.getRootNode() as ShadowRoot).host as HTMLElement & {
+          shadowRoot: ShadowRoot | null;
+        };
+        return host.shadowRoot?.querySelector(".label")?.textContent;
+      }),
+    )
+    .toBe("79%");
   await expect(progress).toHaveValue("1900");
   await setChecked(page, "循环试听");
   await expect(page.getByRole("switch", { name: "循环试听" })).toBeChecked();

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { editor } from "../state/editor";
-import { formatTime } from "../domain/model";
+import { formatClock } from "../domain/model";
 import UiSlider from "./UiSlider.vue";
 import UiSelect from "./UiSelect.vue";
 import UiButton from "./UiButton.vue";
@@ -45,15 +45,17 @@ function locate() {
       @click="play"
     />
     <div class="audio-time">
-      <strong>{{ formatTime(editor.positionMs) }}</strong
-      ><span>/ {{ formatTime(editor.project.audio?.durationMs ?? null) }}</span>
+      <strong>{{ formatClock(editor.positionMs) }}</strong
+      ><span
+        >/ {{ formatClock(editor.project.audio?.durationMs ?? null) }}</span
+      >
     </div>
     <UiSlider
       class="audio-position"
       label="音频位置"
       :model-value="editor.positionMs"
       :max="editor.project.audio?.durationMs ?? 1"
-      :formatter="formatTime"
+      :formatter="formatClock"
       :disabled="!editor.asset"
       @update:model-value="editor.seek"
     />
@@ -83,6 +85,7 @@ function locate() {
         :formatter="(value) => Math.round(value * 100) + '%'"
         @update:model-value="editor.setVolume"
       />
+      <small class="volume-value">{{ Math.round(editor.volume * 100) }}%</small>
     </div>
     <UiButton
       v-if="!embedded"
@@ -120,6 +123,11 @@ function locate() {
 }
 .volume-control .ui-slider {
   width: 76px;
+}
+.volume-value {
+  min-width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .audio-position {
   flex: 1;

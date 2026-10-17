@@ -361,7 +361,7 @@ function apply() {
         <p v-if="!changed.length">没有需要修改的内容。</p>
       </div>
       <footer>
-        <UiButton @click="previewOpen = false">取消</UiButton
+        <UiButton variant="text" @click="previewOpen = false">取消</UiButton
         ><UiButton variant="filled" :disabled="!changed.length" @click="apply"
           >应用整理</UiButton
         >

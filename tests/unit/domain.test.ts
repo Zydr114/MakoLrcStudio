@@ -3,6 +3,7 @@ import {
   activeLines,
   parseTime,
   formatTime,
+  formatClock,
   unitStart,
   validate,
 } from "../../src/domain/model";
@@ -146,6 +147,10 @@ describe("editing invariants", () => {
   });
   it("formats rollover exactly and rejects invalid time fields", () => {
     expect(formatTime(60000)).toBe("01:00.000");
+    expect(formatClock(0)).toBe("00:00");
+    expect(formatClock(6200)).toBe("00:06");
+    expect(formatClock(60000)).toBe("01:00");
+    expect(formatClock(3661000)).toBe("1:01:01");
     expect(parseTime("01:00.001")).toBe(60001);
     expect(parseTime("00:99.100")).toBeNull();
   });

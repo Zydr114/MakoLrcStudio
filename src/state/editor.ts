@@ -851,8 +851,9 @@ export function createEditor(
     sync();
   }
   function setVolume(value: number) {
-    transport.setVolume(value);
-    volume.value = value;
+    const next = Math.round(value * 100) / 100;
+    transport.setVolume(next);
+    volume.value = next;
   }
   function nextLine() {
     if (!isComplete.value) {

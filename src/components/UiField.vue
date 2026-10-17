@@ -10,6 +10,10 @@ const props = withDefaults(
     multiline?: boolean;
     rows?: number;
     type?: "text" | "number";
+    min?: number | string;
+    max?: number | string;
+    step?: number | string;
+    ariaLabel?: string;
   }>(),
   { placeholder: "", multiline: false, rows: 3 },
 );
@@ -18,7 +22,7 @@ const control = ref<TextField>();
 // mdui's floating label is not tied to its input; name the input itself.
 watchEffect(async () => {
   const element = control.value,
-    label = props.label;
+    label = props.ariaLabel || props.label;
   if (element) (await controlInput(element))?.setAttribute("aria-label", label);
 });
 function update(event: Event) {
@@ -33,6 +37,9 @@ function update(event: Event) {
     :label="label"
     :value="modelValue"
     :placeholder="placeholder"
+    :min="min"
+    :max="max"
+    :step="step"
     :autosize="multiline"
     :rows="multiline ? rows : undefined"
     @input="update"

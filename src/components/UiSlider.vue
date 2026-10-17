@@ -20,6 +20,9 @@ watchEffect(async () => {
   const element = control.value,
     label = props.label;
   if (!element) return;
+  // mdui reads this as a property, not as a hyphenated attribute.
+  element.labelFormatter =
+    props.formatter ?? ((value: number) => String(value));
   (await controlInput(element))?.setAttribute("aria-label", label);
 });
 function update(event: Event) {
@@ -35,7 +38,6 @@ function update(event: Event) {
     :max="Math.max(min + step, max)"
     :step="step"
     :disabled="disabled"
-    :label-formatter="formatter ?? ((value: number) => String(value))"
     @input="update"
   />
 </template>

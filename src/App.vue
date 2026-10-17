@@ -8,6 +8,7 @@ import PrepareView from "./views/PrepareView.vue";
 import TimingView from "./views/TimingView.vue";
 import AudioBar from "./components/AudioBar.vue";
 import UiButton from "./components/UiButton.vue";
+import UiColorField from "./components/UiColorField.vue";
 import UiField from "./components/UiField.vue";
 import UiSelect from "./components/UiSelect.vue";
 import UiIconButton from "./components/UiIconButton.vue";
@@ -68,7 +69,7 @@ async function loadBackup(event: Event) {
 }
 function applyTheme() {
   setTheme(theme.value);
-  setColorScheme(seed.value);
+  if (/^#[a-f\d]{6}$/i.test(seed.value)) setColorScheme(seed.value);
   document.dispatchEvent(new Event("mako-theme"));
   try {
     localStorage.setItem(
@@ -429,12 +430,11 @@ onBeforeUnmount(() => {
           label="主题"
           :options="themes"
           @change="applyTheme"
-        /><label class="native-field"
-          >主题色<input
-            v-model="seed"
-            type="color"
-            @input="applyTheme" /></label
-        ><UiField
+        /><UiColorField
+          v-model="seed"
+          label="主题色"
+          @update:model-value="applyTheme"
+        /><UiField
           :model-value="String(editor.compensation)"
           label="录点提前补偿（ms）"
           type="number"

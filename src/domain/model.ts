@@ -189,6 +189,17 @@ export function formatTime(ms: number | null): string {
   return `${ms < 0 ? "-" : ""}${String(Math.floor(value / 60000)).padStart(2, "0")}:${String(Math.floor(value / 1000) % 60).padStart(2, "0")}.${String(value % 1000).padStart(3, "0")}`;
 }
 
+/** Player-facing clock: mm:ss, with hours only when the audio needs them. */
+export function formatClock(ms: number | null): string {
+  if (ms === null) return "—";
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor(total / 60) % 60;
+  const seconds = total % 60;
+  const tail = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return hours ? `${hours}:${tail}` : tail;
+}
+
 export function parseTime(input: string): number | null {
   const match = /^(\d+):([0-5]\d)(?:\.(\d{1,3}))?$/.exec(input.trim());
   if (!match) return null;

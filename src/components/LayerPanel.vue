@@ -120,20 +120,16 @@ function paste() {
       :title="`按行粘贴${name}`"
       @close="pasteOpen = false"
     >
-      <p class="small-note">
-        每行对应「{{
-          editor.part.name
-        }}」的一行歌词，从第一行开始依次填入，会替换已有的{{ name }}。
-      </p>
-      <textarea
+      <UiField
         v-model="pasted"
-        class="paste-area"
+        :label="`粘贴${name}`"
         :aria-label="`粘贴${name}`"
-        rows="10"
-        spellcheck="false"
+        multiline
+        :rows="10"
+        placeholder="每行对应一句歌词"
       />
       <footer>
-        <UiButton @click="pasteOpen = false">取消</UiButton
+        <UiButton variant="text" @click="pasteOpen = false">取消</UiButton
         ><UiButton variant="filled" :disabled="!pasted.trim()" @click="paste"
           >填入</UiButton
         >
@@ -149,15 +145,5 @@ function paste() {
   color: rgb(var(--mdui-color-on-tertiary-container));
   font-size: 12px;
   line-height: 1.7;
-}
-.paste-area {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px;
-  background: transparent;
-  color: var(--ink);
-  font-size: 14px;
-  line-height: 1.6;
 }
 </style>

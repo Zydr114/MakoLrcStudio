@@ -298,7 +298,7 @@ watch(
       </UiButton>
       <UiButton
         class="shift-button"
-        variant="text"
+        variant="tonal"
         @click="
           editor.pause();
           shiftOpen = true;
@@ -532,7 +532,7 @@ watch(
         step="1"
       />
       <footer>
-        <UiButton @click="shiftOpen = false">取消</UiButton
+        <UiButton variant="text" @click="shiftOpen = false">取消</UiButton
         ><UiButton variant="filled" @click="applyShift">应用偏移</UiButton>
       </footer></Modal
     >

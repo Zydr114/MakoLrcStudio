@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import { editor } from "../state/editor";
-import { formatTime } from "../domain/model";
+import { formatClock } from "../domain/model";
 import { songLines, type SongLine } from "../domain/song";
 import KaraokeLine from "./KaraokeLine.vue";
 import Modal from "./Modal.vue";
@@ -139,13 +139,13 @@ function keydown(event: KeyboardEvent) {
           :label="editor.playing ? '暂停整曲' : '播放整曲'"
           @click="editor.togglePlayback"
         />
-        <time>{{ formatTime(editor.positionMs) }}</time>
+        <time>{{ formatClock(editor.positionMs) }}</time>
         <UiSlider
           class="song-position"
           label="整曲试听位置"
           :model-value="editor.positionMs"
           :max="editor.project.audio?.durationMs ?? 1"
-          :formatter="formatTime"
+          :formatter="formatClock"
           @update:model-value="editor.seek"
         />
         <UiSelect

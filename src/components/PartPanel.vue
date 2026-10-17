@@ -11,6 +11,7 @@ import {
 } from "../domain/parts";
 import { partKinds, type PartKind, type VocalPart } from "../domain/model";
 import UiButton from "./UiButton.vue";
+import UiColorField from "./UiColorField.vue";
 import UiField from "./UiField.vue";
 import UiIconButton from "./UiIconButton.vue";
 import UiSelect from "./UiSelect.vue";
@@ -160,7 +161,7 @@ function remove() {
         <p v-if="issue" class="field-error" role="alert">{{ issue }}</p>
       </div>
       <footer>
-        <UiButton @click="creating = false">取消</UiButton
+        <UiButton variant="text" @click="creating = false">取消</UiButton
         ><UiButton variant="filled" @click="create">新增声部</UiButton>
       </footer>
     </Modal>
@@ -177,9 +178,7 @@ function remove() {
           switch
           label="和声（TTML 中附在主行下方）"
         />
-        <label class="native-field"
-          >颜色<input v-model="form.color" type="color"
-        /></label>
+        <UiColorField v-model="form.color" label="颜色" />
         <div class="part-form-actions">
           <UiButton
             :disabled="editing.id === editor.project.mainPartId"
@@ -225,7 +224,7 @@ function remove() {
           >删除声部</UiButton
         >
         <span class="footer-spacer" />
-        <UiButton @click="editingId = null">取消</UiButton
+        <UiButton variant="text" @click="editingId = null">取消</UiButton
         ><UiButton variant="filled" @click="save">保存</UiButton>
       </footer>
     </Modal>

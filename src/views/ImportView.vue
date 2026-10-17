@@ -2,6 +2,7 @@
 import { ref } from "vue";
 import { editor } from "../state/editor";
 import UiButton from "../components/UiButton.vue";
+import UiField from "../components/UiField.vue";
 import Icon from "../components/Icon.vue";
 import UiSelect from "../components/UiSelect.vue";
 import UiToggle from "../components/UiToggle.vue";
@@ -106,16 +107,18 @@ function next() {
           accept=".lrc,.elrc,.txt,.ttml,.xml,.ass,.ssa,.json,text/plain"
           @change="load"
         />
-        <label class="sr-only" for="lyric-paste">粘贴歌词</label
-        ><textarea
-          id="lyric-paste"
+        <UiField
           v-model="text"
-          @input="
+          class="lyric-field"
+          label="粘贴歌词"
+          aria-label="粘贴歌词"
+          multiline
+          :rows="10"
+          placeholder="粘贴歌词，每句一行"
+          @update:model-value="
             invalidEncoding = false;
             editor.error = '';
           "
-          spellcheck="false"
-          placeholder="粘贴歌词，每句一行"
         />
         <div class="import-meta">
           <span>{{
@@ -137,10 +140,11 @@ function next() {
           />
         </div>
       </div>
-      <button
+      <UiButton
         class="audio-drop"
-        @click="emit('audio')"
+        variant="outlined"
         :disabled="editor.loading"
+        @click="emit('audio')"
       >
         <span class="drop-icon"
           ><Icon :name="editor.asset ? 'check' : 'music'" :size="24"
@@ -150,7 +154,7 @@ function next() {
         <span v-if="editor.loading" class="audio-loading"
           ><mdui-linear-progress aria-label="正在解码音频"
         /></span>
-      </button>
+      </UiButton>
     </div>
     <div class="import-footer">
       <UiButton variant="text" @click="emit('backup')">恢复编辑进度</UiButton>

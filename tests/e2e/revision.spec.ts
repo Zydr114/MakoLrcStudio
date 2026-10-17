@@ -175,7 +175,7 @@ test("transport is inside the waveform and source position links regions, previe
     .getByRole("button", { name: "定位选中", exact: true })
     .click();
   await expect(page.locator(".preview-token.playing")).toHaveText("日");
-  await expect(page.locator(".audio-time strong")).toHaveText("00:02.000");
+  await expect(page.locator(".audio-time strong")).toHaveText("00:02");
   await expect(page.locator("[data-workspace]")).toBeFocused();
   const stage = (await page.locator(".wave-stage").boundingBox())!;
   const marker = (await page
@@ -183,7 +183,7 @@ test("transport is inside the waveform and source position links regions, previe
     .boundingBox())!;
   // Click blank waveform before the first token: source seek, no point is written.
   await page.mouse.click(stage.x + 12, stage.y + stage.height - 18);
-  await expect(page.locator(".audio-time strong")).not.toHaveText("00:02.000");
+  await expect(page.locator(".audio-time strong")).not.toHaveText("00:02");
   await expect(
     page.getByRole("slider", { name: "日时间边界" }),
   ).toHaveAttribute("aria-valuenow", "2000");

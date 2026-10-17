@@ -140,10 +140,6 @@ function exportTtml() {
     </mdui-menu>
   </mdui-dropdown>
   <Modal :open="ttmlOpen" title="导出 TTML" @close="ttmlOpen = false">
-    <p class="small-note">
-      AMLL 风格的
-      TTML：每个声部是一个演唱者，和声附在重叠最长的主行下。导出前需要所有声部都已打完。
-    </p>
     <ul class="export-parts">
       <li v-for="part in parts" :key="part.id">
         <i :style="{ background: part.color }" />{{ part.name }}
@@ -158,22 +154,14 @@ function exportTtml() {
       v-model="foldRuby"
       label="注音折叠为普通字（给不支持注音的播放器）"
     />
-    <p v-if="hasRuby" class="small-note">
-      带时间的注音目前只确认 AMLL 会正确显示；其他播放器可能把字和读音连在一起。
-    </p>
     <footer>
-      <UiButton @click="ttmlOpen = false">取消</UiButton
+      <UiButton variant="text" @click="ttmlOpen = false">取消</UiButton
       ><UiButton variant="filled" icon="download" @click="exportTtml"
         >导出 TTML</UiButton
       >
     </footer>
   </Modal>
   <Modal :open="assOpen" title="导出 ASS" @close="assOpen = false">
-    <p class="small-note">
-      同一个文件里有两部分：排好版的成品（Effect 为
-      fx，播放器或压制视频直接显示），以及 Aegisub 卡拉 OK 源（Comment
-      行，Effect 为 karaoke，可再导回本工具）。
-    </p>
     <div class="ass-style-summary">
       <div>
         <strong>{{ layoutSummary }}</strong>
@@ -189,7 +177,9 @@ function exportTtml() {
           >描边 {{ currentStyle.outline }}px · 粗体：{{ boldLayers }}</small
         >
       </div>
-      <UiButton variant="text" @click="assStyleOpen = true">编辑样式…</UiButton>
+      <UiButton variant="tonal" @click="assStyleOpen = true"
+        >编辑样式…</UiButton
+      >
     </div>
     <div class="ass-options">
       <UiSelect
@@ -206,13 +196,8 @@ function exportTtml() {
         placeholder="0 关闭"
       />
     </div>
-    <p class="small-note">
-      前奏提示会在下一行出现前有完整空档时，把「●」加一个空格后作为该行正文前缀提前显示；整行会提前出现，圆点先完成填色，歌词仍按正常时间填色，填
-      0
-      关闭。注音位置按本机浏览器中该字体的字宽计算，播放端要装有同一字体，否则注音会错位。
-    </p>
     <footer>
-      <UiButton @click="assOpen = false">取消</UiButton
+      <UiButton variant="text" @click="assOpen = false">取消</UiButton
       ><UiButton
         variant="filled"
         icon="download"
