@@ -288,31 +288,31 @@ export function exportAss(
   for (const block of blocks) {
     const { line, part } = block.entry;
     const side = blockSide(block);
-    const mainWidth = width(line.text, size.main, style.mainBold);
+    const hint = block.hintStart !== undefined;
+    const eventStart = block.hintStart ?? block.start;
+    const prefix = hint ? "●" : "";
+    const mainWidth = width(prefix + line.text, size.main, style.mainBold);
     const left = x(side, mainWidth);
     const lineStyle = partStyle(part);
-    if (block.hintStart !== undefined)
-      dialogue(
-        1,
-        block.hintStart,
-        block.start,
-        lineStyle,
-        part.name,
-        "fx",
-        `{\\an1\\pos(${round(left)},${round(bandBottom(block.row, "main"))})\\fad(150,150)}${escape("●")}`,
-      );
+    // The dot is the first lyric character, but the rest stays invisible until
+    // the line's normal appearance so the hint does not spoil the next line.
+    const revealAt = block.start - eventStart;
+    const lineDuration = block.end - eventStart;
+    const reveal = hint
+      ? `{\\alpha&HFF&\\t(${revealAt},${revealAt + 150},\\alpha&H00&)\\t(${Math.max(revealAt + 150, lineDuration - 150)},${lineDuration},\\alpha&HFF&)}`
+      : "";
     dialogue(
       1,
-      block.start,
+      eventStart,
       block.end,
       lineStyle,
       part.name,
       "fx",
-      `{\\an1\\pos(${round(left)},${round(bandBottom(block.row, "main"))})\\fad(150,150)}` +
-        karaoke(basePieces(line), block.start, options.fill),
+      `{\\an1\\pos(${round(left)},${round(bandBottom(block.row, "main"))})\\fad(150,150)}${escape(prefix)}${reveal}` +
+        karaoke(basePieces(line), eventStart, options.fill),
     );
     // Each reading sits centered over its base and fills syllable by syllable.
-    let before = "";
+    let before = prefix;
     const ends = syllableEnds(line);
     let index = 0;
     for (const unit of line.units) {

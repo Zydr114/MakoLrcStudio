@@ -277,10 +277,10 @@ test("ASS intro hint appears before a line after a long gap", async ({
   const hints = lines.filter((line) => line.includes("●"));
   expect(hints).toHaveLength(2);
   expect(hints[0]).toContain(
-    "Dialogue: 1,0:00:06.20,0:00:09.20,Mako-A,A,0,0,0,fx",
+    "Dialogue: 1,0:00:06.20,0:00:12.30,Mako-A,A,0,0,0,fx",
   );
   expect(hints[1]).toContain(
-    "Dialogue: 1,0:00:16.20,0:00:19.20,Mako-A,A,0,0,0,fx",
+    "Dialogue: 1,0:00:16.20,0:00:22.30,Mako-A,A,0,0,0,fx",
   );
   expect(
     lines
