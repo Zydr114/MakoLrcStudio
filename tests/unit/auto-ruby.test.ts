@@ -15,6 +15,7 @@ import { editLine } from "../../src/domain/edit";
 import {
   activeLines,
   newLine,
+  newUnit,
   syllablesOf,
   unitStart,
 } from "../../src/domain/model";
@@ -74,9 +75,60 @@ describe("automatic Japanese ruby", () => {
       "す",
       "物語|も・の・が・た・り",
     ]);
-    expect(stats).toEqual({ annotated: 5, kept: 0, skipped: 0 });
+    expect(stats).toEqual({
+      annotated: 5,
+      kept: 0,
+      skipped: 0,
+      skippedReadings: [],
+    });
     expect(pendingRuby(line)).toBe(5);
     expect(line.units.map((unit) => unit.text).join("")).toBe(line.text);
+  }, 30000);
+  it("splits word-level units so okurigana no longer hides a reading", async () => {
+    const read = await tokenizer;
+    const line = newLine("四角い部屋の片隅 覗く合わせ鏡。");
+    line.units = [
+      "四角い",
+      "部屋",
+      "の",
+      "片隅",
+      " ",
+      "覗く",
+      "合わせ",
+      "鏡",
+      "。",
+    ].map((text) => newUnit(text));
+    const stats = applyJapaneseRuby(line, lineSpans(read.tokenize(line.text)));
+    expect(readings(line)).toEqual([
+      "四角|し・か・く",
+      "い",
+      "部屋|へ・や",
+      "の",
+      "片隅|か・た・す・み",
+      " ",
+      "覗|の・ぞ",
+      "く",
+      "合|あ",
+      "わせ",
+      "鏡|きょ・う",
+      "。",
+    ]);
+    expect(stats).toMatchObject({ annotated: 6, skipped: 0 });
+  }, 30000);
+  it("reports which word a recorded time kept from merging", async () => {
+    const read = await tokenizer;
+    const line = newLine("部屋");
+    line.units = [newUnit("部"), newUnit("屋")];
+    line.units[0].syllables[0].startMs = 1000;
+    line.units[1].syllables[0].startMs = 1500;
+    const stats = applyJapaneseRuby(line, lineSpans(read.tokenize("部屋")));
+    expect(stats).toMatchObject({
+      annotated: 0,
+      kept: 0,
+      skipped: 1,
+      skippedReadings: [{ text: "部屋", reason: "timed" }],
+    });
+    expect(readings(line)).toEqual(["部", "屋"]);
   }, 30000);
   it("never replaces a typed reading and never drops recorded times", () => {
     const project = fromLyrics("[00:01]<00:01>今<00:02>日<00:03>も<00:04>");

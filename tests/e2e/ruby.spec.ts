@@ -77,3 +77,44 @@ test("automatic Japanese ruby loads the bundled dictionary on demand", async ({
     dictionary.every((url) => url.startsWith("http://127.0.0.1:4173/")),
   ).toBe(true);
 });
+
+test("automatic Japanese ruby splits word-level units for okurigana", async ({
+  page,
+}) => {
+  await rubyView(
+    page,
+    "[00:00.00]<00:00.00>四角い<00:01.00>部屋<00:02.00>の<00:02.50>片隅<00:03.00> <00:03.20>覗く<00:04.00>合わせ<00:04.50>鏡<00:05.00>。",
+  );
+  await choose(page, "语言", "ja");
+  await page.getByRole("button", { name: "自动注音" }).click();
+  await expect(page.locator(".ruby-unit rt")).toHaveText(
+    ["しかく", "へや", "かたすみ", "のぞ", "あ", "きょう"],
+    { timeout: 30000 },
+  );
+  await expect(page.locator(".skip-report")).toHaveCount(0);
+  await expect(page.getByRole("status")).toContainText("6 处待确认");
+});
+
+test("automatic Japanese ruby lists words it cannot merge across times", async ({
+  page,
+}) => {
+  await rubyView(
+    page,
+    "[00:00.00]四<00:00.10>角<00:00.20>い<00:00.30>部<00:00.40>屋<00:00.50>の<00:00.60>片<00:00.70>隅<00:00.80> <00:00.90>覗<00:01.00>く<00:01.10>合<00:01.20>わ<00:01.30>せ<00:01.40>鏡<00:01.50>。",
+  );
+  await choose(page, "语言", "ja");
+  await page.getByRole("button", { name: "自动注音" }).click();
+  await expect(page.locator(".skip-report")).toBeVisible({ timeout: 30000 });
+  await expect(page.locator(".skip-report")).toContainText("3 处未注音");
+  await expect(page.locator(".skip-report")).toContainText("第 1 行「四角」");
+  await expect(page.locator(".skip-report")).toContainText("「部屋」");
+  await expect(page.locator(".skip-report")).toContainText("「片隅」");
+  await expect(page.locator(".skip-report")).toContainText(
+    "所在单位已有打点，合并会丢失时间",
+  );
+  await expect(page.locator(".ruby-unit rt")).toHaveText([
+    "のぞ",
+    "あ",
+    "きょう",
+  ]);
+});

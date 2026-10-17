@@ -6,11 +6,21 @@ import {
   applyJapaneseRuby,
   emptyStats,
   type AutoRubyStats,
+  type RubySkipReason,
 } from "../domain/autoRuby";
+
+/** A skipped reading with its 1-based line number in the current part. */
+export interface RubySkipNote {
+  line: number;
+  text: string;
+  reason: RubySkipReason;
+}
 
 export type RubyLanguage = "ja" | "zh";
 /** Shown while a dictionary loads: the Japanese one is about 17 MB. */
 export const rubyLoading = ref<RubyLanguage | null>(null);
+/** Per-word report of the last run, so a skip is never silent. */
+export const rubySkips = ref<RubySkipNote[]>([]);
 
 /**
  * Reads the given lines of the current part with a dictionary, then writes the
@@ -46,21 +56,31 @@ export async function runAutoRuby(
         applyChineseRuby(line, pinyin.get(line.id)!, stats);
     }
     const stats = emptyStats();
+    const skips: RubySkipNote[] = [];
     let reopened = 0;
     const ok = editor.command("自动注音", (draft) => {
-      for (const line of activeLines(draft)) {
+      for (const [index, line] of activeLines(draft).entries()) {
         // A line edited while the dictionary loaded is left alone.
         if (texts.get(line.id) !== line.text) continue;
         const complete = completeLine(line);
+        const before = stats.skippedReadings.length;
         annotate(line, stats);
+        for (const entry of stats.skippedReadings.slice(before))
+          skips.push({ line: index + 1, ...entry });
         if (complete && !completeLine(line)) reopened++;
       }
     });
     if (!ok) return false;
+    rubySkips.value = skips;
+    const listed = skips
+      .slice(0, 4)
+      .map((entry) => `第 ${entry.line} 行「${entry.text}」`)
+      .join("、");
+    const more = skips.length > 4 ? ` 等 ${skips.length} 处` : "";
     editor.message = [
       `自动注音完成：${stats.annotated} 处待确认`,
       stats.kept ? `${stats.kept} 处保留了已确认的读音` : "",
-      stats.skipped ? `${stats.skipped} 处与现有切分不符，已跳过` : "",
+      skips.length ? `${skips.length} 处未注音：${listed}${more}` : "",
       reopened ? `${reopened} 行新增了待打的音节` : "",
     ]
       .filter(Boolean)

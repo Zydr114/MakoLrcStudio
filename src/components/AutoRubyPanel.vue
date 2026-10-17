@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { editor } from "../state/editor";
-import { rubyLoading, runAutoRuby, type RubyLanguage } from "../state/autoRuby";
+import {
+  rubyLoading,
+  rubySkips,
+  runAutoRuby,
+  type RubyLanguage,
+  type RubySkipNote,
+} from "../state/autoRuby";
 import { guessLanguage } from "../domain/autoRuby";
 import UiButton from "./UiButton.vue";
 import UiSelect from "./UiSelect.vue";
@@ -21,6 +27,10 @@ const languages = [
   { value: "ja" as const, label: "日语（假名，按音拍）" },
   { value: "zh" as const, label: "中文（带调拼音）" },
 ];
+const reasonText: Record<RubySkipNote["reason"], string> = {
+  timed: "所在单位已有打点，合并会丢失时间",
+  mismatch: "与现有切分不符",
+};
 const scopes = computed(() => [
   {
     value: "part" as const,
@@ -67,6 +77,15 @@ function run() {
         的词典。</template
       ><template v-else>中文每个字的拼音只作显示，不增加打轴次数。</template>
     </p>
+    <div v-if="rubySkips.length" class="skip-report">
+      <p class="small-note">上次自动注音有 {{ rubySkips.length }} 处未注音：</p>
+      <ul class="skip-list">
+        <li v-for="(entry, index) in rubySkips" :key="`${entry.line}-${index}`">
+          第 {{ entry.line }} 行「{{ entry.text }}」·
+          {{ reasonText[entry.reason] }}
+        </li>
+      </ul>
+    </div>
     <div class="divider" />
     <p class="small-note">
       手动注音：点击字选中，Shift +
@@ -80,6 +99,14 @@ function run() {
   border-radius: 12px;
   background: rgba(var(--mdui-color-tertiary-container), 0.7);
   color: rgb(var(--mdui-color-on-tertiary-container));
+  font-size: 12px;
+  line-height: 1.7;
+}
+.skip-list {
+  margin: 0;
+  padding-left: 18px;
+  max-height: 140px;
+  overflow: auto;
   font-size: 12px;
   line-height: 1.7;
 }
