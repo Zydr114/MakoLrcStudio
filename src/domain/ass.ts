@@ -17,7 +17,12 @@ import {
 import { rubyParts } from "./ruby";
 import { songLines, type Side, type SongVoice } from "./song";
 import { normalizeAssStyle, type AssStyle } from "./assStyle";
-import { serializeAssEvent, type AssOutputEvent } from "./assEvents";
+import {
+  serializeAssEvent,
+  type AssOutputEvent,
+  type AssVisual,
+} from "./assEvents";
+import { applyAssEffects } from "./assEffects";
 
 /** Text width in pixels at a font size given in CSS pixels per em; bold asks for the bold face. */
 export type Measure = (text: string, emPx: number, bold?: boolean) => number;
@@ -301,7 +306,19 @@ export function exportAss(
     effect: string,
     text: string,
     kind = "Dialogue",
-  ) => events.push({ layer, start, end, style, actor, effect, text, kind });
+    visual?: AssVisual,
+  ) =>
+    events.push({
+      layer,
+      start,
+      end,
+      style,
+      actor,
+      effect,
+      text,
+      kind,
+      visual,
+    });
   const x = (side: Side, textWidth: number) =>
     side === "right"
       ? options.width - margin - textWidth
@@ -318,6 +335,26 @@ export function exportAss(
     const mainWidth = width(prefix + line.text, size.main, style.mainBold);
     const left = x(side, mainWidth);
     const lineStyle = partStyle(part);
+    const visual = (
+      role: AssVisual["role"],
+      x_: number,
+      band: keyof typeof size,
+      textWidth: number,
+      color: string,
+    ): AssVisual => ({
+      role,
+      x: x_,
+      y: bandBottom(block.row, band),
+      width: textWidth,
+      size: size[band],
+      outline: style.outline * scale * (role === "main" ? 1 : 2 / 3),
+      color,
+      partColor: part.color,
+      singStart: line.startMs!,
+      accents: [],
+    });
+    const mainColor =
+      style.colorMode === "solid" ? style.solidColor : part.color;
     // The dot is the first karaoke character: it fills during the hint, then
     // the ordinary lyric syllables fill at their own times.
     const pieces = hint
@@ -335,6 +372,8 @@ export function exportAss(
       "fx",
       `{\\an1\\pos(${round(left)},${round(bandBottom(block.row, "main"))})\\fad(150,150)}` +
         karaoke(pieces, eventStart, options.fill),
+      "Dialogue",
+      visual("main", left, "main", mainWidth, mainColor),
     );
     // Each reading sits centered over its base and fills syllable by syllable.
     let before = prefix;
@@ -361,6 +400,18 @@ export function exportAss(
           "fx",
           `{\\an2\\pos(${round(center)},${round(bandBottom(block.row, "ruby"))})\\fad(150,150)}` +
             karaoke(pieces, eventStart, options.fill),
+          "Dialogue",
+          visual(
+            "ruby",
+            center,
+            "ruby",
+            width(
+              pieces.map((p) => p.text).join(""),
+              size.ruby,
+              style.rubyBold,
+            ),
+            style.rubyColor ?? mainColor,
+          ),
         );
       }
       index += unit.syllables.length;
@@ -381,6 +432,14 @@ export function exportAss(
         part.name,
         "",
         `{\\an1\\pos(${round(x(side, textWidth))},${round(bandBottom(block.row, band))})\\fad(150,150)}${escape(text)}`,
+        "Dialogue",
+        visual(
+          "sub",
+          x(side, textWidth),
+          band,
+          textWidth,
+          band === "roman" ? style.romanColor : "#ffffff",
+        ),
       );
     };
     if (block.background) {
@@ -395,6 +454,18 @@ export function exportAss(
         "fx",
         `{\\an1\\pos(${round(x(side, bgWidth))},${round(bandBottom(block.row, "background"))})\\fad(150,150)}` +
           karaoke(basePieces(bg.line), eventStart, options.fill),
+        "Dialogue",
+        {
+          ...visual(
+            "background",
+            x(side, bgWidth),
+            "background",
+            bgWidth,
+            style.colorMode === "solid" ? style.solidColor : bg.part.color,
+          ),
+          partColor: bg.part.color,
+          singStart: bg.line.startMs!,
+        },
       );
     }
     if (style.includeRoman && line.roman.trim())
@@ -488,6 +559,8 @@ export function exportAss(
     (part) =>
       `; mako-part: ${[part.name, part.kind, part.background ? 1 : 0, part.color, part.id === project.mainPartId ? 1 : 0].map((v) => String(v).replace(/[|\r\n]/g, " ")).join("|")}`,
   );
+  const decorated = applyAssEffects(events, style.effects, scale);
+  notices.push(...decorated.notices);
   const text = [
     "[Script Info]",
     "; Mako LRC Studio: Dialogue lines with Effect fx are the rendered layout; Comment lines with Effect karaoke are the timing source.",
@@ -508,7 +581,7 @@ export function exportAss(
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
-    ...events.map(serializeAssEvent),
+    ...decorated.events.map(serializeAssEvent),
     "",
   ].join("\n");
   return { text, notices: [...new Set(notices)] };

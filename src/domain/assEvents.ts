@@ -1,5 +1,6 @@
 /** Layout produces events first; effects decorate them before serialization. */
 export interface AssOutputEvent {
+  visual?: AssVisual;
   layer: number;
   start: number;
   end: number;
@@ -8,6 +9,28 @@ export interface AssOutputEvent {
   effect: string;
   text: string;
   kind: string;
+}
+
+export interface AssAccent {
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  start: number;
+  end: number;
+}
+
+export interface AssVisual {
+  role: "main" | "ruby" | "background" | "sub";
+  x: number;
+  y: number;
+  width: number;
+  size: number;
+  outline: number;
+  color: string;
+  partColor: string;
+  singStart: number;
+  accents: AssAccent[];
 }
 
 export const assTime = (ms: number) => {

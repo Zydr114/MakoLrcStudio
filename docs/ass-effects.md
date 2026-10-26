@@ -23,3 +23,7 @@
 - [libass ASS format guide](https://github.com/libass/libass/wiki/ASS-File-Format-Guide)
 
 `\blur` 适合底层光晕，正文独立保持清晰；`\t` 只支持部分可动画标签，移动使用 `\move`，动画裁剪使用矩形；粒子由导出器预生成 ASS 绘图事件。尚未承诺 VSFilter 等其他渲染器的视觉一致性。
+
+### 步骤 2 验证
+
+柔光、霓虹、立体描边已完成；清晰正文位于光晕与轮廓层之上。翻译与罗马音只保留一条正文事件。新增 4 项回归覆盖源注释不变、回读无重复、颜色与分辨率缩放、霓虹真实演唱起点；ASS 相关共 26 项通过，构建通过。浏览器实际字体度量生成的四份 ASS 经 FFmpeg/libass 渲染，已核对注音、和声与正文清晰度；样例 `/tmp/mako-ass-effects/`，可用 `node scripts/ass-effects-samples.mjs` 再生。
