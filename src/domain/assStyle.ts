@@ -3,12 +3,31 @@ export type AssLayout = "classic" | "diagonal" | "single";
 /** How the sung text color is chosen. */
 export type AssColorMode = "part" | "solid";
 
+export const assEffectPresets = [
+  { id: "none", title: "原样", hint: "经典填色" },
+  { id: "soft", title: "柔光", hint: "柔和光晕" },
+  { id: "neon", title: "霓虹", hint: "演唱时亮起" },
+  { id: "outline", title: "立体描边", hint: "双描边与阴影" },
+  { id: "float", title: "柔和浮入", hint: "整句轻盈进入" },
+  { id: "bounce", title: "逐词弹跳", hint: "当前字词轻弹" },
+  { id: "sweep", title: "流光扫过", hint: "亮带随演唱扫过" },
+  { id: "particles", title: "星屑粒子", hint: "稀疏光点散开" },
+] as const;
+export type AssEffectPreset = (typeof assEffectPresets)[number]["id"];
+export interface AssEffects {
+  preset: AssEffectPreset;
+  intensity: "low" | "medium" | "high";
+  /** null follows the vocal part, independently of the lyric's solid color. */
+  color: string | null;
+}
+
 /**
  * A deliberately small ASS style: a layout preset and the few appearance
  * controls exposed in the export dialog. Sizes are in pixels at PlayResY 1080
  * and are scaled with the chosen resolution on export.
  */
 export interface AssStyle {
+  effects: AssEffects;
   layout: AssLayout;
   font: string;
   mainSize: number;
@@ -37,6 +56,7 @@ export interface AssStyle {
 }
 
 export const defaultAssStyle: AssStyle = {
+  effects: { preset: "none", intensity: "medium", color: null },
   layout: "classic",
   font: "Noto Sans CJK JP",
   mainSize: 64,
@@ -106,6 +126,7 @@ export function normalizeAssStyle(value: unknown): AssStyle {
     defaultAssStyle.mainSize,
   );
   return {
+    effects: normalizeAssEffects(raw.effects),
     layout: layouts.includes(raw.layout as AssLayout)
       ? (raw.layout as AssLayout)
       : defaultAssStyle.layout,
@@ -138,6 +159,23 @@ export function normalizeAssStyle(value: unknown): AssStyle {
     colorMode: raw.colorMode === "solid" ? "solid" : "part",
     solidColor: color(raw.solidColor, defaultAssStyle.solidColor),
     unsungColor: color(raw.unsungColor, defaultAssStyle.unsungColor),
+  };
+}
+
+export function normalizeAssEffects(value: unknown): AssEffects {
+  const raw =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Partial<AssEffects>)
+      : {};
+  return {
+    preset: assEffectPresets.some((p) => p.id === raw.preset)
+      ? (raw.preset as AssEffectPreset)
+      : "none",
+    intensity:
+      raw.intensity === "low" || raw.intensity === "high"
+        ? raw.intensity
+        : "medium",
+    color: colorOrNull(raw.color),
   };
 }
 

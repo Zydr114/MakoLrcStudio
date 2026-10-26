@@ -17,6 +17,7 @@ import {
 import { rubyParts } from "./ruby";
 import { songLines, type Side, type SongVoice } from "./song";
 import { normalizeAssStyle, type AssStyle } from "./assStyle";
+import { serializeAssEvent, type AssOutputEvent } from "./assEvents";
 
 /** Text width in pixels at a font size given in CSS pixels per em; bold asks for the bold face. */
 export type Measure = (text: string, emPx: number, bold?: boolean) => number;
@@ -43,13 +44,6 @@ export interface AssExport {
 }
 
 const TAIL_MS = 300;
-const assTime = (ms: number) => {
-  const cs = Math.max(0, Math.round(ms / 10));
-  const h = Math.floor(cs / 360000),
-    m = Math.floor(cs / 6000) % 60,
-    s = Math.floor(cs / 100) % 60;
-  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs % 100).padStart(2, "0")}`;
-};
 /** &HAABBGGRR from #RRGGBB. */
 const assColor = (hex: string, alpha = 0) =>
   `&H${alpha.toString(16).padStart(2, "0").toUpperCase()}${hex.slice(5, 7)}${hex.slice(3, 5)}${hex.slice(1, 3)}`.toUpperCase();
@@ -297,7 +291,7 @@ export function exportAss(
     return block.entry.side;
   };
   const partStyle = (part: VocalPart) => `Mako-${styleName(part.name)}`;
-  const events: string[] = [];
+  const events: AssOutputEvent[] = [];
   const dialogue = (
     layer: number,
     start: number,
@@ -307,10 +301,7 @@ export function exportAss(
     effect: string,
     text: string,
     kind = "Dialogue",
-  ) =>
-    events.push(
-      `${kind}: ${layer},${assTime(start)},${assTime(end)},${style},${styleName(actor)},0,0,0,${effect},${text}`,
-    );
+  ) => events.push({ layer, start, end, style, actor, effect, text, kind });
   const x = (side: Side, textWidth: number) =>
     side === "right"
       ? options.width - margin - textWidth
@@ -517,7 +508,7 @@ export function exportAss(
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
-    ...events,
+    ...events.map(serializeAssEvent),
     "",
   ].join("\n");
   return { text, notices: [...new Set(notices)] };

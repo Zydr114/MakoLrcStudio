@@ -41,6 +41,7 @@ describe("ASS style", () => {
         unsungColor: "#654321",
       }),
     ).toEqual({
+      effects: defaultAssStyle.effects,
       layout: "diagonal",
       font: "Noto Serif CJK JP",
       mainSize: 72,
@@ -105,6 +106,7 @@ describe("ASS style", () => {
     const project = fromLyrics("[00:01]今日");
     project.assStyle = {
       ...defaultAssStyle,
+      effects: { preset: "particles", intensity: "high", color: "#abcdef" },
       layout: "diagonal",
       diagonalPreview: true,
       mainSize: 80,
@@ -117,5 +119,23 @@ describe("ASS style", () => {
     expect(readBackup(JSON.stringify(project)).assStyle).toEqual(
       project.assStyle,
     );
+  });
+
+  it("normalizes effect presets and isolates nested draft settings", () => {
+    expect(
+      normalizeAssStyle({
+        effects: { preset: "script", intensity: 99, color: "red" },
+      }).effects,
+    ).toEqual(defaultAssStyle.effects);
+    const style = normalizeAssStyle({
+      effects: { preset: "neon", intensity: "low", color: "#ABCDEF" },
+    });
+    expect(style.effects).toEqual({
+      preset: "neon",
+      intensity: "low",
+      color: "#abcdef",
+    });
+    style.effects.preset = "soft";
+    expect(defaultAssStyle.effects.preset).toBe("none");
   });
 });
