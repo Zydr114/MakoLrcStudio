@@ -355,6 +355,19 @@ export function exportAss(
     });
     const mainColor =
       style.colorMode === "solid" ? style.solidColor : part.color;
+    const mainVisual = visual("main", left, "main", mainWidth, mainColor);
+    let prefixText = prefix;
+    mainVisual.accents = basePieces(line).map((piece) => {
+      const x_ = left + width(prefixText, size.main, style.mainBold);
+      prefixText += piece.text;
+      return {
+        ...piece,
+        text: escape(piece.text),
+        x: x_,
+        y: mainVisual.y,
+        width: width(prefixText, size.main, style.mainBold) - (x_ - left),
+      };
+    });
     // The dot is the first karaoke character: it fills during the hint, then
     // the ordinary lyric syllables fill at their own times.
     const pieces = hint
@@ -373,7 +386,7 @@ export function exportAss(
       `{\\an1\\pos(${round(left)},${round(bandBottom(block.row, "main"))})\\fad(150,150)}` +
         karaoke(pieces, eventStart, options.fill),
       "Dialogue",
-      visual("main", left, "main", mainWidth, mainColor),
+      mainVisual,
     );
     // Each reading sits centered over its base and fills syllable by syllable.
     let before = prefix;
@@ -391,6 +404,30 @@ export function exportAss(
           start: syllable.startMs!,
           end: ends[index + i],
         }));
+        const rubyWidth = width(
+          pieces.map((p) => p.text).join(""),
+          size.ruby,
+          style.rubyBold,
+        );
+        const rubyVisual = visual(
+          "ruby",
+          center,
+          "ruby",
+          rubyWidth,
+          style.rubyColor ?? mainColor,
+        );
+        rubyVisual.accents = [
+          {
+            text: escape(pieces.map((p) => p.text).join("")),
+            x: center - rubyWidth / 2,
+            y: rubyVisual.y,
+            width: rubyWidth,
+            start: pieces[0].start,
+            end: pieces.at(-1)!.end,
+          },
+        ];
+        // A ruby group moves as a whole with its base, once at the group's start.
+        rubyVisual.singStart = pieces[0].start;
         dialogue(
           2,
           eventStart,
@@ -401,17 +438,7 @@ export function exportAss(
           `{\\an2\\pos(${round(center)},${round(bandBottom(block.row, "ruby"))})\\fad(150,150)}` +
             karaoke(pieces, eventStart, options.fill),
           "Dialogue",
-          visual(
-            "ruby",
-            center,
-            "ruby",
-            width(
-              pieces.map((p) => p.text).join(""),
-              size.ruby,
-              style.rubyBold,
-            ),
-            style.rubyColor ?? mainColor,
-          ),
+          rubyVisual,
         );
       }
       index += unit.syllables.length;
@@ -559,7 +586,13 @@ export function exportAss(
     (part) =>
       `; mako-part: ${[part.name, part.kind, part.background ? 1 : 0, part.color, part.id === project.mainPartId ? 1 : 0].map((v) => String(v).replace(/[|\r\n]/g, " ")).join("|")}`,
   );
-  const decorated = applyAssEffects(events, style.effects, scale);
+  const decorated = applyAssEffects(
+    events,
+    style.effects,
+    scale,
+    options.width,
+    options.height,
+  );
   notices.push(...decorated.notices);
   const text = [
     "[Script Info]",

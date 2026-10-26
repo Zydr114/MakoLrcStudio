@@ -49,7 +49,7 @@ try {
     project.parts.push(bg);
     const metrics = await fontMetrics(defaultAssStyle.font);
     const result = [];
-    for (const preset of assEffectPresets.slice(0, 4)) {
+    for (const preset of assEffectPresets) {
       const start = performance.now();
       const out = exportAss(project, {
         style: {
