@@ -9,6 +9,15 @@ const n = (value: number) => Math.round(value * 100) / 100;
 const cs = (value: number) => Math.round(value / 10) * 10;
 const c = (hex: string) =>
   `&H${hex.slice(5, 7)}${hex.slice(3, 5)}${hex.slice(1, 3)}&`;
+const shine = (hex: string) =>
+  "#" +
+  [1, 3, 5]
+    .map((i) =>
+      Math.round(parseInt(hex.slice(i, i + 2), 16) * 0.3 + 255 * 0.7)
+        .toString(16)
+        .padStart(2, "0"),
+    )
+    .join("");
 const alpha = (value: number) =>
   `&H${Math.round(value).toString(16).padStart(2, "0")}&`;
 export const effectStrength = (effects: AssEffects) =>
@@ -167,7 +176,9 @@ export function applyAssEffects(
         );
         const zoom = 100 + 8 * strength;
         const x = a.x + a.width / 2;
-        const common = `\\an2\\1c${c(v.color)}\\1a&H20&\\bord${n(v.outline)}\\shad0`;
+        // An outline accent leaves the underlying syllable fill visible;
+        // especially ruby must not appear sung ahead of its own timing.
+        const common = `\\an2\\1a&HFF&\\2a&HFF&\\3c${c(color)}\\3a&H60&\\bord${n(1.4 * scale)}\\blur${n(0.4 * scale)}\\shad0`;
         add({
           ...base,
           layer: 30 + event.layer,
@@ -201,7 +212,7 @@ export function applyAssEffects(
           end: start + duration,
           text: tags(
             base.text.replace(/\\fad\([^)]*\)/, ""),
-            `\\1c${c(color)}\\2c${c(color)}\\1a&H00&\\2a&H00&\\3a&HFF&\\shad0` +
+            `\\1c${c(shine(color))}\\2c${c(shine(color))}\\1a&H00&\\2a&H00&\\3a&HFF&\\shad0` +
               rect(a.x, a.x) +
               `\\t(0,${mid},${rect(a.x + (a.width - band) / 2, a.x + (a.width + band) / 2)})` +
               `\\t(${mid},${duration},${rect(a.x + a.width, a.x + a.width)})`,
@@ -225,6 +236,7 @@ export function applyAssEffects(
   );
   candidates.sort((a, b) => a.time - b.time);
   for (const { event, accent: a, index, i, time } of candidates) {
+    if (time >= Math.min(cs(a.end), cs(event.end))) continue;
     const v = event.visual!;
     const rand = random(`${event.actor}|${a.text}|${a.start}|${index}`);
     for (let skip = 0; skip < i * 5; skip++) rand();

@@ -1,5 +1,5 @@
 import type { AudioInfo } from "../audio/transport";
-import { defaultAssStyle, type AssStyle } from "./assStyle";
+import { normalizeAssStyle, type AssStyle } from "./assStyle";
 
 /** The timing atom. A null end continues to the next syllable start, or to the line end. */
 export interface Syllable {
@@ -132,7 +132,7 @@ export function newProject(lines: LyricLine[] = []): ProjectDraft {
     playheadMs: 0,
     translationLang: "",
     romanLang: "",
-    assStyle: { ...defaultAssStyle },
+    assStyle: normalizeAssStyle(undefined),
   };
 }
 export const copyProject = (project: ProjectDraft): ProjectDraft =>

@@ -1,0 +1,599 @@
+{
+  "date": "2026-10-26",
+  "generatedAtUtc": "2026-10-26T09:44:02.348258+00:00",
+  "environment": {
+    "node": "v26.12.1",
+    "ffmpeg": "ffmpeg version n9.0.2 Copyright (c) 2000-2026 the FFmpeg developers",
+    "font": "NotoSansCJK-Regular.ttc: \"Noto Sans CJK JP\" \"Regular\"",
+    "renderer": "FFmpeg libass",
+    "video": "1080p,30fps,H.264 ultrafast; 2 threads; 2 parallel jobs"
+  },
+  "sourceTreeSha256": "9e079d0f2dfd268a6255c9335e7c3baf96a9d884c48f594e756ebe22290c4784",
+  "checks": {
+    "unitTests": 143,
+    "unitTestFiles": 16,
+    "productionBuild": "passed",
+    "format": "passed",
+    "assSamples": 40,
+    "videoClips": 24,
+    "visualInspection": [
+      "desktop 1280x720",
+      "mobile 390x844",
+      "light and dark backgrounds",
+      "three layouts",
+      "720p and 4K",
+      "large font and outline",
+      "intro and next-line preview",
+      "bounce, sweep, particle frame sequences"
+    ],
+    "endToEndTests": 112,
+    "endToEndBrowsers": ["Chromium", "Firefox"],
+    "endToEndResult": "passed against final production build"
+  },
+  "samples": [
+    {
+      "name": "none",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 10.899999998509884,
+      "bytes": 3842,
+      "events": 8
+    },
+    {
+      "name": "none-diagonal",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.6000000014901161,
+      "bytes": 3845,
+      "events": 8
+    },
+    {
+      "name": "none-single",
+      "width": 1920,
+      "height": 1080,
+      "notices": [
+        "「一緒」与上一句重叠，单行版式下可能互相遮挡。",
+        "「星の光」与上一句重叠，单行版式下可能互相遮挡。"
+      ],
+      "exportMs": 0.3999999985098839,
+      "bytes": 3839,
+      "events": 8
+    },
+    {
+      "name": "soft",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.6000000014901161,
+      "bytes": 4911,
+      "events": 14
+    },
+    {
+      "name": "soft-diagonal",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.30000000074505806,
+      "bytes": 4918,
+      "events": 14
+    },
+    {
+      "name": "soft-single",
+      "width": 1920,
+      "height": 1080,
+      "notices": [
+        "「一緒」与上一句重叠，单行版式下可能互相遮挡。",
+        "「星の光」与上一句重叠，单行版式下可能互相遮挡。"
+      ],
+      "exportMs": 0.30000000074505806,
+      "bytes": 4907,
+      "events": 14
+    },
+    {
+      "name": "neon",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.29999999701976776,
+      "bytes": 6153,
+      "events": 20
+    },
+    {
+      "name": "neon-diagonal",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.20000000298023224,
+      "bytes": 6167,
+      "events": 20
+    },
+    {
+      "name": "neon-single",
+      "width": 1920,
+      "height": 1080,
+      "notices": [
+        "「一緒」与上一句重叠，单行版式下可能互相遮挡。",
+        "「星の光」与上一句重叠，单行版式下可能互相遮挡。"
+      ],
+      "exportMs": 0.29999999701976776,
+      "bytes": 6148,
+      "events": 20
+    },
+    {
+      "name": "neon-720",
+      "width": 1280,
+      "height": 720,
+      "notices": [],
+      "exportMs": 4.600000001490116,
+      "bytes": 6134,
+      "events": 20
+    },
+    {
+      "name": "neon-2160",
+      "width": 3840,
+      "height": 2160,
+      "notices": [],
+      "exportMs": 4.699999999254942,
+      "bytes": 6173,
+      "events": 20
+    },
+    {
+      "name": "outline",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.19999999925494194,
+      "bytes": 5100,
+      "events": 14
+    },
+    {
+      "name": "outline-diagonal",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.4000000022351742,
+      "bytes": 5107,
+      "events": 14
+    },
+    {
+      "name": "outline-single",
+      "width": 1920,
+      "height": 1080,
+      "notices": [
+        "「一緒」与上一句重叠，单行版式下可能互相遮挡。",
+        "「星の光」与上一句重叠，单行版式下可能互相遮挡。"
+      ],
+      "exportMs": 0.09999999776482582,
+      "bytes": 5096,
+      "events": 14
+    },
+    {
+      "name": "float",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.4000000022351742,
+      "bytes": 5149,
+      "events": 14
+    },
+    {
+      "name": "float-diagonal",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.19999999925494194,
+      "bytes": 5169,
+      "events": 14
+    },
+    {
+      "name": "float-single",
+      "width": 1920,
+      "height": 1080,
+      "notices": [
+        "「一緒」与上一句重叠，单行版式下可能互相遮挡。",
+        "「星の光」与上一句重叠，单行版式下可能互相遮挡。"
+      ],
+      "exportMs": 0.30000000074505806,
+      "bytes": 5203,
+      "events": 14
+    },
+    {
+      "name": "bounce",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.19999999925494194,
+      "bytes": 9795,
+      "events": 38
+    },
+    {
+      "name": "bounce-diagonal",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 1.300000000745058,
+      "bytes": 9810,
+      "events": 38
+    },
+    {
+      "name": "bounce-single",
+      "width": 1920,
+      "height": 1080,
+      "notices": [
+        "「一緒」与上一句重叠，单行版式下可能互相遮挡。",
+        "「星の光」与上一句重叠，单行版式下可能互相遮挡。"
+      ],
+      "exportMs": 0.3999999985098839,
+      "bytes": 9783,
+      "events": 38
+    },
+    {
+      "name": "bounce-720",
+      "width": 1280,
+      "height": 720,
+      "notices": [],
+      "exportMs": 0.19999999925494194,
+      "bytes": 9881,
+      "events": 38
+    },
+    {
+      "name": "bounce-2160",
+      "width": 3840,
+      "height": 2160,
+      "notices": [],
+      "exportMs": 0.20000000298023224,
+      "bytes": 9853,
+      "events": 38
+    },
+    {
+      "name": "sweep",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.6999999992549419,
+      "bytes": 8136,
+      "events": 26
+    },
+    {
+      "name": "sweep-diagonal",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.19999999925494194,
+      "bytes": 8164,
+      "events": 26
+    },
+    {
+      "name": "sweep-single",
+      "width": 1920,
+      "height": 1080,
+      "notices": [
+        "「一緒」与上一句重叠，单行版式下可能互相遮挡。",
+        "「星の光」与上一句重叠，单行版式下可能互相遮挡。"
+      ],
+      "exportMs": 0.30000000074505806,
+      "bytes": 8131,
+      "events": 26
+    },
+    {
+      "name": "sweep-720",
+      "width": 1280,
+      "height": 720,
+      "notices": [],
+      "exportMs": 0.19999999925494194,
+      "bytes": 8098,
+      "events": 26
+    },
+    {
+      "name": "sweep-2160",
+      "width": 3840,
+      "height": 2160,
+      "notices": [],
+      "exportMs": 0.10000000149011612,
+      "bytes": 8232,
+      "events": 26
+    },
+    {
+      "name": "particles",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.6999999992549419,
+      "bytes": 9018,
+      "events": 36
+    },
+    {
+      "name": "particles-diagonal",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.30000000074505806,
+      "bytes": 9034,
+      "events": 36
+    },
+    {
+      "name": "particles-single",
+      "width": 1920,
+      "height": 1080,
+      "notices": [
+        "「一緒」与上一句重叠，单行版式下可能互相遮挡。",
+        "「星の光」与上一句重叠，单行版式下可能互相遮挡。"
+      ],
+      "exportMs": 0.3999999985098839,
+      "bytes": 9024,
+      "events": 36
+    },
+    {
+      "name": "particles-720",
+      "width": 1280,
+      "height": 720,
+      "notices": [],
+      "exportMs": 0.19999999925494194,
+      "bytes": 8997,
+      "events": 36
+    },
+    {
+      "name": "particles-2160",
+      "width": 3840,
+      "height": 2160,
+      "notices": [],
+      "exportMs": 0.4000000022351742,
+      "bytes": 9085,
+      "events": 36
+    },
+    {
+      "name": "float-edge",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 2.300000000745058,
+      "bytes": 3040,
+      "events": 6
+    },
+    {
+      "name": "bounce-edge",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.19999999925494194,
+      "bytes": 6439,
+      "events": 22
+    },
+    {
+      "name": "sweep-edge",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.20000000298023224,
+      "bytes": 5242,
+      "events": 14
+    },
+    {
+      "name": "particles-edge",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 0.19999999925494194,
+      "bytes": 6275,
+      "events": 23
+    },
+    {
+      "name": "none-dense",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 13.400000002235174,
+      "bytes": 58878,
+      "events": 120
+    },
+    {
+      "name": "neon-dense",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 14.099999997764826,
+      "bytes": 140718,
+      "events": 360
+    },
+    {
+      "name": "bounce-dense",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 23.800000000745058,
+      "bytes": 1040180,
+      "events": 4560
+    },
+    {
+      "name": "particles-dense",
+      "width": 1920,
+      "height": 1080,
+      "notices": [],
+      "exportMs": 39.30000000074506,
+      "bytes": 1369056,
+      "events": 6720
+    }
+  ],
+  "render": [
+    {
+      "name": "none",
+      "background": "dark",
+      "seconds": 10,
+      "wallSeconds": 0.862,
+      "realtimeFactor": 11.6
+    },
+    {
+      "name": "none",
+      "background": "light",
+      "seconds": 10,
+      "wallSeconds": 0.867,
+      "realtimeFactor": 11.53
+    },
+    {
+      "name": "soft",
+      "background": "dark",
+      "seconds": 10,
+      "wallSeconds": 0.747,
+      "realtimeFactor": 13.39
+    },
+    {
+      "name": "soft",
+      "background": "light",
+      "seconds": 10,
+      "wallSeconds": 0.74,
+      "realtimeFactor": 13.51
+    },
+    {
+      "name": "neon",
+      "background": "dark",
+      "seconds": 10,
+      "wallSeconds": 0.843,
+      "realtimeFactor": 11.86
+    },
+    {
+      "name": "neon",
+      "background": "light",
+      "seconds": 10,
+      "wallSeconds": 0.973,
+      "realtimeFactor": 10.28
+    },
+    {
+      "name": "outline",
+      "background": "dark",
+      "seconds": 10,
+      "wallSeconds": 0.937,
+      "realtimeFactor": 10.67
+    },
+    {
+      "name": "outline",
+      "background": "light",
+      "seconds": 10,
+      "wallSeconds": 0.871,
+      "realtimeFactor": 11.48
+    },
+    {
+      "name": "float",
+      "background": "dark",
+      "seconds": 10,
+      "wallSeconds": 0.752,
+      "realtimeFactor": 13.3
+    },
+    {
+      "name": "float",
+      "background": "light",
+      "seconds": 10,
+      "wallSeconds": 0.837,
+      "realtimeFactor": 11.95
+    },
+    {
+      "name": "bounce",
+      "background": "dark",
+      "seconds": 10,
+      "wallSeconds": 0.945,
+      "realtimeFactor": 10.58
+    },
+    {
+      "name": "bounce",
+      "background": "light",
+      "seconds": 10,
+      "wallSeconds": 0.737,
+      "realtimeFactor": 13.57
+    },
+    {
+      "name": "sweep",
+      "background": "dark",
+      "seconds": 10,
+      "wallSeconds": 0.745,
+      "realtimeFactor": 13.42
+    },
+    {
+      "name": "sweep",
+      "background": "light",
+      "seconds": 10,
+      "wallSeconds": 0.856,
+      "realtimeFactor": 11.68
+    },
+    {
+      "name": "particles",
+      "background": "dark",
+      "seconds": 10,
+      "wallSeconds": 0.747,
+      "realtimeFactor": 13.39
+    },
+    {
+      "name": "particles",
+      "background": "light",
+      "seconds": 10,
+      "wallSeconds": 0.723,
+      "realtimeFactor": 13.83
+    },
+    {
+      "name": "float-edge",
+      "background": "dark",
+      "seconds": 12,
+      "wallSeconds": 0.979,
+      "realtimeFactor": 12.26
+    },
+    {
+      "name": "bounce-edge",
+      "background": "dark",
+      "seconds": 12,
+      "wallSeconds": 1.049,
+      "realtimeFactor": 11.44
+    },
+    {
+      "name": "sweep-edge",
+      "background": "dark",
+      "seconds": 12,
+      "wallSeconds": 0.875,
+      "realtimeFactor": 13.71
+    },
+    {
+      "name": "particles-edge",
+      "background": "dark",
+      "seconds": 12,
+      "wallSeconds": 1.045,
+      "realtimeFactor": 11.48
+    },
+    {
+      "name": "none-dense",
+      "background": "dark",
+      "seconds": 30,
+      "wallSeconds": 2.531,
+      "realtimeFactor": 11.85
+    },
+    {
+      "name": "neon-dense",
+      "background": "dark",
+      "seconds": 30,
+      "wallSeconds": 5.811,
+      "realtimeFactor": 5.16
+    },
+    {
+      "name": "bounce-dense",
+      "background": "dark",
+      "seconds": 30,
+      "wallSeconds": 3.478,
+      "realtimeFactor": 8.63
+    },
+    {
+      "name": "particles-dense",
+      "background": "dark",
+      "seconds": 30,
+      "wallSeconds": 2.818,
+      "realtimeFactor": 10.65
+    }
+  ],
+  "limits": {
+    "particlesPerUnit": 3,
+    "simultaneousParticles": 48,
+    "extraEvents": 30000
+  },
+  "notes": [
+    "Synthetic performance samples are local observations, not guarantees for other devices.",
+    "Dense sample: 120 lines, 2160 units, about 4 minutes; full export; first 30s rendered.",
+    "Browser HTML/CSS preview is schematic. Other ASS renderers have not been independently accepted."
+  ]
+}

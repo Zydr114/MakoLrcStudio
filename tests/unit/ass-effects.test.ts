@@ -142,6 +142,7 @@ describe("ASS animation and budgets", () => {
     line.units[0].syllables[1].startMs = 2300;
     const out = exportAss(p, options("bounce")).text;
     const accents = out.split("\n").filter((l) => /^Dialogue: 3[12],/.test(l));
+    expect(accents.every((l) => l.includes("\\1a&HFF&\\2a&HFF&"))).toBe(true);
     expect(accents).toHaveLength(6); // 2 main units + 1 whole ruby, rise and fall
     expect(
       accents
@@ -249,4 +250,46 @@ describe("ASS animation and budgets", () => {
     );
     expect(out.events.filter((e) => e.layer >= 30)).toHaveLength(0);
   });
+});
+
+it("warns about overlong lines and ignores decorative sublines on import", () => {
+  const p = fromLyrics("[00:01]<00:01>" + "星".repeat(100) + "<00:02>");
+  p.parts[0].lines[0].translation = "Original";
+  const out = exportAss(p, options("particles"));
+  expect(out.notices.some((n) => n.includes("超出字幕可用宽度"))).toBe(true);
+  const decorated =
+    out.text +
+    "Dialogue: 40,0:00:01.00,0:00:02.00,Mako-Translation,主唱,0,0,0,fx,{\\p1}m 0 0 l 1 1{\\p0}\n";
+  expect(importAss(decorated).parts[0].lines[0].translation).toBe("Original");
+});
+
+it("stops spawning particles at the unit end and keeps their paths within the frame", () => {
+  const event = visualEvent();
+  event.visual!.accents[0] = {
+    ...event.visual!.accents[0],
+    end: 1020,
+    x: 1278,
+    y: 715,
+    width: 90,
+  };
+  const out = applyAssEffects(
+    [event],
+    { preset: "particles", intensity: "high", color: null },
+    2 / 3,
+    1280,
+    720,
+  );
+  const particles = out.events.filter((e) => e.layer === 40);
+  expect(particles).toHaveLength(1);
+  expect(particles[0].start).toBe(1000);
+  const path = /\\move\(([^)]*)\)/
+    .exec(particles[0].text)![1]
+    .split(",")
+    .map(Number);
+  expect(path[0]).toBeLessThan(1280);
+  expect(path[2]).toBeLessThan(1280);
+  expect(path[1]).toBeGreaterThan(0);
+  expect(path[3]).toBeGreaterThan(0);
+  expect(path[1]).toBeLessThan(720);
+  expect(path[3]).toBeLessThan(720);
 });

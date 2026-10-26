@@ -170,7 +170,8 @@ export function exportAss(
     translation: all.some((line) => line.translation.trim()),
   };
   // A block is a main line with what rides on it, stacked top to bottom.
-  const gap = Math.round(6 * scale);
+  // Give glow and moving accents a little space between annotation bands.
+  const gap = Math.round((style.effects.preset === "none" ? 6 : 10) * scale);
   const bands: [keyof typeof size, number][] = [];
   if (has.ruby) bands.push(["ruby", size.ruby]);
   bands.push(["main", size.main]);
@@ -333,6 +334,10 @@ export function exportAss(
     const eventStart = block.hintStart ?? block.previewStart ?? block.start;
     const prefix = hint ? "● " : "";
     const mainWidth = width(prefix + line.text, size.main, style.mainBold);
+    if (mainWidth > options.width - 2 * margin)
+      notices.push(
+        `「${line.text}」超出字幕可用宽度，可能被裁切；请缩小字号或拆行。`,
+      );
     const left = x(side, mainWidth);
     const lineStyle = partStyle(part);
     const visual = (
@@ -886,7 +891,7 @@ export function importAss(text: string): AssImport {
   const parts = [...byKey.values()].filter((part) => part.lines.length);
   if (!parts.length) throw new Error("ASS 文件里没有可导入的歌词行。");
   for (const part of parts) part.lines.sort((a, b) => a.startMs! - b.startMs!);
-  for (const event of events.filter(isSub)) {
+  for (const event of events.filter((e) => isSub(e) && e.effect !== "fx")) {
     const part = byKey.get(keyOf(event));
     const field = event.style === "Mako-Translation" ? "translation" : "roman";
     let best: LyricLine | null = null,

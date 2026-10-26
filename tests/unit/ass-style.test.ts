@@ -139,3 +139,11 @@ describe("ASS style", () => {
     expect(defaultAssStyle.effects.preset).toBe("none");
   });
 });
+
+it("new projects do not share mutable nested effect settings", () => {
+  const first = fromLyrics("[00:01]君");
+  const second = fromLyrics("[00:01]星");
+  first.assStyle!.effects.preset = "neon";
+  expect(second.assStyle!.effects.preset).toBe("none");
+  expect(defaultAssStyle.effects.preset).toBe("none");
+});

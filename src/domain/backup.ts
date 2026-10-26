@@ -6,7 +6,7 @@ import {
   type LyricLine,
   type ProjectDraft,
 } from "./model";
-import { defaultAssStyle, normalizeAssStyle } from "./assStyle";
+import { normalizeAssStyle } from "./assStyle";
 
 interface V1Line {
   id: string;
@@ -77,7 +77,7 @@ function migrate(value: V1Project): ProjectDraft {
     activePartId: partId,
     translationLang: "",
     romanLang: "",
-    assStyle: { ...defaultAssStyle },
+    assStyle: normalizeAssStyle(undefined),
   };
 }
 

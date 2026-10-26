@@ -25,7 +25,7 @@ try {
     const { fontMetrics } = await import("/src/state/assFont.ts");
     const project = newProject(
       importLyrics(
-        "[00:01]<00:01>君<00:01.70>と<00:02.30>歌<00:03.10>う<00:03.80>\n[00:04.20]<00:04.20>Hello <00:05.10>world<00:06.30>\n[00:07]<00:07>星<00:07.70>の<00:08.20>光<00:09.20>",
+        "[00:01]<00:01>君<00:01.70>と<00:02.30>歌<00:03.10>う<00:03.80>\n[00:04.80]<00:04.80>Hello <00:05.50>world<00:06.30>\n[00:07]<00:07>星<00:07.70>の<00:08.20>光<00:09.20>",
       ).lines,
     );
     project.parts[0].name = "A";
@@ -49,26 +49,100 @@ try {
     project.parts.push(bg);
     const metrics = await fontMetrics(defaultAssStyle.font);
     const result = [];
-    for (const preset of assEffectPresets) {
+    function sample(
+      name,
+      source,
+      style,
+      width = 1920,
+      height = 1080,
+      extra = {},
+    ) {
       const start = performance.now();
-      const out = exportAss(project, {
-        style: {
-          ...defaultAssStyle,
-          effects: { preset: preset.id, intensity: "medium", color: null },
-        },
-        width: 1920,
-        height: 1080,
+      const out = exportAss(source, {
+        style,
+        width,
+        height,
         fill: "kf",
         leadInMs: 800,
         introHintMs: 0,
+        ...extra,
         ...metrics,
       });
       result.push({
-        name: preset.id,
+        name,
+        width,
+        height,
         ...out,
         exportMs: performance.now() - start,
       });
     }
+    for (const preset of assEffectPresets) {
+      const style = {
+        ...defaultAssStyle,
+        effects: { preset: preset.id, intensity: "medium", color: null },
+      };
+      sample(preset.id, project, style);
+      for (const layout of ["diagonal", "single"])
+        sample(`${preset.id}-${layout}`, project, {
+          ...style,
+          layout,
+          diagonalPreview: true,
+        });
+      for (const height of [720, 2160]) {
+        if (["neon", "bounce", "sweep", "particles"].includes(preset.id))
+          sample(
+            `${preset.id}-${height}`,
+            project,
+            style,
+            (height * 16) / 9,
+            height,
+          );
+      }
+    }
+    const edgeProject = newProject(
+      importLyrics(
+        "[00:10]<00:10>星<00:10.05>の<00:10.10>光<00:10.12>と<00:10.50>君<00:11.10>\n[00:14]<00:14>朝<00:14.60>日<00:15.50>",
+      ).lines,
+    );
+    setRuby(edgeProject.parts[0].lines[0], 4, ["き", "み"]);
+    edgeProject.parts[0].lines[0].units[4].syllables[1].startMs = 10800;
+    for (const preset of ["float", "bounce", "sweep", "particles"])
+      sample(
+        `${preset}-edge`,
+        edgeProject,
+        {
+          ...defaultAssStyle,
+          layout: "diagonal",
+          diagonalPreview: true,
+          mainSize: 120,
+          rubySize: 72,
+          outline: 12,
+          effects: { preset, intensity: "high", color: "#ff8800" },
+        },
+        1920,
+        1080,
+        { leadInMs: 0, introHintMs: 3000 },
+      );
+    const dense = newProject([]);
+    const { newLine } = await import("/src/domain/model.ts");
+    const { tokenize } = await import("/src/domain/tokenize.ts");
+    for (let i = 0; i < 120; i++) {
+      const line = newLine(
+        "君と歌う星の光を見上げて朝まで踊ろう",
+        1000 + i * 2000,
+      );
+      line.units = tokenize(line.text);
+      line.units.forEach(
+        (u, j) => (u.syllables[0].startMs = line.startMs + j * 70),
+      );
+      line.endMs = line.startMs + 1800;
+      dense.parts[0].lines.push(line);
+    }
+    for (const preset of ["none", "neon", "bounce", "particles"])
+      sample(`${preset}-dense`, dense, {
+        ...defaultAssStyle,
+        effects: { preset, intensity: "high", color: null },
+      });
     return result;
   });
   for (const sample of samples)
