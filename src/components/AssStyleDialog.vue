@@ -2,12 +2,14 @@
 import { computed, ref, watch } from "vue";
 import {
   assStyleRanges,
+  assEffectPresets,
   defaultAssStyle,
   normalizeAssStyle,
   type AssLayout,
   type AssStyle,
 } from "../domain/assStyle";
 import Modal from "./Modal.vue";
+import AssEffectPreview from "./AssEffectPreview.vue";
 import UiButton from "./UiButton.vue";
 import UiColorField from "./UiColorField.vue";
 import UiField from "./UiField.vue";
@@ -18,7 +20,7 @@ const props = withDefaults(
   { partColor: "#0b84d8" },
 );
 const emit = defineEmits<{ close: []; save: [style: AssStyle] }>();
-const draft = ref<AssStyle>({ ...defaultAssStyle });
+const draft = ref<AssStyle>(normalizeAssStyle(defaultAssStyle));
 watch(
   () => props.open,
   (open) => {
@@ -62,25 +64,16 @@ const mainColor = computed(() =>
 );
 const rubyColor = computed(() => draft.value.rubyColor ?? mainColor.value);
 const rubyFollow = computed(() => draft.value.rubyColor === null);
-const previewStyle = computed<Record<string, string>>(() => ({
-  "--main-color": mainColor.value,
-  "--ruby-color": rubyColor.value,
-  "--roman-color": draft.value.romanColor,
-  "--unsung-color": draft.value.unsungColor,
-  "--outline-color": draft.value.outlineColor,
-  "--main-size": `${Math.max(20, Math.min(48, draft.value.mainSize * 0.5))}px`,
-  "--ruby-size": `${Math.max(10, Math.min(24, draft.value.rubySize * 0.5))}px`,
-  "--roman-size": `${Math.max(
-    10,
-    Math.min(22, draft.value.romanSize * 0.5),
-  )}px`,
-  "--outline-width": draft.value.outline
-    ? `${Math.min(3.6, draft.value.outline * 0.35).toFixed(2)}px`
-    : "0px",
-  fontFamily: `"${draft.value.font.replace(/"/g, "")}", "Noto Sans CJK JP", "Noto Sans CJK SC", serif`,
-}));
+const intensities = [
+  { value: "low" as const, label: "轻" },
+  { value: "medium" as const, label: "中" },
+  { value: "high" as const, label: "强" },
+];
+function followEffectColor(follow: boolean) {
+  draft.value.effects.color = follow ? null : props.partColor;
+}
 function reset() {
-  draft.value = { ...defaultAssStyle };
+  draft.value = normalizeAssStyle(defaultAssStyle);
 }
 function toggleRubyFollow(follow: boolean) {
   draft.value.rubyColor = follow ? null : "#ffffff";
@@ -111,45 +104,56 @@ function save() {
             ></span
           >
         </div>
-        <div
-          class="preview-stage"
-          :class="`is-${draft.layout}`"
-          :style="previewStyle"
-          role="img"
-          aria-label="字幕样式预览"
-        >
-          <div class="preview-block block-a">
-            <span class="preview-main" :class="{ bold: draft.mainBold }"
-              ><ruby
-                ><span class="sung">四角</span
-                ><rt :class="{ bold: draft.rubyBold }">しかく</rt></ruby
-              ><span class="unsung">い部屋</span></span
-            >
-            <span
-              v-if="draft.includeRoman"
-              class="preview-roman"
-              :class="{ bold: draft.romanBold }"
-              >shikakui heya</span
-            >
-          </div>
-          <div class="preview-block block-b">
-            <span class="preview-main" :class="{ bold: draft.mainBold }"
-              ><span class="unsung">の片隅</span></span
-            >
-            <span
-              v-if="draft.includeRoman"
-              class="preview-roman"
-              :class="{ bold: draft.romanBold }"
-              >no katasumi</span
-            >
-          </div>
-        </div>
-        <div class="preview-legend">
-          <span><i class="legend-dot sung" />已唱</span>
-          <span><i class="legend-dot unsung" />未唱</span>
-        </div>
+        <AssEffectPreview
+          v-if="open"
+          :settings="draft"
+          :part-color="partColor"
+        />
       </aside>
       <div class="style-settings">
+        <section class="style-section">
+          <div class="section-heading"><h3>特效</h3></div>
+          <div class="effect-grid" role="group" aria-label="特效预设">
+            <button
+              v-for="preset in assEffectPresets"
+              :key="preset.id"
+              type="button"
+              class="effect-card"
+              :class="{ selected: draft.effects.preset === preset.id }"
+              :aria-pressed="draft.effects.preset === preset.id"
+              :aria-label="preset.title"
+              @click="draft.effects.preset = preset.id"
+            >
+              <span
+                class="effect-swatch"
+                :class="`swatch-${preset.id}`"
+                aria-hidden="true"
+                >Aa</span
+              >
+              <span
+                ><strong>{{ preset.title }}</strong
+                ><small>{{ preset.hint }}</small></span
+              >
+            </button>
+          </div>
+          <div v-if="draft.effects.preset !== 'none'" class="effect-options">
+            <UiSelect
+              v-model="draft.effects.intensity"
+              label="特效强度"
+              :options="intensities"
+            />
+            <UiToggle
+              :model-value="draft.effects.color === null"
+              label="特效跟随声部色"
+              @update:model-value="followEffectColor"
+            />
+            <UiColorField
+              v-if="draft.effects.color !== null"
+              v-model="draft.effects.color"
+              label="特效颜色"
+            />
+          </div>
+        </section>
         <section class="style-section">
           <div class="section-heading"><h3>版式</h3></div>
           <div class="layout-grid" role="group" aria-label="版式预设">
@@ -402,133 +406,6 @@ function save() {
   color: var(--muted);
   font-size: 10px;
 }
-.preview-stage {
-  position: relative;
-  height: 248px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 18px;
-  background:
-    radial-gradient(
-      circle at 18% 18%,
-      rgba(1, 207, 240, 0.17),
-      transparent 42%
-    ),
-    radial-gradient(
-      circle at 86% 82%,
-      rgba(255, 138, 101, 0.13),
-      transparent 46%
-    ),
-    #10151a;
-  color: #fff;
-}
-.preview-stage::before {
-  position: absolute;
-  inset: 0;
-  content: "";
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 32px 32px;
-  mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    #000 28%,
-    #000 72%,
-    transparent
-  );
-  pointer-events: none;
-}
-.preview-block {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  white-space: nowrap;
-}
-.preview-block.block-a {
-  left: 8%;
-  bottom: 12%;
-  align-items: flex-start;
-}
-.preview-block.block-b {
-  top: 10%;
-  right: 8%;
-  align-items: flex-end;
-}
-.is-diagonal .preview-block.block-a {
-  top: 10%;
-  bottom: auto;
-}
-.is-diagonal .preview-block.block-b {
-  top: auto;
-  bottom: 12%;
-}
-.is-single .preview-block.block-a {
-  left: 50%;
-  bottom: 12%;
-  align-items: center;
-  transform: translateX(-50%);
-}
-.is-single .preview-block.block-b {
-  display: none;
-}
-.preview-main,
-.preview-main rt,
-.preview-roman {
-  -webkit-text-stroke: var(--outline-width) var(--outline-color);
-  paint-order: stroke fill;
-}
-.preview-main {
-  color: var(--main-color);
-  font-size: var(--main-size);
-  line-height: 1.02;
-}
-.preview-main .unsung,
-.preview-block.block-b .preview-main {
-  color: var(--unsung-color);
-}
-.preview-main rt {
-  color: var(--ruby-color);
-  font-size: var(--ruby-size);
-  font-weight: inherit;
-  letter-spacing: 0.14em;
-  line-height: 1;
-}
-.preview-roman {
-  color: var(--roman-color);
-  font-size: var(--roman-size);
-  letter-spacing: 0.03em;
-  line-height: 1.1;
-}
-.bold {
-  font-weight: 700;
-}
-.preview-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  margin-top: 10px;
-  color: var(--muted);
-  font-size: 10px;
-}
-.preview-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.legend-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-.legend-dot.sung {
-  background: var(--main-color);
-}
-.legend-dot.unsung {
-  background: var(--unsung-color);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
 .style-settings {
   display: flex;
   flex-direction: column;
@@ -761,6 +638,90 @@ function save() {
 .footer-gap {
   flex: 1;
 }
+.effect-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.effect-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.effect-card:hover {
+  border-color: var(--accent);
+}
+.effect-card.selected {
+  border-color: var(--accent);
+  background: rgba(var(--mdui-color-primary), 0.12);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.effect-card strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+.effect-card small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.effect-swatch {
+  flex: 0 0 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #14202b;
+  color: #fff;
+  font-size: 19px;
+  font-weight: 600;
+}
+.effect-swatch:not(.swatch-none) {
+  text-shadow: 0 0 7px #69d2f4;
+}
+.swatch-outline {
+  -webkit-text-stroke: 1px #69d2f4;
+  paint-order: stroke fill;
+}
+.swatch-neon {
+  color: #b7edff;
+  text-shadow:
+    0 0 4px #69d2f4,
+    0 0 12px #69d2f4 !important;
+}
+.swatch-float {
+  padding-bottom: 5px;
+}
+.swatch-bounce {
+  font-style: italic;
+}
+.swatch-sweep {
+  background: linear-gradient(110deg, #14202b 35%, #31596d 50%, #14202b 65%);
+}
+.swatch-particles {
+  background:
+    radial-gradient(circle at 14% 20%, #69d2f4 1px, transparent 2px),
+    radial-gradient(circle at 85% 35%, #69d2f4 1px, transparent 2px), #14202b;
+}
+.effect-options {
+  display: grid;
+  grid-template-columns: minmax(70px, 0.65fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.effect-options :deep(.ui-color-field) {
+  grid-column: 1 / -1;
+}
 @media (max-width: 780px) {
   .style-workbench {
     grid-template-columns: 1fr;
@@ -768,9 +729,6 @@ function save() {
   }
   .style-preview {
     position: static;
-  }
-  .preview-stage {
-    height: 230px;
   }
   .appearance-grid {
     grid-template-columns: 1fr 1fr;

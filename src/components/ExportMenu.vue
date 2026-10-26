@@ -3,7 +3,11 @@ import { computed, ref, watch } from "vue";
 import type { Menu } from "mdui/components/menu.js";
 import { editor } from "../state/editor";
 import { partKindLabels } from "../domain/parts";
-import { assStyleOf, type AssStyle } from "../domain/assStyle";
+import {
+  assStyleOf,
+  assEffectPresets,
+  type AssStyle,
+} from "../domain/assStyle";
 import UiButton from "./UiButton.vue";
 import UiToggle from "./UiToggle.vue";
 import UiField from "./UiField.vue";
@@ -22,6 +26,16 @@ const ass = ref({
   introHint: "0",
 });
 const currentStyle = computed(() => assStyleOf(editor.project));
+const effectSummary = computed(() => {
+  const effect = currentStyle.value.effects;
+  const preset = assEffectPresets.find((p) => p.id === effect.preset)!;
+  return (
+    preset.title +
+    (effect.preset === "none"
+      ? ""
+      : " · " + { low: "轻", medium: "中", high: "强" }[effect.intensity])
+  );
+});
 const boldLayers = computed(
   () =>
     [
@@ -102,11 +116,17 @@ const hasRuby = computed(() =>
 function choose(event: Event) {
   const menu = event.currentTarget as Menu;
   const value = menu.value as string;
-  menu.value = "";
+  if (!["ttml", "ass", "lrc"].includes(value)) return;
   editor.pause();
   if (value === "ttml") ttmlOpen.value = true;
   else if (value === "ass") assOpen.value = true;
   else if (value === "lrc") editor.exportLrc();
+  // Clear the selection after the dropdown has processed its close. Clearing
+  // synchronously can race the next trigger when the same format is exported
+  // repeatedly in one session.
+  requestAnimationFrame(() => {
+    menu.value = "";
+  });
 }
 function exportTtml() {
   // Either way the dialog closes: a failure points at the line to fix.
@@ -171,6 +191,7 @@ function exportTtml() {
       <div>
         <strong>{{ layoutSummary }}</strong>
         <small>{{ currentStyle.font }}</small>
+        <small>特效：{{ effectSummary }}</small>
         <small
           >歌词 {{ currentStyle.mainSize }}px · 注音
           {{ currentStyle.rubySize }}px · 罗马音

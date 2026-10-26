@@ -533,3 +533,142 @@ test("ASS style: per-layer sizes, bold, colors and roman toggle", async ({
     JSON.parse(noRomanComment.slice("; mako-style: ".length)),
   ).toMatchObject({ includeRoman: false, romanSize: 36 });
 });
+
+async function openEffectProject(page: import("@playwright/test").Page) {
+  const first = line(
+    [
+      [
+        "君",
+        [
+          ["き", 1000],
+          ["み", 1300],
+        ],
+        0,
+      ],
+      ["と", null, 1700],
+    ],
+    2600,
+    { translation: "与你", roman: "kimi to" },
+  );
+  const a = part("A", "#0b84d8", [first]);
+  await page.goto("/");
+  await page
+    .locator('input[type=file][accept=".json,application/json"]')
+    .setInputFiles({
+      name: "effects.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(
+        JSON.stringify({
+          version: 2,
+          name: "effects",
+          metadata: {},
+          audio: null,
+          parts: [a],
+          mainPartId: a.id,
+          activePartId: a.id,
+          stage: 1,
+          unlockedStage: 3,
+          activeLineId: first.id,
+          playheadMs: 0,
+          translationLang: "zh",
+          romanLang: "ja-Latn",
+        }),
+      ),
+    });
+  await expect(page.locator(".prepare-view")).toBeVisible();
+  await exportAs(page, "ASS");
+  await page.getByRole("button", { name: "编辑样式…" }).click();
+}
+
+test("ASS effect cards export all presets and retain independent settings", async ({
+  page,
+}) => {
+  await openEffectProject(page);
+  const style = page.getByRole("dialog", { name: "字幕样式" });
+  const ass = page.getByRole("dialog", { name: "导出 ASS", exact: true });
+  await style.getByRole("button", { name: "霓虹", exact: true }).click();
+  await style.getByRole("button", { name: "取消", exact: true }).click();
+  await ass.getByRole("button", { name: "编辑样式…" }).click();
+  await expect(
+    style.getByRole("button", { name: "原样", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await style.getByLabel("歌词字号", { exact: true }).fill("80");
+  await style.getByRole("button", { name: "星屑粒子", exact: true }).click();
+  await choose(page, "特效强度", "high");
+  await setChecked(page, "特效跟随声部色", false);
+  await setColor(page, "特效颜色", "#abcdef");
+  const presets = [
+    ["soft", "柔光"],
+    ["neon", "霓虹"],
+    ["outline", "立体描边"],
+    ["float", "柔和浮入"],
+    ["bounce", "逐词弹跳"],
+    ["sweep", "流光扫过"],
+    ["particles", "星屑粒子"],
+    ["none", "原样"],
+  ];
+  for (const [id, title] of presets) {
+    await style.getByRole("button", { name: title, exact: true }).click();
+    await expect(style.getByLabel("歌词字号", { exact: true })).toHaveValue(
+      "80",
+    );
+    await style.getByRole("button", { name: "应用", exact: true }).click();
+    await expect(ass).toContainText(`特效：${title}`);
+    const downloaded = page.waitForEvent("download");
+    await ass.getByRole("button", { name: "导出 ASS", exact: true }).click();
+    const file = await downloaded;
+    await expect(ass).toBeHidden();
+    const fs = await import("node:fs/promises");
+    const text = await fs.readFile((await file.path())!, "utf8");
+    const comment = text
+      .split("\n")
+      .find((l) => l.startsWith("; mako-style: "))!;
+    expect(JSON.parse(comment.slice("; mako-style: ".length))).toMatchObject({
+      mainSize: 80,
+      effects: { preset: id, intensity: "high", color: "#abcdef" },
+    });
+    if (id === "particles") expect(text).toContain("\\p1");
+    if (id === "bounce" || id === "float") expect(text).toContain("\\move(");
+    if (id === "sweep") expect(text).toContain("\\clip(");
+    await exportAs(page, "ASS");
+    await expect(ass).toBeVisible();
+    await ass.getByRole("button", { name: "编辑样式…" }).click();
+  }
+  await style.getByRole("button", { name: "取消", exact: true }).click();
+  await ass.getByRole("button", { name: "取消", exact: true }).click();
+  await page.getByRole("button", { name: "撤销", exact: true }).click();
+  await exportAs(page, "ASS");
+  await expect(ass).toContainText("特效：星屑粒子 · 强");
+  await ass.getByRole("button", { name: "取消", exact: true }).click();
+  await page.reload();
+  await expect(page.locator(".prepare-view")).toBeVisible();
+  await exportAs(page, "ASS");
+  await expect(ass).toContainText("特效：星屑粒子 · 强");
+});
+
+test("ASS preview respects reduced motion, pauses, replays and fits mobile", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openEffectProject(page);
+  const style = page.getByRole("dialog", { name: "字幕样式" });
+  const preview = page.getByRole("img", { name: "字幕特效示意预览" });
+  await expect(preview).toHaveAttribute("data-playing", "false");
+  await style.getByRole("button", { name: "逐词弹跳", exact: true }).click();
+  await style.getByRole("button", { name: "播放示意", exact: true }).click();
+  await expect(preview).toHaveAttribute("data-playing", "true");
+  await style.getByRole("button", { name: "暂停示意", exact: true }).click();
+  await expect(preview).toHaveAttribute("data-playing", "false");
+  await style.getByRole("button", { name: "重播", exact: true }).click();
+  await expect(preview).toHaveAttribute("data-playing", "true");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await style
+    .getByRole("button", { name: "浅色预览背景", exact: true })
+    .click();
+  await expect(preview).toHaveClass(/light/);
+  expect(await style.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+    true,
+  );
+  await style.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(preview).toHaveCount(0);
+});
