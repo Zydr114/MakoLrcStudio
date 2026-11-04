@@ -118,6 +118,29 @@ describe("TTML export", () => {
     ]);
     expect(fourth.text).toBe("みんな");
   });
+  it("writes each romanization once when only one of main and x-bg is word-timed", () => {
+    const project = duet();
+    const bg = project.parts[3];
+    bg.lines = [bg.lines[0]];
+    bg.lines[0].roman = "a";
+    // Main word-timed, background line-timed.
+    let line = TTMLParser.parse(exportTtml(project, { dom }).text, parser)
+      .lines[0];
+    expect(line.romanizations?.map((r) => r.text)).toEqual(["sen nai"]);
+    expect(line.backgroundVocal?.romanizations?.map((r) => r.text)).toEqual([
+      "a",
+    ]);
+    // Main line-timed, background word-timed.
+    project.parts[0].lines[0].units.forEach((unit) => delete unit.roman);
+    bg.lines[0].units[0].roman = "a";
+    const { text } = exportTtml(project, { dom });
+    line = TTMLParser.parse(text, parser).lines[0];
+    expect(line.romanizations?.map((r) => r.text)).toEqual(["sen nai"]);
+    expect(line.backgroundVocal?.romanizations?.map((r) => r.text)).toEqual([
+      "a",
+    ]);
+    expect(importTtml(text, parser).notices).toEqual([]);
+  });
   it("folds ruby for players without it and refuses unfinished parts", () => {
     const project = duet();
     const { text } = exportTtml(project, { dom, foldRuby: true });

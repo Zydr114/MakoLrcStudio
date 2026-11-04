@@ -176,6 +176,42 @@ function mergeBackground(
   };
 }
 
+/**
+ * The generator moves a line's translation or romanization to the head
+ * together with its x-bg counterpart (same language) when either one is
+ * word-timed, but still writes the line-timed one inline as well, so it would
+ * appear twice. Both of such a pair belong to the head only.
+ */
+function headOnly(lines: TtmlLine[]): Set<SubLyricContent> {
+  const result = new Set<SubLyricContent>();
+  for (const line of lines)
+    for (const key of ["translations", "romanizations"] as const) {
+      const all = [
+        ...(line[key] ?? []),
+        ...(line.backgroundVocal?.[key] ?? []),
+      ];
+      for (const item of all)
+        if (item.words?.length)
+          for (const other of all)
+            if (other.language === item.language) result.add(other);
+    }
+  return result;
+}
+
+function generate(result: TTMLResult, options: TtmlExportOptions): string {
+  const generator = new TTMLGenerator(options.dom ?? {});
+  // A private hook of the pinned generator (1.0.1); tests cover the output.
+  const hooks = generator as unknown as {
+    shouldMoveToSidecar?: (content: SubLyricContent) => boolean;
+  };
+  const own = hooks.shouldMoveToSidecar?.bind(generator);
+  if (own) {
+    const head = headOnly(result.lines);
+    hooks.shouldMoveToSidecar = (content) => head.has(content) || own(content);
+  }
+  return generator.generate(result);
+}
+
 function language(project: ProjectDraft): string | undefined {
   const text = project.parts
     .flatMap((part) => part.lines.map((l) => l.text))
@@ -253,10 +289,7 @@ export function exportTtml(
     },
     lines,
   };
-  return {
-    text: TTMLGenerator.generate(result, options.dom ?? {}),
-    notices,
-  };
+  return { text: generate(result, options), notices };
 }
 
 export interface TtmlImport {
