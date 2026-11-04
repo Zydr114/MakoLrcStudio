@@ -72,6 +72,7 @@ function words(line: LyricLine, foldRuby: boolean): TtmlSyllable[] {
   return result;
 }
 
+/** Each sounded unit's romanization, timed with the unit; none if one is missing. */
 function romanWords(line: LyricLine): TtmlSyllable[] | undefined {
   const sounded = line.units.filter((unit) => /[\p{L}\p{N}]/u.test(unit.text));
   if (!sounded.length || sounded.some((unit) => !unit.roman)) return undefined;
@@ -81,33 +82,62 @@ function romanWords(line: LyricLine): TtmlSyllable[] | undefined {
     if (!unit.text.trim()) return [];
     const word = timed[position++];
     return unit.roman
-      ? [{ ...word, text: unit.roman, endsWithSpace: true, ruby: undefined }]
+      ? [{ ...word, text: unit.roman, endsWithSpace: false, ruby: undefined }]
       : [];
   });
 }
 
+const escapeRegExp = (text: string) =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const hasLetters = (text: string) => /[\p{L}\p{N}]/u.test(text);
+
 /**
- * Word romanization replaces the line text in TTML, so take its spacing from
- * the line text where the words can be found there in order.
+ * Word romanization replaces the line romanization in TTML. Spell the words
+ * the way the line does (case, punctuation, spaces), so the line reads the
+ * same; null when the line has letters that no unit romanization covers.
  */
-function spaceLike(timed: TtmlSyllable[], text: string) {
-  let rest = text.trim();
-  const fits = timed.every((word) => {
-    rest = rest.trimStart();
-    if (!rest.startsWith(word.text)) return false;
-    rest = rest.slice(word.text.length);
-    word.endsWithSpace = /^\s/.test(rest);
-    return true;
-  });
-  if (!fits || !text.trim())
-    timed.forEach((word) => (word.endsWithSpace = true));
-  timed.at(-1)!.endsWithSpace = false;
+function spell(timed: TtmlSyllable[], text: string): TtmlSyllable[] | null {
+  const result: TtmlSyllable[] = [];
+  let at = 0;
+  for (const word of timed) {
+    const pattern = new RegExp(escapeRegExp(word.text), "giu");
+    pattern.lastIndex = at;
+    const found = pattern.exec(text);
+    if (!found) return null;
+    const gap = text.slice(at, found.index);
+    if (hasLetters(gap)) return null;
+    let prefix = gap;
+    const previous = result.at(-1);
+    if (previous) {
+      // Marks before a space close the previous word, the rest opens this one.
+      const [, close, space, open] = /^(\S*)(\s*)([\s\S]*)$/.exec(gap)!;
+      previous.text += close;
+      previous.endsWithSpace = !!space;
+      prefix = open;
+    }
+    result.push({
+      ...word,
+      text: prefix.replace(/\s+/g, "") + found[0],
+      endsWithSpace: false,
+    });
+    at = found.index + found[0].length;
+  }
+  const rest = text.slice(at);
+  if (hasLetters(rest)) return null;
+  result.at(-1)!.text += rest.replace(/\s+/g, "");
+  return result;
+}
+
+interface ExportNotes {
+  /** Lines whose word romanization does not spell their line romanization. */
+  romanMismatch: number;
 }
 
 function content(
   line: LyricLine,
   project: ProjectDraft,
   foldRuby: boolean,
+  notes: ExportNotes,
 ): BackgroundVocal {
   const result: LyricBase = {
     text: line.text.trim(),
@@ -122,16 +152,22 @@ function content(
         text: line.translation.trim(),
       },
     ];
-  if (line.roman.trim() || romanWords(line)) {
+  const text = line.roman.trim();
+  const timed = romanWords(line);
+  if (text || timed) {
     const roman: SubLyricContent = {
       language: project.romanLang || undefined,
-      text: line.roman.trim(),
+      text,
     };
-    const timed = romanWords(line);
-    if (timed) {
-      spaceLike(timed, line.roman);
+    if (timed && !text) {
+      timed.forEach((word, i) => (word.endsWithSpace = i < timed.length - 1));
       roman.words = timed;
-      roman.text ||= timed.map((word) => word.text).join(" ");
+      roman.text = timed.map((word) => word.text).join(" ");
+    } else if (timed) {
+      const spelled = spell(timed, text);
+      // The line romanization is what the user reads; keep it whole.
+      if (spelled) roman.words = spelled;
+      else notes.romanMismatch++;
     }
     result.romanizations = [roman];
   }
@@ -143,8 +179,11 @@ function mergeBackground(
   voices: SongVoice[],
   project: ProjectDraft,
   foldRuby: boolean,
+  notes: ExportNotes,
 ): BackgroundVocal {
-  const parts = voices.map((voice) => content(voice.line, project, foldRuby));
+  const parts = voices.map((voice) =>
+    content(voice.line, project, foldRuby, notes),
+  );
   if (parts.length === 1) return parts[0];
   const join = (
     pick: (item: BackgroundVocal) => SubLyricContent | undefined,
@@ -253,9 +292,10 @@ export function exportTtml(
   const song = songLines({ ...project, parts });
   if (!agentOf.size) throw new Error("TTML 需要至少一个非和声声部承载和声。");
   let merged = 0;
+  const notes: ExportNotes = { romanMismatch: 0 };
   const lines: TtmlLine[] = song.map((entry) => {
     const line: TtmlLine = {
-      ...content(entry.line, project, foldRuby),
+      ...content(entry.line, project, foldRuby, notes),
       agentId: agentOf.get(entry.part.id),
     };
     if (entry.line.songPart) line.songPart = entry.line.songPart;
@@ -269,7 +309,7 @@ export function exportTtml(
         (a, b) => a.line.startMs! - b.line.startMs!,
       );
       if (voices.length > 1) merged += voices.length - 1;
-      const bg = mergeBackground(voices, project, foldRuby);
+      const bg = mergeBackground(voices, project, foldRuby, notes);
       line.backgroundVocal = bg;
       line.startTime = Math.min(line.startTime, bg.startTime);
       line.endTime = Math.max(line.endTime, bg.endTime);
@@ -278,6 +318,10 @@ export function exportTtml(
   });
   if (merged)
     notices.push(`有 ${merged} 行和声与同一主行重叠，已合并进该行的和声。`);
+  if (notes.romanMismatch)
+    notices.push(
+      `有 ${notes.romanMismatch} 行的逐字罗马音与整行罗马音对不上，这些行只导出整行罗马音。`,
+    );
   const result: TTMLResult = {
     metadata: {
       language: language(project),
@@ -374,13 +418,51 @@ function attachSubs(
   if (roman) {
     line.roman = roman.text;
     langs.roman ??= roman.language;
-    for (const word of roman.words ?? []) {
-      const unit = line.units.find(
-        (item) => item.syllables[0].startMs === word.startTime,
-      );
-      if (unit) unit.roman = word.text;
-    }
+    if (roman.words?.length) alignRoman(line, roman.words);
   }
+}
+
+/**
+ * Romanized words onto the units they are sung with: the unit starting at the
+ * same time, else the one overlapping most (as AMLL does). A unit may take
+ * several words ("kimi to" for 君と).
+ */
+function alignRoman(line: LyricLine, timed: TtmlSyllable[]) {
+  if (!line.units.length) return;
+  const ends = syllableEnds(line);
+  let index = 0;
+  const spans = line.units.map((unit) => {
+    index += unit.syllables.length;
+    return [unit.syllables[0].startMs!, ends[index - 1]] as const;
+  });
+  const picked = line.units.map(() => [] as TtmlSyllable[]);
+  for (const word of timed) {
+    let best = spans.findIndex(
+      ([start]) => Math.abs(start - word.startTime) <= 2,
+    );
+    if (best < 0) {
+      let score = 0;
+      spans.forEach(([start, end], i) => {
+        const overlap =
+          Math.min(end, word.endTime) - Math.max(start, word.startTime);
+        const union =
+          Math.max(end, word.endTime) - Math.min(start, word.startTime);
+        const iou = union > 0 ? overlap / union : 0;
+        if (iou > score) [score, best] = [iou, i];
+      });
+      if (score < 0.1) continue;
+    }
+    picked[best].push(word);
+  }
+  line.units.forEach((unit, i) => {
+    const text = picked[i]
+      .map((word, w, all) =>
+        w < all.length - 1 && word.endsWithSpace ? `${word.text} ` : word.text,
+      )
+      .join("")
+      .trim();
+    if (text) unit.roman = text;
+  });
 }
 
 export interface TtmlImportOptions extends TTMLParserOptions {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DOMImplementation, DOMParser, XMLSerializer } from "@xmldom/xmldom";
-import { TTMLParser } from "@applemusic-like-lyrics/ttml";
+import { TTMLGenerator, TTMLParser } from "@applemusic-like-lyrics/ttml";
 import { exportTtml, importTtml, looksLikeTtml } from "../../src/domain/ttml";
 import {
   newLine,
@@ -141,6 +141,25 @@ describe("TTML export", () => {
     ]);
     expect(importTtml(text, parser).notices).toEqual([]);
   });
+  it("spells word romanization like the line romanization", () => {
+    const project = duet();
+    const first = project.parts[0].lines[0];
+    first.roman = "Sen, nai!";
+    let out = exportTtml(project, { dom });
+    let roman = TTMLParser.parse(out.text, parser).lines[0].romanizations![0];
+    expect(roman.text).toBe("Sen, nai!");
+    expect(roman.words?.map((w) => w.text)).toEqual(["Sen,", "na", "i!"]);
+    expect(out.notices.join("")).not.toContain("罗马音");
+    // Letters no unit covers: the line romanization wins, untimed.
+    first.roman = "sen wa nai";
+    out = exportTtml(project, { dom });
+    roman = TTMLParser.parse(out.text, parser).lines[0].romanizations![0];
+    expect(roman.text).toBe("sen wa nai");
+    expect(roman.words).toBeUndefined();
+    expect(out.notices.join("")).toContain(
+      "1 行的逐字罗马音与整行罗马音对不上",
+    );
+  });
   it("folds ruby for players without it and refuses unfinished parts", () => {
     const project = duet();
     const { text } = exportTtml(project, { dom, foldRuby: true });
@@ -196,6 +215,47 @@ describe("TTML import", () => {
     for (const part of back.parts)
       expect(validateLines(part.lines)).toEqual([]);
     expect(back.notices).toEqual([]);
+  });
+  it("puts romanized words on the units they overlap", () => {
+    const text = new TTMLGenerator(dom).generate({
+      metadata: { agents: { v1: { id: "v1", type: "person" } } },
+      lines: [
+        {
+          text: "君と歌う",
+          startTime: 1000,
+          endTime: 3000,
+          agentId: "v1",
+          words: [
+            { text: "君と", startTime: 1000, endTime: 2000 },
+            { text: "歌う", startTime: 2000, endTime: 3000 },
+          ],
+          romanizations: [
+            {
+              language: "ja-Latn",
+              text: "kimi to utau",
+              words: [
+                {
+                  text: "kimi",
+                  startTime: 1000,
+                  endTime: 1500,
+                  endsWithSpace: true,
+                },
+                {
+                  text: "to",
+                  startTime: 1500,
+                  endTime: 2000,
+                  endsWithSpace: true,
+                },
+                { text: "utau", startTime: 2001, endTime: 3000 },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const line = importTtml(text, parser).parts[0].lines[0];
+    expect(line.roman).toBe("kimi to utau");
+    expect(line.units.map((unit) => unit.roman)).toEqual(["kimi to", "utau"]);
   });
   it("names unnamed AMLL agents and reads line-timed files", () => {
     const text = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:itunes="http://music.apple.com/lyric-ttml-internal"><head><metadata><ttm:agent type="person" xml:id="v1"/><ttm:agent type="person" xml:id="v2"/></metadata></head><body><div><p begin="00:01.000" end="00:02.000" ttm:agent="v1">one</p><p begin="00:03.000" end="00:04.000" ttm:agent="v2">two</p></div></body></tt>`;
