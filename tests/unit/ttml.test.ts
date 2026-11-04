@@ -343,4 +343,10 @@ describe("TTML import", () => {
     });
     expect(() => importTtml("<tt><body>", parser)).toThrow("TTML");
   });
+  it("names the parts whose lines overlap, as Apple Music files allow", () => {
+    const text = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><head><metadata><ttm:agent type="person" xml:id="v1"/></metadata></head><body><div><p begin="00:01.000" end="00:03.000" ttm:agent="v1">one</p><p begin="00:02.000" end="00:04.000" ttm:agent="v1">two</p></div></body></tt>`;
+    const [notice] = importTtml(text, parser).notices;
+    expect(notice).toContain("「主唱」1 行与相邻行重叠");
+    expect(notice).toContain("Apple Music");
+  });
 });

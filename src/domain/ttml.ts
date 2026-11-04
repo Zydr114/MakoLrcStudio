@@ -639,16 +639,20 @@ export function importTtml(
     if (same.length > 1)
       same.forEach((other, i) => i && (other.name += ` ${i + 1}`));
   }
-  const conflicts = parts.reduce(
-    (count, part) =>
-      count +
-      validateLines(part.lines, Infinity, false).filter(
-        (issue) => issue.kind === "conflict",
-      ).length,
-    0,
-  );
-  if (conflicts)
-    notices.add(`有 ${conflicts} 处时间冲突（同一声部的行重叠等），请检查。`);
+  // Apple Music and other tools let one singer's lines (or the x-bg of
+  // neighbouring lines) overlap; here a part is one non-overlapping track.
+  const conflicts = parts.flatMap((part) => {
+    const lines = new Set(
+      validateLines(part.lines, Infinity, false)
+        .filter((issue) => issue.kind === "conflict")
+        .map((issue) => issue.lineId),
+    );
+    return lines.size ? [`「${part.name}」${lines.size} 行`] : [];
+  });
+  if (conflicts.length)
+    notices.add(
+      `时间冲突：${conflicts.join("、")}与相邻行重叠。原文件允许同一演唱者的行（或相邻行的和声）互相重叠，常见于 Apple Music 的 TTML；本工具要求同一声部内的行先后排开，导出前请在逐行打轴中调整这些行的句首或收尾。`,
+    );
   const metadata: Record<string, string> = {};
   const meta = result.metadata;
   if (meta.title?.[0]) metadata.ti = meta.title[0];
