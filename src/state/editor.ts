@@ -16,6 +16,7 @@ import {
   syllableLabel,
   hasTiming,
   validate,
+  untitledName,
   type ProjectDraft,
 } from "../domain/model";
 import { ProjectHistory, type PointChange } from "../domain/history";
@@ -40,6 +41,9 @@ import {
   looksLikeAss,
   type AssOptions,
 } from "../domain/ass";
+type PartsImport = ReturnType<typeof importAss> & {
+  ttmlMetadata?: Record<string, string[]>;
+};
 import { fontMetrics } from "./assFont";
 import {
   assStyleOf,
@@ -347,7 +351,7 @@ export function createEditor(
     }
   }
   /** Imports replace the project, or join it as one more part (asPart). */
-  function importText(text: string, name = "未命名歌词", asPart = false) {
+  function importText(text: string, name = untitledName, asPart = false) {
     pause();
     audition.cancel();
     recordingArmed.value = false;
@@ -392,6 +396,7 @@ export function createEditor(
       draft.parts = [main];
       draft.mainPartId = draft.activePartId = main.id;
       draft.metadata = imported.metadata;
+      delete draft.ttmlMetadata;
       draft.name =
         imported.metadata.ti || name.replace(/\.(lrc|elrc|txt)$/i, "");
       draft.activeLineId = imported.lines[0]?.id ?? null;
@@ -406,9 +411,9 @@ export function createEditor(
     name: string,
     asPart: boolean,
     format: string,
-    read: () => ReturnType<typeof importAss>,
+    read: () => PartsImport,
   ) {
-    let imported: ReturnType<typeof importAss>;
+    let imported: PartsImport;
     try {
       imported = read();
     } catch (value) {
@@ -430,6 +435,8 @@ export function createEditor(
           draft.parts = imported.parts;
           draft.mainPartId = first.id;
           draft.metadata = imported.metadata;
+          if (imported.ttmlMetadata) draft.ttmlMetadata = imported.ttmlMetadata;
+          else delete draft.ttmlMetadata;
           draft.name =
             imported.name ||
             name.replace(/\.(ttml|xml|ass|ssa)$/i, "") ||

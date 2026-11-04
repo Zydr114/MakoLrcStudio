@@ -5,10 +5,12 @@ import { exportTtml, importTtml, looksLikeTtml } from "../../src/domain/ttml";
 import {
   newLine,
   newPart,
+  newProject,
   syllablesOf,
   validateLines,
   type ProjectDraft,
 } from "../../src/domain/model";
+import { readBackup } from "../../src/domain/backup";
 import { setRuby } from "../../src/domain/ruby";
 import { tokenize } from "../../src/domain/tokenize";
 import { fromLyrics } from "./helpers";
@@ -256,6 +258,78 @@ describe("TTML import", () => {
     const line = importTtml(text, parser).parts[0].lines[0];
     expect(line.roman).toBe("kimi to utau");
     expect(line.units.map((unit) => unit.roman)).toEqual(["kimi to", "utau"]);
+  });
+  it("keeps the head metadata and follows edited title and artists", () => {
+    const source = new TTMLGenerator(dom).generate({
+      metadata: {
+        agents: { v1: { id: "v1", type: "person" } },
+        title: ["歌", "Song"],
+        artist: ["A", "B"],
+        album: ["Album"],
+        isrc: ["JPXX01234567"],
+        songwriters: ["W"],
+        authorIds: ["42"],
+        authorNames: ["mako"],
+        platformIds: { ncmMusicId: ["1001"] },
+        rawProperties: { custom: ["x", "y"] },
+      },
+      lines: [
+        {
+          text: "one",
+          startTime: 1000,
+          endTime: 2000,
+          agentId: "v1",
+          words: [{ text: "one", startTime: 1000, endTime: 2000 }],
+        },
+      ],
+    });
+    const back = importTtml(source, parser);
+    expect(back.metadata).toEqual({ ti: "歌", ar: "A / B", al: "Album" });
+    const project: ProjectDraft = {
+      ...newProject(),
+      parts: back.parts,
+      mainPartId: back.parts[0].id,
+      activePartId: back.parts[0].id,
+      name: back.name!,
+      metadata: back.metadata,
+      ttmlMetadata: readBackup(
+        JSON.stringify({ ...newProject(), ttmlMetadata: back.ttmlMetadata }),
+      ).ttmlMetadata,
+    };
+    const meta = () =>
+      TTMLParser.parse(exportTtml(project, { dom }).text, parser).metadata;
+    expect(meta()).toMatchObject({
+      title: ["歌", "Song"],
+      artist: ["A", "B"],
+      album: ["Album"],
+      isrc: ["JPXX01234567"],
+      songwriters: ["W"],
+      authorIds: ["42"],
+      authorNames: ["mako"],
+      platformIds: { ncmMusicId: ["1001"] },
+      rawProperties: { custom: ["x", "y"] },
+    });
+    project.metadata = { ti: "新歌", ar: "C / D" };
+    expect(meta()).toMatchObject({
+      title: ["新歌", "Song"],
+      artist: ["C", "D"],
+      album: [],
+    });
+    // The placeholder project name is not a title.
+    const fresh = { ...newProject(), parts: back.parts };
+    fresh.mainPartId = fresh.activePartId = back.parts[0].id;
+    expect(
+      TTMLParser.parse(exportTtml(fresh, { dom }).text, parser).metadata.title,
+    ).toEqual([]);
+    // Backups drop malformed lists instead of failing.
+    expect(
+      readBackup(
+        JSON.stringify({
+          ...newProject(),
+          ttmlMetadata: { isrc: ["", 3, "I"], bad: "x" },
+        }),
+      ).ttmlMetadata,
+    ).toEqual({ isrc: ["I"] });
   });
   it("names unnamed AMLL agents and reads line-timed files", () => {
     const text = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:itunes="http://music.apple.com/lyric-ttml-internal"><head><metadata><ttm:agent type="person" xml:id="v1"/><ttm:agent type="person" xml:id="v2"/></metadata></head><body><div><p begin="00:01.000" end="00:02.000" ttm:agent="v1">one</p><p begin="00:03.000" end="00:04.000" ttm:agent="v2">two</p></div></body></tt>`;

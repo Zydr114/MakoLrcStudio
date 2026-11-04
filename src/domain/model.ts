@@ -62,6 +62,11 @@ export interface ProjectDraft {
   romanLang: string;
   /** The simple ASS preset and appearance, shared by every part. */
   assStyle?: AssStyle;
+  /**
+   * TTML head metadata by AMLL meta key (musicName, artists, isrc,
+   * songwriters, ncmMusicId, …), each a list, kept from a TTML import.
+   */
+  ttmlMetadata?: Record<string, string[]>;
 }
 export interface Issue {
   kind: "missing" | "conflict";
@@ -116,11 +121,12 @@ export const newPart = (
   color,
   lines,
 });
+export const untitledName = "未命名歌词";
 export function newProject(lines: LyricLine[] = []): ProjectDraft {
   const main = newPart("主唱", lines);
   return {
     version: 2,
-    name: "未命名歌词",
+    name: untitledName,
     metadata: {},
     audio: null,
     parts: [main],
@@ -134,6 +140,26 @@ export function newProject(lines: LyricLine[] = []): ProjectDraft {
     romanLang: "",
     assStyle: normalizeAssStyle(undefined),
   };
+}
+/** Non-empty string lists only; undefined when nothing is left. */
+export function normalizeTtmlMetadata(
+  value: unknown,
+): Record<string, string[]> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return undefined;
+  const entries = Object.entries(value).flatMap(([key, list]) => {
+    if (!key || !Array.isArray(list)) return [];
+    const items = [
+      ...new Set(
+        list
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    ];
+    return items.length ? [[key, items] as const] : [];
+  });
+  return entries.length ? Object.fromEntries(entries) : undefined;
 }
 export const copyProject = (project: ProjectDraft): ProjectDraft =>
   JSON.parse(JSON.stringify(project)) as ProjectDraft;

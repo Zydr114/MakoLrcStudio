@@ -6,7 +6,9 @@ import {
   type GeneratorOptions,
   type LyricBase,
   type LyricLine as TtmlLine,
+  type PlatformId,
   type Syllable as TtmlSyllable,
+  type TTMLMetadata,
   type TTMLParserOptions,
   type TTMLResult,
   type SubLyricContent,
@@ -16,8 +18,10 @@ import {
   newLine,
   newPart,
   newSyllable,
+  normalizeTtmlMetadata,
   partColors,
   syllableRefs,
+  untitledName,
   validateLines,
   type LyricLine,
   type PartKind,
@@ -251,6 +255,77 @@ function generate(result: TTMLResult, options: TtmlExportOptions): string {
   return generator.generate(result);
 }
 
+/** Parser metadata lists by the AMLL meta key each comes from. */
+const metaKeys = {
+  title: "musicName",
+  artist: "artists",
+  album: "album",
+  isrc: "isrc",
+  songwriters: "songwriters",
+  authorIds: "ttmlAuthorGithub",
+  authorNames: "ttmlAuthorGithubLogin",
+} as const;
+type MetaField = keyof typeof metaKeys;
+
+function storedMetadata(meta: TTMLMetadata) {
+  const lists = new Map<string, string[]>();
+  const add = (key: string, items: string[] = []) =>
+    lists.set(key, [...(lists.get(key) ?? []), ...items]);
+  for (const [field, key] of Object.entries(metaKeys))
+    add(key, meta[field as MetaField]);
+  for (const [key, items] of Object.entries(meta.platformIds ?? {}))
+    add(key, items);
+  for (const [key, items] of Object.entries(meta.rawProperties ?? {}))
+    add(key, items);
+  return normalizeTtmlMetadata(Object.fromEntries(lists));
+}
+
+/**
+ * The stored TTML metadata, with title, artists and album following the
+ * project's ti／ar／al: kept as stored while they agree, replaced otherwise
+ * (a changed title keeps the alternative titles after it).
+ */
+function headMetadata(project: ProjectDraft): Partial<TTMLMetadata> {
+  const rest = { ...project.ttmlMetadata };
+  const take = (key: string) => {
+    const items = rest[key] ?? [];
+    delete rest[key];
+    return items;
+  };
+  const lead = (items: string[], value: string) =>
+    value ? [...new Set([value, ...items.slice(1)])] : [];
+  const title =
+    project.metadata.ti ||
+    (project.name === untitledName ? "" : project.name.trim());
+  const ar = project.metadata.ar?.trim() ?? "";
+  const artists = take(metaKeys.artist);
+  const result: Partial<TTMLMetadata> = {
+    title: lead(take(metaKeys.title), title),
+    artist:
+      artists.join(" / ") === ar
+        ? artists
+        : ar
+            .split(" / ")
+            .map((item) => item.trim())
+            .filter(Boolean),
+    album: lead(take(metaKeys.album), project.metadata.al?.trim() ?? ""),
+  };
+  for (const field of [
+    "isrc",
+    "songwriters",
+    "authorIds",
+    "authorNames",
+  ] as const) {
+    const items = take(metaKeys[field]);
+    if (items.length) result[field] = items;
+  }
+  const platforms = ["ncmMusicId", "qqMusicId", "spotifyId", "appleMusicId"];
+  for (const key of platforms)
+    if (rest[key]) (result.platformIds ??= {})[key as PlatformId] = take(key);
+  if (Object.keys(rest).length) result.rawProperties = rest;
+  return result;
+}
+
 function language(project: ProjectDraft): string | undefined {
   const text = project.parts
     .flatMap((part) => part.lines.map((l) => l.text))
@@ -327,9 +402,7 @@ export function exportTtml(
       language: language(project),
       timingMode: "Word",
       agents,
-      title: [project.metadata.ti || project.name].filter(Boolean),
-      artist: project.metadata.ar ? [project.metadata.ar] : undefined,
-      album: project.metadata.al ? [project.metadata.al] : undefined,
+      ...headMetadata(project),
     },
     lines,
   };
@@ -339,6 +412,8 @@ export function exportTtml(
 export interface TtmlImport {
   parts: VocalPart[];
   metadata: Record<string, string>;
+  /** Everything in the head by AMLL meta key, for writing it back. */
+  ttmlMetadata?: Record<string, string[]>;
   name: string | null;
   translationLang: string;
   romanLang: string;
@@ -582,6 +657,7 @@ export function importTtml(
   return {
     parts,
     metadata,
+    ttmlMetadata: storedMetadata(meta),
     name: meta.title?.[0] ?? null,
     translationLang: langs.translation ?? "",
     romanLang: langs.roman ?? "",
