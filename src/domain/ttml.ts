@@ -1,5 +1,4 @@
 import {
-  TTMLGenerator,
   TTMLParser,
   type Agent,
   type BackgroundVocal,
@@ -31,8 +30,27 @@ import {
 } from "./model";
 import { songLines, type SongVoice } from "./song";
 
+const NS = {
+  TT: "http://www.w3.org/ns/ttml",
+  TTM: "http://www.w3.org/ns/ttml#metadata",
+  TTS: "http://www.w3.org/ns/ttml#styling",
+  ITUNES: "http://music.apple.com/lyric-ttml-internal",
+  AMLL: "http://www.example.com/ns/amll",
+  XML: "http://www.w3.org/XML/1998/namespace",
+  XMLNS: "http://www.w3.org/2000/xmlns/",
+} as const;
+
+export type TtmlRubyMode = "amll" | "ttml2" | "fold";
+
 export interface TtmlExportOptions {
-  /** Write each ruby group as plain text timed as a whole, for players without ruby. */
+  /**
+   * How ruby annotations are written:
+   * - "amll" (default): AMLL timed ruby (base + textContainer > timed text*)
+   * - "ttml2": W3C TTML2 §10.2.35 ruby (base + text with timed inner spans)
+   * - "fold": plain base text timed as a whole, for players without ruby
+   */
+  rubyMode?: TtmlRubyMode;
+  /** @deprecated Use rubyMode: "fold" instead. */
   foldRuby?: boolean;
   dom?: Pick<GeneratorOptions, "domImplementation" | "xmlSerializer">;
 }
@@ -220,10 +238,27 @@ function mergeBackground(
 }
 
 /**
- * The generator moves a line's translation or romanization to the head
- * together with its x-bg counterpart (same language) when either one is
- * word-timed, but still writes the line-timed one inline as well, so it would
- * appear twice. Both of such a pair belong to the head only.
+ * W3C TTML2 §12.3.1 clock-time: HH:MM:SS.fff (minutes and seconds in 00..59,
+ * hours at least two digits). Parsed cleanly by both W3C and AMLL parsers.
+ */
+function formatTtmlTime(ms: number): string {
+  const total = Math.max(0, Math.round(ms));
+  const hours = Math.floor(total / 3600000);
+  const minutes = Math.floor(total / 60000) % 60;
+  const seconds = Math.floor(total / 1000) % 60;
+  const millis = total % 1000;
+  return (
+    `${String(hours).padStart(2, "0")}:` +
+    `${String(minutes).padStart(2, "0")}:` +
+    `${String(seconds).padStart(2, "0")}.` +
+    `${String(millis).padStart(3, "0")}`
+  );
+}
+
+/**
+ * Translations or romanizations that belong in <iTunesMetadata> (head): any
+ * entry with word timings, plus its same-language main/x-bg counterpart on the
+ * same line so a pair is never written both in the head and inline.
  */
 function headOnly(lines: TtmlLine[]): Set<SubLyricContent> {
   const result = new Set<SubLyricContent>();
@@ -241,18 +276,366 @@ function headOnly(lines: TtmlLine[]): Set<SubLyricContent> {
   return result;
 }
 
-function generate(result: TTMLResult, options: TtmlExportOptions): string {
-  const generator = new TTMLGenerator(options.dom ?? {});
-  // A private hook of the pinned generator (1.0.1); tests cover the output.
-  const hooks = generator as unknown as {
-    shouldMoveToSidecar?: (content: SubLyricContent) => boolean;
+function pairSubContents(
+  mainList?: SubLyricContent[],
+  bgList?: SubLyricContent[],
+): { lang?: string; main?: SubLyricContent; bg?: SubLyricContent }[] {
+  const map = new Map<
+    string | undefined,
+    { lang?: string; main?: SubLyricContent; bg?: SubLyricContent }
+  >();
+  const get = (lang?: string) => {
+    let entry = map.get(lang);
+    if (!entry) map.set(lang, (entry = { lang }));
+    return entry;
   };
-  const own = hooks.shouldMoveToSidecar?.bind(generator);
-  if (own) {
-    const head = headOnly(result.lines);
-    hooks.shouldMoveToSidecar = (content) => head.has(content) || own(content);
+  mainList?.forEach((item) => {
+    get(item.language).main = item;
+  });
+  bgList?.forEach((item) => {
+    get(item.language).bg = item;
+  });
+  return [...map.values()];
+}
+
+/**
+ * Serialize a TTMLResult using explicit XML namespaces (`createElementNS`) so
+ * browsers never emit `xmlns=""` or drop `<iTunesMetadata>`'s namespace, with
+ * W3C TTML2 clock-time expressions, required `xml:lang`, and valid containment.
+ */
+function serializeTtml(
+  result: TTMLResult,
+  rubyMode: TtmlRubyMode,
+  dom: TtmlExportOptions["dom"] = {},
+): string {
+  const domImpl = (dom.domImplementation ??
+    (typeof document !== "undefined"
+      ? document.implementation
+      : null)) as DOMImplementation | null;
+  if (!domImpl) throw new Error("缺少 DOMImplementation，无法生成 TTML。");
+  const serializer = (dom.xmlSerializer ??
+    (typeof XMLSerializer !== "undefined"
+      ? new XMLSerializer()
+      : null)) as XMLSerializer | null;
+  if (!serializer) throw new Error("缺少 XMLSerializer，无法序列化 TTML。");
+
+  const doc = domImpl.createDocument(NS.TT, "tt", null);
+  const root = doc.documentElement;
+  root.setAttributeNS(NS.XMLNS, "xmlns:amll", NS.AMLL);
+  root.setAttributeNS(NS.XMLNS, "xmlns:itunes", NS.ITUNES);
+  root.setAttributeNS(NS.XMLNS, "xmlns:ttm", NS.TTM);
+  root.setAttributeNS(NS.XMLNS, "xmlns:tts", NS.TTS);
+  // W3C TTML2 §8.1.1: xml:lang is required on <tt>; empty means unspecified.
+  root.setAttributeNS(NS.XML, "xml:lang", result.metadata.language ?? "");
+  root.setAttributeNS(
+    NS.ITUNES,
+    "itunes:timing",
+    result.metadata.timingMode ?? "Word",
+  );
+
+  const lines = result.lines.map((line, index) => ({
+    ...line,
+    id: line.id?.trim() || `L${index + 1}`,
+    agentId: line.agentId || "v1",
+  }));
+  const inHead = headOnly(lines);
+
+  const ttEl = (tag: string) => doc.createElementNS(NS.TT, tag);
+  const itunesEl = (tag: string) => doc.createElementNS(NS.ITUNES, tag);
+
+  const appendRuby = (
+    parent: Element,
+    syllable: TtmlSyllable,
+    baseText: string,
+    ns: string,
+  ) => {
+    const mkSpan = () => doc.createElementNS(ns, "span");
+    const container = mkSpan();
+    container.setAttributeNS(NS.TTS, "tts:ruby", "container");
+    const base = mkSpan();
+    base.setAttributeNS(NS.TTS, "tts:ruby", "base");
+    base.textContent = baseText;
+    container.appendChild(base);
+    const tags = syllable.ruby!;
+    if (rubyMode === "ttml2") {
+      // W3C TTML2 §10.2.35: container -> base + text (1:1); multi-syllable
+      // timings live on plain inner spans without tts:ruby.
+      const textEl = mkSpan();
+      textEl.setAttributeNS(NS.TTS, "tts:ruby", "text");
+      if (tags.length === 1) {
+        textEl.setAttribute("begin", formatTtmlTime(tags[0].startTime));
+        textEl.setAttribute("end", formatTtmlTime(tags[0].endTime));
+        textEl.textContent = tags[0].text;
+      } else {
+        for (const rt of tags) {
+          const piece = mkSpan();
+          piece.setAttribute("begin", formatTtmlTime(rt.startTime));
+          piece.setAttribute("end", formatTtmlTime(rt.endTime));
+          piece.textContent = rt.text;
+          textEl.appendChild(piece);
+        }
+      }
+      container.appendChild(textEl);
+    } else {
+      // AMLL dialect: base + textContainer > timed text*
+      const textContainer = mkSpan();
+      textContainer.setAttributeNS(NS.TTS, "tts:ruby", "textContainer");
+      for (const rt of tags) {
+        const rtSpan = mkSpan();
+        rtSpan.setAttributeNS(NS.TTS, "tts:ruby", "text");
+        rtSpan.setAttribute("begin", formatTtmlTime(rt.startTime));
+        rtSpan.setAttribute("end", formatTtmlTime(rt.endTime));
+        rtSpan.textContent = rt.text;
+        textContainer.appendChild(rtSpan);
+      }
+      container.appendChild(textContainer);
+    }
+    parent.appendChild(container);
+  };
+
+  const appendWords = (
+    parent: Element,
+    list: TtmlSyllable[],
+    isBackground: boolean,
+    ns: string,
+  ) => {
+    list.forEach((syllable, index) => {
+      let text = syllable.text;
+      if (isBackground) {
+        if (index === 0) text = `(${text}`;
+        if (index === list.length - 1) text = `${text})`;
+      }
+      if (syllable.ruby?.length && rubyMode !== "fold") {
+        appendRuby(parent, syllable, text, ns);
+      } else {
+        const span = doc.createElementNS(ns, "span");
+        span.setAttribute("begin", formatTtmlTime(syllable.startTime));
+        span.setAttribute("end", formatTtmlTime(syllable.endTime));
+        span.textContent = text;
+        parent.appendChild(span);
+      }
+      if (syllable.endsWithSpace) parent.appendChild(doc.createTextNode(" "));
+    });
+  };
+
+  const appendSubContent = (
+    parent: Element,
+    item: SubLyricContent,
+    isBackground: boolean,
+    ns: string,
+  ) => {
+    if (item.words?.length) appendWords(parent, item.words, isBackground, ns);
+    else parent.textContent = isBackground ? `(${item.text})` : item.text;
+  };
+
+  const appendBackground = (
+    parent: Element,
+    bg: BackgroundVocal | SubLyricContent,
+    ns: string,
+  ) => {
+    const bgSpan = doc.createElementNS(ns, "span");
+    bgSpan.setAttributeNS(NS.TTM, "ttm:role", "x-bg");
+    if ("startTime" in bg) {
+      if (bg.startTime >= 0 && bg.endTime > bg.startTime) {
+        bgSpan.setAttribute("begin", formatTtmlTime(bg.startTime));
+        bgSpan.setAttribute("end", formatTtmlTime(bg.endTime));
+      }
+      appendSubContent(bgSpan, bg, true, ns);
+      appendInlineSubs(bgSpan, bg, ns);
+    } else {
+      appendSubContent(bgSpan, bg, true, ns);
+    }
+    parent.appendChild(bgSpan);
+  };
+
+  const appendInlineSubs = (parent: Element, item: LyricBase, ns: string) => {
+    for (const trans of item.translations ?? []) {
+      if (inHead.has(trans)) continue;
+      const span = doc.createElementNS(ns, "span");
+      span.setAttributeNS(NS.TTM, "ttm:role", "x-translation");
+      if (trans.language)
+        span.setAttributeNS(NS.XML, "xml:lang", trans.language);
+      appendSubContent(span, trans, false, ns);
+      parent.appendChild(span);
+    }
+    for (const roman of item.romanizations ?? []) {
+      if (inHead.has(roman)) continue;
+      const span = doc.createElementNS(ns, "span");
+      span.setAttributeNS(NS.TTM, "ttm:role", "x-roman");
+      if (roman.language)
+        span.setAttributeNS(NS.XML, "xml:lang", roman.language);
+      appendSubContent(span, roman, false, ns);
+      parent.appendChild(span);
+    }
+  };
+
+  // <head>
+  const head = ttEl("head");
+  const metadata = ttEl("metadata");
+  const meta = result.metadata;
+  const agents: Agent[] =
+    meta.agents && Object.keys(meta.agents).length
+      ? Object.values(meta.agents)
+      : [...new Set(lines.map((line) => line.agentId))].map((id) => ({
+          id,
+          type: id === "v1000" ? "group" : "person",
+        }));
+  for (const agent of agents) {
+    const agentEl = doc.createElementNS(NS.TTM, "ttm:agent");
+    agentEl.setAttribute(
+      "type",
+      agent.type || (agent.id === "v1000" ? "group" : "person"),
+    );
+    agentEl.setAttributeNS(NS.XML, "xml:id", agent.id);
+    if (agent.name) {
+      const nameEl = doc.createElementNS(NS.TTM, "ttm:name");
+      nameEl.setAttribute("type", "full");
+      nameEl.textContent = agent.name;
+      agentEl.appendChild(nameEl);
+    }
+    metadata.appendChild(agentEl);
   }
-  return generator.generate(result);
+
+  // <iTunesMetadata> for word-timed translations / romanizations and songwriters
+  const translationsMap = new Map<
+    string | undefined,
+    { id: string; main?: SubLyricContent; bg?: SubLyricContent }[]
+  >();
+  const romansMap = new Map<
+    string | undefined,
+    { id: string; main?: SubLyricContent; bg?: SubLyricContent }[]
+  >();
+  for (const line of lines) {
+    for (const pair of pairSubContents(
+      line.translations,
+      line.backgroundVocal?.translations,
+    ))
+      if (
+        (pair.main && inHead.has(pair.main)) ||
+        (pair.bg && inHead.has(pair.bg))
+      ) {
+        let list = translationsMap.get(pair.lang);
+        if (!list) translationsMap.set(pair.lang, (list = []));
+        list.push({ id: line.id, main: pair.main, bg: pair.bg });
+      }
+    for (const pair of pairSubContents(
+      line.romanizations,
+      line.backgroundVocal?.romanizations,
+    ))
+      if (
+        (pair.main && inHead.has(pair.main)) ||
+        (pair.bg && inHead.has(pair.bg))
+      ) {
+        let list = romansMap.get(pair.lang);
+        if (!list) romansMap.set(pair.lang, (list = []));
+        list.push({ id: line.id, main: pair.main, bg: pair.bg });
+      }
+  }
+  const hasItunes =
+    translationsMap.size > 0 ||
+    romansMap.size > 0 ||
+    (meta.songwriters?.length ?? 0) > 0;
+  if (hasItunes) {
+    const itunesMeta = itunesEl("iTunesMetadata");
+    itunesMeta.setAttributeNS(NS.XMLNS, "xmlns", NS.ITUNES);
+    const appendSidecarGroup = (
+      containerTag: string,
+      itemTag: string,
+      map: Map<
+        string | undefined,
+        { id: string; main?: SubLyricContent; bg?: SubLyricContent }[]
+      >,
+    ) => {
+      if (!map.size) return;
+      const container = itunesEl(containerTag);
+      for (const [lang, items] of map) {
+        const groupEl = itunesEl(itemTag);
+        if (lang) groupEl.setAttributeNS(NS.XML, "xml:lang", lang);
+        for (const item of items) {
+          const textEl = itunesEl("text");
+          textEl.setAttribute("for", item.id);
+          if (item.main) appendSubContent(textEl, item.main, false, NS.ITUNES);
+          if (item.bg) appendBackground(textEl, item.bg, NS.ITUNES);
+          groupEl.appendChild(textEl);
+        }
+        container.appendChild(groupEl);
+      }
+      itunesMeta.appendChild(container);
+    };
+    appendSidecarGroup("translations", "translation", translationsMap);
+    appendSidecarGroup("transliterations", "transliteration", romansMap);
+    if (meta.songwriters?.length) {
+      const container = itunesEl("songwriters");
+      for (const writer of meta.songwriters) {
+        const sw = itunesEl("songwriter");
+        sw.textContent = writer;
+        container.appendChild(sw);
+      }
+      itunesMeta.appendChild(container);
+    }
+    metadata.appendChild(itunesMeta);
+  }
+
+  const addAmllMeta = (key: string, value: string) => {
+    const el = doc.createElementNS(NS.AMLL, "amll:meta");
+    el.setAttribute("key", key);
+    el.setAttribute("value", value);
+    metadata.appendChild(el);
+  };
+  meta.title?.forEach((v) => addAmllMeta("musicName", v));
+  meta.artist?.forEach((v) => addAmllMeta("artists", v));
+  meta.album?.forEach((v) => addAmllMeta("album", v));
+  if (meta.platformIds)
+    for (const [key, values] of Object.entries(meta.platformIds))
+      values?.forEach((v) => addAmllMeta(key, v));
+  meta.isrc?.forEach((v) => addAmllMeta("isrc", v));
+  meta.authorIds?.forEach((v) => addAmllMeta("ttmlAuthorGithub", v));
+  meta.authorNames?.forEach((v) => addAmllMeta("ttmlAuthorGithubLogin", v));
+  if (meta.rawProperties)
+    for (const [key, values] of Object.entries(meta.rawProperties))
+      values?.forEach((v) => addAmllMeta(key, v));
+
+  head.appendChild(metadata);
+  root.appendChild(head);
+
+  // <body>
+  const body = ttEl("body");
+  const lastTime = lines.length
+    ? Math.max(...lines.map((line) => line.endTime))
+    : 0;
+  body.setAttribute("dur", formatTtmlTime(lastTime));
+
+  const sections: { songPart?: string; lines: typeof lines }[] = [];
+  for (const line of lines) {
+    const current = sections.at(-1);
+    if (!current || current.songPart !== line.songPart)
+      sections.push({ songPart: line.songPart, lines: [line] });
+    else current.lines.push(line);
+  }
+  for (const section of sections) {
+    const div = ttEl("div");
+    const divBegin = Math.min(...section.lines.map((line) => line.startTime));
+    const divEnd = Math.max(...section.lines.map((line) => line.endTime));
+    div.setAttribute("begin", formatTtmlTime(divBegin));
+    div.setAttribute("end", formatTtmlTime(divEnd));
+    if (section.songPart)
+      div.setAttributeNS(NS.ITUNES, "itunes:songPart", section.songPart);
+    for (const line of section.lines) {
+      const p = ttEl("p");
+      p.setAttribute("begin", formatTtmlTime(line.startTime));
+      p.setAttribute("end", formatTtmlTime(line.endTime));
+      p.setAttributeNS(NS.ITUNES, "itunes:key", line.id);
+      p.setAttributeNS(NS.TTM, "ttm:agent", line.agentId);
+      appendSubContent(p, line, false, NS.TT);
+      appendInlineSubs(p, line, NS.TT);
+      if (line.backgroundVocal)
+        appendBackground(p, line.backgroundVocal, NS.TT);
+      div.appendChild(p);
+    }
+    body.appendChild(div);
+  }
+  root.appendChild(body);
+  return serializer.serializeToString(doc);
 }
 
 /** Parser metadata lists by the AMLL meta key each comes from. */
@@ -345,7 +728,9 @@ export function exportTtml(
   project: ProjectDraft,
   options: TtmlExportOptions = {},
 ): TtmlExport {
-  const foldRuby = !!options.foldRuby;
+  const rubyMode: TtmlRubyMode =
+    options.rubyMode ?? (options.foldRuby ? "fold" : "amll");
+  const foldRuby = rubyMode === "fold";
   const duration = project.audio?.durationMs ?? Infinity;
   const parts = project.parts.filter((part) => part.lines.length);
   if (!parts.length) throw new Error("请先导入歌词。");
@@ -391,6 +776,8 @@ export function exportTtml(
     }
     return line;
   });
+  // Keep lines ordered after an early background vocal widens a line's start.
+  lines.sort((a, b) => a.startTime - b.startTime);
   if (merged)
     notices.push(`有 ${merged} 行和声与同一主行重叠，已合并进该行的和声。`);
   if (notes.romanMismatch)
@@ -406,7 +793,7 @@ export function exportTtml(
     },
     lines,
   };
-  return { text: generate(result, options), notices };
+  return { text: serializeTtml(result, rubyMode, options.dom), notices };
 }
 
 export interface TtmlImport {

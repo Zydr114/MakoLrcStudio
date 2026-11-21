@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DOMImplementation, DOMParser, XMLSerializer } from "@xmldom/xmldom";
+import {
+  DOMImplementation,
+  DOMParser,
+  XMLSerializer,
+  type Element as XmlElement,
+} from "@xmldom/xmldom";
 import { TTMLGenerator, TTMLParser } from "@applemusic-like-lyrics/ttml";
 import { exportTtml, importTtml, looksLikeTtml } from "../../src/domain/ttml";
 import {
@@ -164,10 +169,127 @@ describe("TTML export", () => {
   });
   it("folds ruby for players without it and refuses unfinished parts", () => {
     const project = duet();
-    const { text } = exportTtml(project, { dom, foldRuby: true });
-    expect(text).not.toContain("tts:ruby");
+    expect(exportTtml(project, { dom, rubyMode: "fold" }).text).not.toContain(
+      "tts:ruby",
+    );
+    expect(exportTtml(project, { dom, foldRuby: true }).text).not.toContain(
+      "tts:ruby",
+    );
     project.parts[1].lines[0].endMs = null;
     expect(() => exportTtml(project, { dom })).toThrow("声部「B」");
+  });
+  it("writes W3C TTML2 namespaces, clock-time expressions, required xml:lang and valid time containment", () => {
+    const TT = "http://www.w3.org/ns/ttml";
+    const ITUNES = "http://music.apple.com/lyric-ttml-internal";
+    const XML = "http://www.w3.org/XML/1998/namespace";
+    const CLOCK = /^\d{2,}:[0-5]\d:[0-5]\d\.\d{3}$/;
+
+    const project = duet();
+    // Add an over-1-hour line so HH:MM:SS.fff hour rollover is exercised.
+    project.parts[0].lines.push(timedLine("光", [3661234], 3662500));
+    const { text } = exportTtml(project, { dom });
+    expect(text).not.toContain('xmlns=""');
+    expect(text).toContain('begin="01:01:01.234"');
+    expect(text).toContain('dur="01:01:02.500"');
+
+    const doc = new DOMParser().parseFromString(text, "application/xml");
+    expect(doc.documentElement?.namespaceURI).toBe(TT);
+    expect(doc.getElementsByTagNameNS(TT, "head").length).toBe(1);
+    expect(doc.getElementsByTagNameNS(TT, "body").length).toBe(1);
+    expect(doc.getElementsByTagNameNS(TT, "p").length).toBe(5);
+    const itunes = doc.getElementsByTagName("iTunesMetadata")[0];
+    expect(itunes?.namespaceURI).toBe(ITUNES);
+    expect(itunes?.getElementsByTagName("span")[0]?.namespaceURI).toBe(ITUNES);
+
+    for (const el of Array.from(doc.getElementsByTagName("*"))) {
+      for (const attr of ["begin", "end", "dur"]) {
+        const value = el.getAttribute(attr);
+        if (value) expect(value).toMatch(CLOCK);
+      }
+    }
+
+    // Unknown script still emits required xml:lang="" and an early 0ms
+    // background vocal keeps div/p temporal containment and its own begin/end.
+    const edgeMain = newPart("主唱", [
+      timedLine("Д", [1000], 1500),
+      timedLine("М", [2000], 4000),
+    ]);
+    const edgeBg = {
+      ...newPart("和声", [timedLine("123", [0], 4000)]),
+      background: true,
+    };
+    const edgeProject: ProjectDraft = {
+      ...newProject(),
+      parts: [edgeMain, edgeBg],
+      mainPartId: edgeMain.id,
+      activePartId: edgeMain.id,
+    };
+    const edgeXml = exportTtml(edgeProject, { dom }).text;
+    const edgeDoc = new DOMParser().parseFromString(edgeXml, "application/xml");
+    expect(edgeDoc.documentElement?.hasAttributeNS(XML, "lang")).toBe(true);
+    expect(edgeDoc.documentElement?.getAttributeNS(XML, "lang")).toBe("");
+    const div = edgeDoc.getElementsByTagNameNS(TT, "div")[0];
+    const ps = Array.from(edgeDoc.getElementsByTagNameNS(TT, "p"));
+    expect(div.getAttribute("begin")).toBe("00:00:00.000");
+    expect(div.getAttribute("end")).toBe("00:00:04.000");
+    expect(ps.map((p) => p.getAttribute("begin"))).toEqual([
+      "00:00:00.000",
+      "00:00:01.000",
+    ]);
+    const bgSpan = Array.from(edgeDoc.getElementsByTagNameNS(TT, "span")).find(
+      (s) => s.getAttribute("ttm:role") === "x-bg",
+    );
+    expect(bgSpan?.getAttribute("begin")).toBe("00:00:00.000");
+    expect(bgSpan?.getAttribute("end")).toBe("00:00:04.000");
+  });
+  it("writes W3C TTML2 §10.2.35 compliant ruby in ttml2 mode", () => {
+    const TT = "http://www.w3.org/ns/ttml";
+    const TTS = "http://www.w3.org/ns/ttml#styling";
+    const childElements = (el: XmlElement) =>
+      Array.from(el.childNodes).filter(
+        (n): n is XmlElement => n.nodeType === 1,
+      );
+    const project = duet();
+    // Single-syllable ruby alongside multi-syllable ruby (詮 -> せ・ん) and bg ruby.
+    const single = timedLine("雪", [7500], 8500);
+    setRuby(single, 0, ["ゆき"]);
+    project.parts[1].lines.push(single);
+    setRuby(project.parts[3].lines[0], 0, ["あ", "ぁ"]);
+    project.parts[3].lines[0].units[0].syllables[1].startMs = 2000;
+
+    const { text } = exportTtml(project, { dom, rubyMode: "ttml2" });
+    expect(text).not.toContain('tts:ruby="textContainer"');
+    const doc = new DOMParser().parseFromString(text, "application/xml");
+    const containers = Array.from(
+      doc.getElementsByTagNameNS(TT, "span"),
+    ).filter((el) => el.getAttributeNS(TTS, "ruby") === "container");
+    expect(containers.length).toBe(3);
+    for (const container of containers) {
+      expect(
+        childElements(container).map((c) => c.getAttributeNS(TTS, "ruby")),
+      ).toEqual(["base", "text"]);
+    }
+    // Multi-syllable ruby puts timings on plain inner spans inside tts:ruby="text".
+    const multiText = childElements(containers[0])[1];
+    const pieces = childElements(multiText);
+    expect(
+      pieces.map((p) => [
+        p.hasAttributeNS(TTS, "ruby"),
+        p.getAttribute("begin"),
+        p.getAttribute("end"),
+        p.textContent,
+      ]),
+    ).toEqual([
+      [false, "00:00:01.000", "00:00:02.000", "せ"],
+      [false, "00:00:02.000", "00:00:03.000", "ん"],
+    ]);
+    // Single-syllable ruby puts timing directly on tts:ruby="text".
+    const singleText = childElements(containers[2])[1];
+    expect([
+      singleText.getAttribute("begin"),
+      singleText.getAttribute("end"),
+      singleText.textContent,
+    ]).toEqual(["00:00:07.500", "00:00:08.500", "ゆき"]);
   });
   it("rejects two background parts on one main line", () => {
     const project = duet();
