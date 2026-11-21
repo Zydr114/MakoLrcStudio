@@ -3,22 +3,32 @@ import { computed, ref, watch } from "vue";
 import type { Menu } from "mdui/components/menu.js";
 import { editor } from "../state/editor";
 import { partKindLabels } from "../domain/parts";
+import type { TtmlRubyMode } from "../domain/ttml";
 import {
   assStyleOf,
   assEffectPresets,
   type AssStyle,
 } from "../domain/assStyle";
 import UiButton from "./UiButton.vue";
-import UiToggle from "./UiToggle.vue";
 import UiField from "./UiField.vue";
 import UiSelect from "./UiSelect.vue";
 import Modal from "./Modal.vue";
 import AssStyleDialog from "./AssStyleDialog.vue";
 const ttmlOpen = ref(false),
-  foldRuby = ref(false),
+  rubyMode = ref<TtmlRubyMode>("amll"),
   assOpen = ref(false),
   assStyleOpen = ref(false),
   assBusy = ref(false);
+const rubyModes = [
+  { value: "amll" as const, label: "AMLL 逐拍注音（默认）" },
+  { value: "ttml2" as const, label: "W3C TTML2 标准注音" },
+  { value: "fold" as const, label: "折叠为普通字" },
+];
+const rubyModeHints: Record<TtmlRubyMode, string> = {
+  amll: "兼容 AMLL 等歌词播放器，每个读音音节带独立时间。",
+  ttml2: "符合 W3C TTML2 规范的注音结构，可无损导回本工具。",
+  fold: "不写注音标记，适合不支持注音的播放器。",
+};
 const ass = ref({
   resolution: "1920x1080",
   fill: "kf" as "kf" | "k",
@@ -130,7 +140,7 @@ function choose(event: Event) {
 }
 function exportTtml() {
   // Either way the dialog closes: a failure points at the line to fix.
-  editor.exportTtml({ foldRuby: foldRuby.value });
+  editor.exportTtml({ rubyMode: rubyMode.value });
   ttmlOpen.value = false;
 }
 </script>
@@ -174,11 +184,10 @@ function exportTtml() {
         >
       </li>
     </ul>
-    <UiToggle
-      v-if="hasRuby"
-      v-model="foldRuby"
-      label="注音折叠为普通字（给不支持注音的播放器）"
-    />
+    <div v-if="hasRuby" class="ttml-ruby-option">
+      <UiSelect v-model="rubyMode" label="注音导出方式" :options="rubyModes" />
+      <small class="ttml-ruby-hint">{{ rubyModeHints[rubyMode] }}</small>
+    </div>
     <footer>
       <UiButton variant="text" @click="ttmlOpen = false">取消</UiButton
       ><UiButton variant="filled" icon="download" @click="exportTtml"
@@ -306,5 +315,19 @@ mdui-menu-item::part(container) {
 }
 .export-parts small {
   color: var(--muted);
+}
+.ttml-ruby-option {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.ttml-ruby-option :deep(.ui-select) {
+  width: 100%;
+}
+.ttml-ruby-hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 </style>

@@ -34,6 +34,7 @@ import {
   exportTtml as ttmlText,
   importTtml,
   looksLikeTtml,
+  type TtmlRubyMode,
 } from "../domain/ttml";
 import {
   exportAss as assText,
@@ -1125,7 +1126,9 @@ export function createEditor(
       return;
     }
   }
-  function exportTtml(options: { foldRuby: boolean }) {
+  function exportTtml(
+    options: { rubyMode?: TtmlRubyMode; foldRuby?: boolean } = {},
+  ) {
     try {
       const { text, notices } = ttmlText(project.value, options);
       downloadText(

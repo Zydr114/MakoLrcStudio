@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { exportAs } from "./controls";
+import { choose, exportAs } from "./controls";
 
 let n = 0;
 const id = () => `id-${++n}`;
@@ -97,10 +97,27 @@ test("TTML exports every part and imports back into parts", async ({
   expect(file.suggestedFilename()).toBe("duet.ttml");
   const fs = await import("node:fs/promises");
   const ttml = await fs.readFile((await file.path())!, "utf8");
+  expect(ttml).not.toContain('xmlns=""');
   expect(ttml).toContain('ttm:agent="v2"');
   expect(ttml).toContain('ttm:role="x-bg"');
-  expect(ttml).toContain('tts:ruby="text" begin="1.500"');
+  expect(ttml).toContain('tts:ruby="text" begin="00:00:01.500"');
   expect(ttml).toContain('xml:lang="en"');
+  const nsCheck = await page.evaluate((xml) => {
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    return {
+      error: doc.getElementsByTagName("parsererror").length,
+      pCount: doc.getElementsByTagNameNS("http://www.w3.org/ns/ttml", "p")
+        .length,
+      headNs: doc.getElementsByTagName("head")[0]?.namespaceURI,
+      bodyNs: doc.getElementsByTagName("body")[0]?.namespaceURI,
+    };
+  }, ttml);
+  expect(nsCheck).toEqual({
+    error: 0,
+    pCount: 2,
+    headNs: "http://www.w3.org/ns/ttml",
+    bodyNs: "http://www.w3.org/ns/ttml",
+  });
   await expect(page.getByRole("status")).toContainText("包含 3 个声部");
 
   // A fresh import of the file gives the same parts back.
@@ -119,6 +136,81 @@ test("TTML exports every part and imports back into parts", async ({
   await expect(page.locator(".ruby-unit rt").first()).toHaveText("せん");
   await page.locator("mdui-segmented-button", { hasText: "翻译" }).click();
   await expect(page.getByLabel("第 1 行翻译")).toHaveValue("pointless");
+});
+
+test("TTML dialog switches between AMLL, W3C TTML2 and folded ruby and round-trips TTML2", async ({
+  page,
+}) => {
+  const data = project();
+  // Add word-timed romanization to exercise <iTunesMetadata> namespace across browsers.
+  const firstLine = data.parts[0].lines[0] as {
+    roman: string;
+    units: { roman?: string }[];
+  };
+  firstLine.roman = "sen na";
+  firstLine.units[0].roman = "sen";
+  firstLine.units[1].roman = "na";
+  data.romanLang = "ja-Latn";
+
+  await page.goto("/");
+  await page
+    .locator('input[type=file][accept=".json,application/json"]')
+    .setInputFiles({
+      name: "duet.mako.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(data)),
+    });
+  await expect(page.locator(".prepare-view")).toBeVisible();
+
+  const fs = await import("node:fs/promises");
+
+  // 1. Export W3C TTML2 standard ruby
+  await exportAs(page, "TTML");
+  const dialog = page.getByRole("dialog", { name: "导出 TTML" });
+  await choose(page, "注音导出方式", "ttml2");
+  const ttml2Download = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "导出 TTML" }).click();
+  const ttml2 = await fs.readFile(
+    (await (await ttml2Download).path())!,
+    "utf8",
+  );
+  expect(ttml2).not.toContain('xmlns=""');
+  expect(ttml2).not.toContain('tts:ruby="textContainer"');
+  expect(ttml2).toContain(
+    '<span tts:ruby="text"><span begin="00:00:01.000" end="00:00:01.500">せ</span><span begin="00:00:01.500" end="00:00:02.000">ん</span></span>',
+  );
+  const itunesNs = await page.evaluate((xml) => {
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    return doc.getElementsByTagName("iTunesMetadata")[0]?.namespaceURI ?? null;
+  }, ttml2);
+  expect(itunesNs).toBe("http://music.apple.com/lyric-ttml-internal");
+
+  // 2. Export folded ruby
+  await exportAs(page, "TTML");
+  await choose(page, "注音导出方式", "fold");
+  const foldDownload = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "导出 TTML" }).click();
+  const folded = await fs.readFile(
+    (await (await foldDownload).path())!,
+    "utf8",
+  );
+  expect(folded).not.toContain("tts:ruby");
+
+  // 3. Re-import W3C TTML2 file and confirm parts, ruby and romanization come back
+  await page.getByRole("button", { name: "导入", exact: true }).click();
+  await page.locator('input[type=file][accept^=".lrc"]').setInputFiles({
+    name: "duet-ttml2.ttml",
+    mimeType: "application/ttml+xml",
+    buffer: Buffer.from(ttml2),
+  });
+  await page.getByRole("button", { name: "下一步，整理歌词" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "已导入 TTML：3 个声部（A、B、和声）",
+  );
+  await page.locator("mdui-segmented-button", { hasText: "注音" }).click();
+  await expect(page.locator(".ruby-unit rt").first()).toHaveText("せん");
+  await page.locator("mdui-segmented-button", { hasText: "罗马音" }).click();
+  await expect(page.getByLabel("第 1 行罗马音")).toHaveValue("sen na");
 });
 
 test("an unfinished part blocks TTML export and shows where", async ({
