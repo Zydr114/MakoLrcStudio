@@ -465,6 +465,89 @@ describe("TTML import", () => {
     });
     expect(() => importTtml("<tt><body>", parser)).toThrow("TTML");
   });
+  it("round-trips W3C TTML2 ruby alongside AMLL ruby without loss", () => {
+    const original = duet();
+    const single = timedLine("雪", [7500], 8500);
+    setRuby(single, 0, ["ゆき"]);
+    original.parts[1].lines.push(single);
+    setRuby(original.parts[3].lines[0], 0, ["あ", "ぁ"]);
+    original.parts[3].lines[0].units[0].syllables[1].startMs = 2000;
+
+    const exported = exportTtml(original, { dom, rubyMode: "ttml2" }).text;
+    const back = importTtml(exported, parser);
+    expect(
+      back.parts.map((part) => [part.name, part.kind, part.background]),
+    ).toEqual([
+      ["A", "person", false],
+      ["B", "person", false],
+      ["合唱", "group", false],
+      ["和声", "person", true],
+    ]);
+    const [a, b, , bg] = back.parts;
+    const first = a.lines[0];
+    expect(first.text).toBe("詮ない");
+    expect(first.units[0]).toMatchObject({ text: "詮", ruby: true });
+    expect(syllablesOf(first).map((s) => [s.text, s.startMs, s.endMs])).toEqual(
+      [
+        ["せ", 1000, null],
+        ["ん", 2000, null],
+        ["な", 3000, 3500],
+        ["い", 4000, null],
+      ],
+    );
+    expect(first.units.map((u) => u.roman)).toEqual(["sen", "na", "i"]);
+    expect(b.lines[1].units[0]).toMatchObject({ text: "雪", ruby: true });
+    expect(
+      syllablesOf(b.lines[1]).map((s) => [s.text, s.startMs, s.endMs]),
+    ).toEqual([["ゆき", 7500, null]]);
+    expect(bg.lines[0].units[0]).toMatchObject({ text: "あ ", ruby: true });
+    expect(
+      syllablesOf(bg.lines[0]).map((s) => [s.text, s.startMs, s.endMs]),
+    ).toEqual([
+      ["あ", 1500, null],
+      ["ぁ", 2000, 2500],
+      ["う", 2600, null],
+    ]);
+    for (const part of back.parts)
+      expect(validateLines(part.lines)).toEqual([]);
+    expect(back.notices).toEqual([]);
+  });
+  it("imports external W3C TTML2 full baseContainer/textContainer, paired bases, delimiters and container-timed ruby", () => {
+    const text =
+      `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:tts="http://www.w3.org/ns/ttml#styling" xml:lang="ja">` +
+      `<head><metadata><ttm:agent type="person" xml:id="v1"><ttm:name type="full">主唱</ttm:name></ttm:agent></metadata></head>` +
+      `<body dur="00:00:08.000"><div begin="00:00:01.000" end="00:00:08.000">` +
+      `<p begin="00:00:01.000" end="00:00:08.000" ttm:agent="v1">` +
+      // Full baseContainer + textContainer with timed inner spans
+      `<span tts:ruby="container"><span tts:ruby="baseContainer"><span tts:ruby="base">詮</span></span><span tts:ruby="textContainer"><span tts:ruby="text"><span begin="00:00:01.000" end="00:00:02.000">せ</span><span begin="00:00:02.000" end="00:00:03.000">ん</span></span></span></span>` +
+      // Multi-base 1:1 pairing inside baseContainer + textContainer
+      `<span tts:ruby="container"><span tts:ruby="baseContainer"><span tts:ruby="base">東</span><span tts:ruby="base">南</span></span><span tts:ruby="textContainer"><span tts:ruby="text" begin="00:00:03.000" end="00:00:04.000">とう</span><span tts:ruby="text" begin="00:00:04.000" end="00:00:05.000">なん</span></span></span>` +
+      // Shorthand with fallback delimiters
+      `<span tts:ruby="container"><span tts:ruby="base">雪</span><span tts:ruby="delimiter">(</span><span tts:ruby="text" begin="00:00:05.000" end="00:00:06.500">ゆき</span><span tts:ruby="delimiter">)</span></span>` +
+      // Container-timed static ruby
+      `<span tts:ruby="container" begin="00:00:06.500" end="00:00:08.000"><span tts:ruby="base">空</span><span tts:ruby="text">そら</span></span>` +
+      `</p></div></body></tt>`;
+    const back = importTtml(text, parser);
+    const line = back.parts[0].lines[0];
+    expect(line.text).toBe("詮東南雪空");
+    expect(line.units.map((u) => [u.text, u.ruby])).toEqual([
+      ["詮", true],
+      ["東", true],
+      ["南", true],
+      ["雪", true],
+      ["空", true],
+    ]);
+    expect(syllablesOf(line).map((s) => [s.text, s.startMs, s.endMs])).toEqual([
+      ["せ", 1000, null],
+      ["ん", 2000, null],
+      ["とう", 3000, null],
+      ["なん", 4000, null],
+      ["ゆき", 5000, null],
+      ["そら", 6500, null],
+    ]);
+    expect(line.endMs).toBe(8000);
+    expect(validateLines(back.parts[0].lines)).toEqual([]);
+  });
   it("names the parts whose lines overlap, as Apple Music files allow", () => {
     const text = `<tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"><head><metadata><ttm:agent type="person" xml:id="v1"/></metadata></head><body><div><p begin="00:01.000" end="00:03.000" ttm:agent="v1">one</p><p begin="00:02.000" end="00:04.000" ttm:agent="v1">two</p></div></body></tt>`;
     const [notice] = importTtml(text, parser).notices;

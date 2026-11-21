@@ -930,10 +930,164 @@ function alignRoman(line: LyricLine, timed: TtmlSyllable[]) {
 export interface TtmlImportOptions extends TTMLParserOptions {
   xmlSerializer?: { serializeToString(node: never): string };
 }
-const ITUNES = "http://music.apple.com/lyric-ttml-internal";
 
-/** The parser skips lines without itunes:key, which many files lack: number them. */
-function keyLines(text: string, options: TtmlImportOptions): string {
+function directElements(node: Element): Element[] {
+  return Array.from(node.childNodes).filter(
+    (child): child is Element => child.nodeType === 1,
+  );
+}
+
+function attrNS(
+  el: Element,
+  ns: string,
+  local: string,
+  fallback?: string,
+): string | null {
+  return (
+    el.getAttributeNS(ns, local) ||
+    (fallback ? el.getAttribute(fallback) : null) ||
+    null
+  );
+}
+
+const rubyRole = (el: Element): string | null =>
+  attrNS(el, NS.TTS, "ruby", "tts:ruby");
+
+interface TimedRubyPiece {
+  text: string;
+  begin: string;
+  end: string;
+}
+
+function rubyPieces(
+  textEl: Element,
+  fallbackBegin: string | null,
+  fallbackEnd: string | null,
+): TimedRubyPiece[] {
+  const timedChildren = directElements(textEl)
+    .map((child) => ({
+      text: (child.textContent ?? "").replace(/\s+/g, " ").trim(),
+      begin: child.getAttribute("begin"),
+      end: child.getAttribute("end"),
+    }))
+    .filter(
+      (item): item is TimedRubyPiece =>
+        !!item.text && !!item.begin && !!item.end,
+    );
+  if (timedChildren.length) return timedChildren;
+  const text = (textEl.textContent ?? "").replace(/\s+/g, " ").trim();
+  const begin = textEl.getAttribute("begin") || fallbackBegin;
+  const end = textEl.getAttribute("end") || fallbackEnd;
+  return text && begin && end ? [{ text, begin, end }] : [];
+}
+
+function isAmllRuby(container: Element): boolean {
+  const kids = directElements(container);
+  if (kids.length !== 2) return false;
+  if (rubyRole(kids[0]) !== "base" || rubyRole(kids[1]) !== "textContainer")
+    return false;
+  const texts = directElements(kids[1]);
+  return (
+    texts.length > 0 &&
+    texts.every(
+      (el) =>
+        rubyRole(el) === "text" &&
+        directElements(el).length === 0 &&
+        !!el.getAttribute("begin") &&
+        !!el.getAttribute("end"),
+    )
+  );
+}
+
+/**
+ * Rewrite W3C TTML2 ruby containers (shorthand `base + text` or full
+ * `baseContainer + textContainer`, with timed inner spans or delimiters) into
+ * the `base + textContainer > timed text*` shape that TTMLParser reads.
+ */
+function normalizeRubyContainers(doc: Document): boolean {
+  const containers = Array.from(doc.getElementsByTagName("*")).filter(
+    (el) => rubyRole(el) === "container",
+  );
+  let changed = false;
+  for (const container of containers) {
+    if (isAmllRuby(container) || !container.parentNode) continue;
+    const kids = directElements(container);
+    const baseContainer = kids.find((el) => rubyRole(el) === "baseContainer");
+    const bases = (baseContainer ? directElements(baseContainer) : kids).filter(
+      (el) => rubyRole(el) === "base",
+    );
+    const textContainer = kids.find((el) => rubyRole(el) === "textContainer");
+    const texts = (textContainer ? directElements(textContainer) : kids).filter(
+      (el) => rubyRole(el) === "text",
+    );
+    if (!bases.length || !texts.length) continue;
+
+    const cBegin = container.getAttribute("begin");
+    const cEnd = container.getAttribute("end");
+    const groups: { baseText: string; pieces: TimedRubyPiece[] }[] = [];
+    if (bases.length === 1) {
+      const bBegin = bases[0].getAttribute("begin") || cBegin;
+      const bEnd = bases[0].getAttribute("end") || cEnd;
+      const pieces = texts.flatMap((t) => rubyPieces(t, bBegin, bEnd));
+      if (pieces.length)
+        groups.push({ baseText: bases[0].textContent ?? "", pieces });
+    } else if (bases.length === texts.length) {
+      const paired = bases.map((baseEl, i) => ({
+        baseText: baseEl.textContent ?? "",
+        pieces: rubyPieces(
+          texts[i],
+          baseEl.getAttribute("begin") || cBegin,
+          baseEl.getAttribute("end") || cEnd,
+        ),
+      }));
+      if (paired.every((item) => item.pieces.length > 0))
+        groups.push(...paired);
+    }
+    if (!groups.length) continue;
+
+    const spanNs = container.namespaceURI || NS.TT;
+    const obscene = attrNS(container, NS.AMLL, "obscene", "amll:obscene");
+    const emptyBeat = attrNS(
+      container,
+      NS.AMLL,
+      "empty-beat",
+      "amll:empty-beat",
+    );
+    for (const group of groups) {
+      const next = doc.createElementNS(spanNs, "span");
+      next.setAttributeNS(NS.TTS, "tts:ruby", "container");
+      if (obscene) next.setAttributeNS(NS.AMLL, "amll:obscene", obscene);
+      if (emptyBeat) next.setAttributeNS(NS.AMLL, "amll:empty-beat", emptyBeat);
+      const base = doc.createElementNS(spanNs, "span");
+      base.setAttributeNS(NS.TTS, "tts:ruby", "base");
+      base.textContent = group.baseText;
+      next.appendChild(base);
+      const tc = doc.createElementNS(spanNs, "span");
+      tc.setAttributeNS(NS.TTS, "tts:ruby", "textContainer");
+      for (const piece of group.pieces) {
+        const rt = doc.createElementNS(spanNs, "span");
+        rt.setAttributeNS(NS.TTS, "tts:ruby", "text");
+        rt.setAttribute("begin", piece.begin);
+        rt.setAttribute("end", piece.end);
+        rt.textContent = piece.text;
+        tc.appendChild(rt);
+      }
+      next.appendChild(tc);
+      container.parentNode.insertBefore(next, container);
+    }
+    container.parentNode.removeChild(container);
+    changed = true;
+  }
+  if (changed && !doc.documentElement.getAttributeNS(NS.XMLNS, "tts"))
+    doc.documentElement.setAttributeNS(NS.XMLNS, "xmlns:tts", NS.TTS);
+  return changed;
+}
+
+/**
+ * Prepare incoming TTML for TTMLParser: add missing itunes:key attributes and
+ * normalize W3C TTML2 ruby markup alongside AMLL ruby.
+ */
+function prepareImportXml(text: string, options: TtmlImportOptions): string {
   const parser = options.domParser ?? new DOMParser();
   const doc = parser.parseFromString(text, "application/xml") as Document;
   if (!doc.documentElement || doc.getElementsByTagName("parsererror").length)
@@ -942,11 +1096,12 @@ function keyLines(text: string, options: TtmlImportOptions): string {
     n = 0;
   for (const p of Array.from(doc.getElementsByTagName("p"))) {
     n++;
-    if (p.getAttributeNS(ITUNES, "key") || p.getAttribute("itunes:key"))
+    if (p.getAttributeNS(NS.ITUNES, "key") || p.getAttribute("itunes:key"))
       continue;
-    p.setAttributeNS(ITUNES, "itunes:key", `mako-L${n}`);
+    p.setAttributeNS(NS.ITUNES, "itunes:key", `mako-L${n}`);
     changed = true;
   }
+  if (normalizeRubyContainers(doc)) changed = true;
   if (!changed) return text;
   const serializer = options.xmlSerializer ?? new XMLSerializer();
   return serializer.serializeToString(doc as never);
@@ -958,7 +1113,7 @@ export function importTtml(
 ): TtmlImport {
   let result: TTMLResult;
   try {
-    result = TTMLParser.parse(keyLines(text, options), options);
+    result = TTMLParser.parse(prepareImportXml(text, options), options);
   } catch (error) {
     throw new Error(`TTML 无法解析：${(error as Error).message}`);
   }
